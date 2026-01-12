@@ -4,6 +4,7 @@ import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
 import Header from "@/components/Header";
 import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeProgressModal from "@/components/ScrapeProgressModal";
+import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,8 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  Pencil
+  Pencil,
+  History
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,6 +27,7 @@ const Companies = () => {
   const [search, setSearch] = useState("");
   const [scrapingCompany, setScrapingCompany] = useState<{id: string; name: string} | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
+  const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { data: companies, isLoading, refetch } = useCompanies();
   const { toast } = useToast();
@@ -160,7 +163,14 @@ const Companies = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setHistoryCompany({ id: company.id, name: company.company_name })}
+                      className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                      title="View scrape history"
+                    >
+                      <History className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
                     <button
                       onClick={() => setEditingCompany(company)}
                       className="p-1.5 rounded-full hover:bg-muted transition-colors"
@@ -254,6 +264,14 @@ const Companies = () => {
         companyId={scrapingCompany?.id || null}
         companyName={scrapingCompany?.name || ""}
         onComplete={handleScrapeComplete}
+      />
+
+      {/* Scrape History Modal */}
+      <ScrapeHistoryModal
+        isOpen={!!historyCompany}
+        onClose={() => setHistoryCompany(null)}
+        companyId={historyCompany?.id || null}
+        companyName={historyCompany?.name || ""}
       />
     </div>
   );

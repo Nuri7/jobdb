@@ -42,6 +42,25 @@ async function updateProgress(
     .eq('id', companyId);
 }
 
+// Helper to update scrape history
+async function updateHistory(
+  supabase: any,
+  historyId: string,
+  updates: {
+    status?: string;
+    pages_scraped?: number;
+    jobs_found?: number;
+    jobs_inserted?: number;
+    completed_at?: string;
+    error_message?: string;
+  }
+) {
+  await supabase
+    .from('scrape_history')
+    .update(updates)
+    .eq('id', historyId);
+}
+
 // Helper to scrape a single page
 async function scrapePage(url: string, apiKey: string): Promise<ScrapeResult | null> {
   try {
@@ -245,6 +264,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let historyId: string | null = null;
+  let supabase: any = null;
+
   try {
     const { companyId, careerUrl } = await req.json();
 
@@ -259,10 +281,27 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    supabase = createClient(supabaseUrl, supabaseKey);
 
     console.log('Starting scrape for:', careerUrl);
     const baseUrl = new URL(careerUrl).origin;
+
+    // Create history entry
+    const { data: historyData, error: historyError } = await supabase
+      .from('scrape_history')
+      .insert({
+        company_career_site_id: companyId,
+        career_url: careerUrl,
+        status: 'running',
+      })
+      .select('id')
+      .single();
+
+    if (historyError) {
+      console.error('Failed to create history entry:', historyError);
+    } else {
+      historyId = historyData.id;
+    }
 
     // Initialize progress
     await updateProgress(supabase, companyId, 'collecting', 0, 0, careerUrl);
@@ -309,6 +348,14 @@ Deno.serve(async (req) => {
       // Update progress with new job count
       await updateProgress(supabase, companyId, 'collecting', pagesScraped, allJobUrls.size, currentUrl);
       
+      // Update history periodically
+      if (historyId && pagesScraped % 3 === 0) {
+        await updateHistory(supabase, historyId, {
+          pages_scraped: pagesScraped,
+          jobs_found: allJobUrls.size,
+        });
+      }
+      
       // Find pagination links and add to queue
       const paginationLinks = findPaginationLinks(pageData.links, baseUrl, currentUrl);
       console.log(`Found ${paginationLinks.length} pagination links`);
@@ -336,6 +383,14 @@ Deno.serve(async (req) => {
       // Update progress every 5 jobs to reduce DB calls
       if (i % 5 === 0) {
         await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, jobUrl);
+        
+        // Update history
+        if (historyId) {
+          await updateHistory(supabase, historyId, {
+            pages_scraped: pagesScraped,
+            jobs_found: jobs.length,
+          });
+        }
       }
       
       try {
@@ -413,6 +468,17 @@ Deno.serve(async (req) => {
       })
       .eq('id', companyId);
 
+    // Update history as completed
+    if (historyId) {
+      await updateHistory(supabase, historyId, {
+        status: 'completed',
+        pages_scraped: pagesScraped,
+        jobs_found: jobs.length,
+        jobs_inserted: insertedCount,
+        completed_at: new Date().toISOString(),
+      });
+    }
+
     console.log(`Complete: Inserted ${insertedCount} jobs for company ${companyId}`);
 
     return new Response(
@@ -428,6 +494,16 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Error in scrape-jobs:', error);
+    
+    // Update history with error
+    if (historyId && supabase) {
+      await updateHistory(supabase, historyId, {
+        status: 'failed',
+        completed_at: new Date().toISOString(),
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    
     return new Response(
       JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
