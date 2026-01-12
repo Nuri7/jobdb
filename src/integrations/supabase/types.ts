@@ -27,6 +27,10 @@ export type Database = {
           is_active: boolean | null
           jobs_found_count: number | null
           last_crawled_at: string | null
+          scrape_progress_current_page: string | null
+          scrape_progress_jobs_found: number | null
+          scrape_progress_pages_scraped: number | null
+          scrape_progress_phase: string | null
           updated_at: string
         }
         Insert: {
@@ -41,6 +45,10 @@ export type Database = {
           is_active?: boolean | null
           jobs_found_count?: number | null
           last_crawled_at?: string | null
+          scrape_progress_current_page?: string | null
+          scrape_progress_jobs_found?: number | null
+          scrape_progress_pages_scraped?: number | null
+          scrape_progress_phase?: string | null
           updated_at?: string
         }
         Update: {
@@ -55,6 +63,10 @@ export type Database = {
           is_active?: boolean | null
           jobs_found_count?: number | null
           last_crawled_at?: string | null
+          scrape_progress_current_page?: string | null
+          scrape_progress_jobs_found?: number | null
+          scrape_progress_pages_scraped?: number | null
+          scrape_progress_phase?: string | null
           updated_at?: string
         }
         Relationships: []
