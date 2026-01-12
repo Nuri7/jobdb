@@ -62,8 +62,43 @@ async function updateHistory(
     .eq('id', historyId);
 }
 
+// Helper to fetch scraper settings from database
+async function getScraperSettings(supabase: any): Promise<Record<string, any>> {
+  const defaults: Record<string, any> = {
+    max_pages: 20,
+    max_jobs: 150,
+    wait_time: 3000,
+    job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
+    excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
+    location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
+    remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('scraper_settings')
+      .select('setting_key, setting_value');
+
+    if (error || !data) {
+      console.log('Using default scraper settings');
+      return defaults;
+    }
+
+    const settings: Record<string, any> = { ...defaults };
+    for (const row of data) {
+      settings[row.setting_key] = row.setting_value;
+    }
+    
+    console.log('Loaded scraper settings:', settings);
+    return settings;
+  } catch (err) {
+    console.error('Error fetching settings:', err);
+    return defaults;
+  }
+}
+
 // Helper to scrape a single page
-async function scrapePage(url: string, apiKey: string): Promise<ScrapeResult | null> {
+async function scrapePage(url: string, apiKey: string, waitTime: number): Promise<ScrapeResult | null> {
   try {
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
@@ -75,7 +110,7 @@ async function scrapePage(url: string, apiKey: string): Promise<ScrapeResult | n
         url,
         formats: ['markdown', 'links', 'html'],
         onlyMainContent: false,
-        waitFor: 3000,
+        waitFor: waitTime,
       }),
     });
 
@@ -284,7 +319,14 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Load scraper settings from database
+    const settings = await getScraperSettings(supabase);
+    const MAX_PAGES = settings.max_pages || 20;
+    const MAX_JOBS = settings.max_jobs || 150;
+    const WAIT_TIME = settings.wait_time || 3000;
+
     console.log('Starting scrape for:', careerUrl);
+    console.log(`Settings: MAX_PAGES=${MAX_PAGES}, MAX_JOBS=${MAX_JOBS}, WAIT_TIME=${WAIT_TIME}`);
     const baseUrl = new URL(careerUrl).origin;
 
     // Create history entry
@@ -312,8 +354,6 @@ Deno.serve(async (req) => {
     const scrapedPages = new Set<string>();
     const pagesToScrape: string[] = [careerUrl];
     
-    // Limit pagination to prevent infinite loops
-    const MAX_PAGES = 20;
     let pagesScraped = 0;
 
     // Phase 1: Collect all job URLs from listing pages (with pagination)
@@ -331,7 +371,7 @@ Deno.serve(async (req) => {
       
       console.log(`Scraping listing page ${pagesScraped}/${MAX_PAGES}: ${currentUrl}`);
       
-      const pageData = await scrapePage(currentUrl, apiKey);
+      const pageData = await scrapePage(currentUrl, apiKey, WAIT_TIME);
       
       if (!pageData) {
         console.log('Failed to scrape page:', currentUrl);
@@ -376,7 +416,6 @@ Deno.serve(async (req) => {
     
     const jobs: JobData[] = [];
     const jobUrlArray = Array.from(allJobUrls);
-    const MAX_JOBS = 150; // Limit to prevent timeout
     
     for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
       const jobUrl = jobUrlArray[i];
