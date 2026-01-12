@@ -2,6 +2,8 @@ import { useState } from "react";
 import SearchBar from "@/components/SearchBar";
 import FilterBar from "@/components/FilterBar";
 import JobCard from "@/components/JobCard";
+import JobListItem from "@/components/JobListItem";
+import ViewToggle from "@/components/ViewToggle";
 import Pagination from "@/components/Pagination";
 
 const mockJobs = [
@@ -84,6 +86,7 @@ const Index = () => {
   const [location, setLocation] = useState("all");
   const [startDate, setStartDate] = useState("all");
   const [source, setSource] = useState("all");
+  const [view, setView] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
 
   const handleClearAll = () => {
@@ -110,31 +113,50 @@ const Index = () => {
         </div>
 
         {/* Filters */}
-        <FilterBar
-          totalJobs={1250}
-          location={location}
-          onLocationChange={setLocation}
-          startDate={startDate}
-          onStartDateChange={setStartDate}
-          source={source}
-          onSourceChange={setSource}
-          onClearAll={handleClearAll}
-        />
-
-        {/* Jobs Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-6">
-          {filteredJobs.map((job) => (
-            <JobCard
-              key={job.id}
-              title={job.title}
-              image={job.image}
-              location={job.location}
-              dateRange={job.dateRange}
-              source={job.source}
-              startDate={job.startDate}
-            />
-          ))}
+        <div className="flex items-center justify-between gap-4">
+          <FilterBar
+            totalJobs={1250}
+            location={location}
+            onLocationChange={setLocation}
+            startDate={startDate}
+            onStartDateChange={setStartDate}
+            source={source}
+            onSourceChange={setSource}
+            onClearAll={handleClearAll}
+          />
+          <ViewToggle view={view} onViewChange={setView} />
         </div>
+
+        {/* Jobs Grid/List */}
+        {view === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-6">
+            {filteredJobs.map((job) => (
+              <JobCard
+                key={job.id}
+                title={job.title}
+                image={job.image}
+                location={job.location}
+                dateRange={job.dateRange}
+                source={job.source}
+                startDate={job.startDate}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 mt-6">
+            {filteredJobs.map((job) => (
+              <JobListItem
+                key={job.id}
+                title={job.title}
+                image={job.image}
+                location={job.location}
+                dateRange={job.dateRange}
+                source={job.source}
+                startDate={job.startDate}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Pagination */}
         <Pagination
