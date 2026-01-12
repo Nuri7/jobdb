@@ -6,6 +6,7 @@ import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeProgressModal from "@/components/ScrapeProgressModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import BulkScrapeModal from "@/components/BulkScrapeModal";
+import ScheduleSettingsModal from "@/components/ScheduleSettingsModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,8 @@ import {
   Pencil,
   History,
   ListChecks,
-  X
+  X,
+  Calendar
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,6 +34,7 @@ const Companies = () => {
   const [scrapingCompany, setScrapingCompany] = useState<{id: string; name: string} | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
   const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
+  const [scheduleCompany, setScheduleCompany] = useState<CompanyCareerSite | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
@@ -286,6 +289,13 @@ const Companies = () => {
                   {!bulkSelectMode && (
                     <div className="flex items-center gap-1">
                       <button
+                        onClick={() => setScheduleCompany(company)}
+                        className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                        title="Schedule settings"
+                      >
+                        <Calendar className={`w-3.5 h-3.5 ${company.scrape_schedule ? 'text-primary' : 'text-muted-foreground'}`} />
+                      </button>
+                      <button
                         onClick={() => setHistoryCompany({ id: company.id, name: company.company_name })}
                         className="p-1.5 rounded-full hover:bg-muted transition-colors"
                         title="View scrape history"
@@ -319,6 +329,14 @@ const Companies = () => {
                     </Badge>
                   )}
                 </div>
+
+                {/* Schedule indicator */}
+                {company.scrape_schedule && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                    <Calendar className="w-3 h-3 text-primary" />
+                    <span className="capitalize">{company.scrape_schedule === '12hours' ? 'Every 12h' : company.scrape_schedule}</span>
+                  </div>
+                )}
 
                 {/* Stats */}
                 {company.jobs_found_count !== null && company.jobs_found_count > 0 && (
@@ -409,6 +427,18 @@ const Companies = () => {
           careerUrl: c.career_url,
         }))}
         onComplete={handleBulkScrapeComplete}
+      />
+
+      {/* Schedule Settings Modal */}
+      <ScheduleSettingsModal
+        isOpen={!!scheduleCompany}
+        onClose={() => setScheduleCompany(null)}
+        companyId={scheduleCompany?.id || null}
+        companyName={scheduleCompany?.company_name || ""}
+        currentSchedule={(scheduleCompany as any)?.scrape_schedule || null}
+        isEnabled={(scheduleCompany as any)?.is_scrape_enabled ?? true}
+        lastScheduledAt={(scheduleCompany as any)?.last_scheduled_scrape_at || null}
+        onSaved={refetch}
       />
     </div>
   );

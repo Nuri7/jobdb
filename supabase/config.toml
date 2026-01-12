@@ -2,3 +2,6 @@ project_id = "khsaaiguqwtxtkvzqbrm"
 
 [functions.scrape-jobs]
 verify_jwt = false
+
+[functions.scheduled-scrape]
+verify_jwt = false
