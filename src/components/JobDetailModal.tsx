@@ -1,8 +1,9 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Briefcase, ExternalLink, Clock, Building2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import ReactMarkdown from "react-markdown";
 
 interface JobDetailModalProps {
   isOpen: boolean;
@@ -37,10 +38,10 @@ const JobDetailModal = ({ isOpen, onClose, job }: JobDetailModalProps) => {
               <DialogTitle className="text-xl font-bold leading-tight mb-2">
                 {job.job_title}
               </DialogTitle>
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <DialogDescription className="flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
                 <span className="font-medium">{job.company_name || "Unknown Company"}</span>
-              </div>
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>
@@ -77,9 +78,8 @@ const JobDetailModal = ({ isOpen, onClose, job }: JobDetailModalProps) => {
               Job Description
             </h3>
             {job.description ? (
-              <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-wrap">
-                {job.description.slice(0, 3000)}
-                {job.description.length > 3000 && "..."}
+              <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-muted-foreground prose-li:text-muted-foreground prose-strong:text-foreground prose-a:text-primary">
+                <ReactMarkdown>{job.description}</ReactMarkdown>
               </div>
             ) : (
               <p className="text-muted-foreground italic">
