@@ -200,6 +200,8 @@ const Index = () => {
                     dateRange={job.employment_type || "Full-time"}
                     source={job.company_name || "Unknown"}
                     startDate={job.is_remote ? "Remote" : "On-site"}
+                    description={job.description || undefined}
+                    jobUrl={job.job_url}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}
