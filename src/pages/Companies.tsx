@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useCompanies } from "@/hooks/useJobs";
 import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
 import Header from "@/components/Header";
 import CompanyEditModal from "@/components/CompanyEditModal";
+import ScrapeProgressModal from "@/components/ScrapeProgressModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const Companies = () => {
   const [search, setSearch] = useState("");
-  const [scrapingId, setScrapingId] = useState<string | null>(null);
+  const [scrapingCompany, setScrapingCompany] = useState<{id: string; name: string} | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { data: companies, isLoading, refetch } = useCompanies();
@@ -35,24 +36,29 @@ const Companies = () => {
   ) || [];
 
   const handleScrapeCompany = async (companyId: string, careerUrl: string, companyName: string) => {
-    setScrapingId(companyId);
+    setScrapingCompany({ id: companyId, name: companyName });
     try {
       await jobsApi.scrapeCompany(companyId, careerUrl);
-      toast({
-        title: "Scraping complete",
-        description: `Successfully scraped jobs from ${companyName}`,
-      });
-      refetch();
     } catch (error) {
       toast({
         title: "Scraping failed",
         description: `Failed to scrape ${companyName}`,
         variant: "destructive",
       });
-    } finally {
-      setScrapingId(null);
+      setScrapingCompany(null);
     }
   };
+
+  const handleScrapeComplete = useCallback(() => {
+    if (scrapingCompany) {
+      toast({
+        title: "Scraping complete",
+        description: `Successfully scraped jobs from ${scrapingCompany.name}`,
+      });
+    }
+    setScrapingCompany(null);
+    refetch();
+  }, [scrapingCompany, toast, refetch]);
 
   const handleSaveCareerUrl = async (companyId: string, careerUrl: string) => {
     setIsSaving(true);
@@ -203,10 +209,10 @@ const Companies = () => {
                     variant="default"
                     size="sm"
                     className="flex-1"
-                    disabled={scrapingId === company.id}
+                    disabled={scrapingCompany?.id === company.id}
                     onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
                   >
-                    {scrapingId === company.id ? (
+                    {scrapingCompany?.id === company.id ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                         Scraping...
@@ -240,6 +246,14 @@ const Companies = () => {
         company={editingCompany}
         onSave={handleSaveCareerUrl}
         isSaving={isSaving}
+      />
+
+      {/* Scrape Progress Modal */}
+      <ScrapeProgressModal
+        isOpen={!!scrapingCompany}
+        companyId={scrapingCompany?.id || null}
+        companyName={scrapingCompany?.name || ""}
+        onComplete={handleScrapeComplete}
       />
     </div>
   );

@@ -21,6 +21,27 @@ interface ScrapeResult {
   html: string;
 }
 
+// Helper to update progress in database
+async function updateProgress(
+  supabase: any,
+  companyId: string,
+  phase: string,
+  pagesScraped: number,
+  jobsFound: number,
+  currentPage: string | null
+) {
+  await supabase
+    .from('company_career_sites')
+    .update({
+      scrape_progress_phase: phase,
+      scrape_progress_pages_scraped: pagesScraped,
+      scrape_progress_jobs_found: jobsFound,
+      scrape_progress_current_page: currentPage,
+      crawl_status: phase === 'complete' ? 'completed' : 'pending',
+    })
+    .eq('id', companyId);
+}
+
 // Helper to scrape a single page
 async function scrapePage(url: string, apiKey: string): Promise<ScrapeResult | null> {
   try {
@@ -243,6 +264,9 @@ Deno.serve(async (req) => {
     console.log('Starting scrape for:', careerUrl);
     const baseUrl = new URL(careerUrl).origin;
 
+    // Initialize progress
+    await updateProgress(supabase, companyId, 'collecting', 0, 0, careerUrl);
+
     // Collect all job URLs from all pages
     const allJobUrls = new Set<string>();
     const scrapedPages = new Set<string>();
@@ -262,6 +286,9 @@ Deno.serve(async (req) => {
       scrapedPages.add(currentUrl);
       pagesScraped++;
       
+      // Update progress
+      await updateProgress(supabase, companyId, 'collecting', pagesScraped, allJobUrls.size, currentUrl);
+      
       console.log(`Scraping listing page ${pagesScraped}/${MAX_PAGES}: ${currentUrl}`);
       
       const pageData = await scrapePage(currentUrl, apiKey);
@@ -279,6 +306,9 @@ Deno.serve(async (req) => {
         allJobUrls.add(url);
       }
       
+      // Update progress with new job count
+      await updateProgress(supabase, companyId, 'collecting', pagesScraped, allJobUrls.size, currentUrl);
+      
       // Find pagination links and add to queue
       const paginationLinks = findPaginationLinks(pageData.links, baseUrl, currentUrl);
       console.log(`Found ${paginationLinks.length} pagination links`);
@@ -294,6 +324,7 @@ Deno.serve(async (req) => {
 
     // Phase 2: Scrape individual job detail pages
     console.log('Phase 2: Scraping individual job pages...');
+    await updateProgress(supabase, companyId, 'scraping', pagesScraped, allJobUrls.size, null);
     
     const jobs: JobData[] = [];
     const jobUrlArray = Array.from(allJobUrls);
@@ -301,6 +332,11 @@ Deno.serve(async (req) => {
     
     for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
       const jobUrl = jobUrlArray[i];
+      
+      // Update progress every 5 jobs to reduce DB calls
+      if (i % 5 === 0) {
+        await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, jobUrl);
+      }
       
       try {
         console.log(`Scraping job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}: ${jobUrl}`);
@@ -336,6 +372,7 @@ Deno.serve(async (req) => {
 
     // Phase 3: Insert jobs into database
     console.log('Phase 3: Inserting jobs into database...');
+    await updateProgress(supabase, companyId, 'inserting', pagesScraped, jobs.length, null);
     
     let insertedCount = 0;
     for (const job of jobs) {
@@ -362,13 +399,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update company crawl status
+    // Mark as complete
     await supabase
       .from('company_career_sites')
       .update({
         crawl_status: 'completed',
         last_crawled_at: new Date().toISOString(),
         jobs_found_count: insertedCount,
+        scrape_progress_phase: 'complete',
+        scrape_progress_pages_scraped: pagesScraped,
+        scrape_progress_jobs_found: insertedCount,
+        scrape_progress_current_page: null,
       })
       .eq('id', companyId);
 
