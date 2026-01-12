@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Briefcase, Building2, BarChart3 } from "lucide-react";
+import { Briefcase, Building2, BarChart3, Settings } from "lucide-react";
 
 const Header = () => {
   const location = useLocation();
@@ -39,6 +39,15 @@ const Header = () => {
           >
             <BarChart3 className="w-4 h-4" />
             Dashboard
+          </Link>
+          <Link
+            to="/settings"
+            className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+              location.pathname === "/settings" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            Settings
           </Link>
         </nav>
       </div>
