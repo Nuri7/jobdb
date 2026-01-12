@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { 
   CheckCircle, 
   XCircle, 
@@ -16,9 +17,18 @@ import {
   FileText,
   Briefcase,
   Database,
-  Trash2
+  Trash2,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+
+interface SkippedUrl {
+  url: string;
+  reason: string;
+}
 
 interface ScrapeHistoryEntry {
   id: string;
@@ -31,6 +41,7 @@ interface ScrapeHistoryEntry {
   jobs_removed: number | null;
   error_message: string | null;
   career_url: string;
+  skipped_urls: SkippedUrl[] | null;
 }
 
 interface ScrapeHistoryModalProps {
@@ -48,6 +59,7 @@ const ScrapeHistoryModal = ({
 }: ScrapeHistoryModalProps) => {
   const [history, setHistory] = useState<ScrapeHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedSkipped, setExpandedSkipped] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isOpen || !companyId) return;
@@ -62,7 +74,12 @@ const ScrapeHistoryModal = ({
         .limit(20);
 
       if (!error && data) {
-        setHistory(data);
+        // Cast the skipped_urls from Json to our interface
+        const typedData = data.map(entry => ({
+          ...entry,
+          skipped_urls: entry.skipped_urls as unknown as SkippedUrl[] | null
+        }));
+        setHistory(typedData);
       }
       setIsLoading(false);
     };
@@ -220,6 +237,58 @@ const ScrapeHistoryModal = ({
                   {entry.error_message && (
                     <div className="mt-3 p-2 bg-red-500/10 rounded text-xs text-red-600">
                       {entry.error_message}
+                    </div>
+                  )}
+
+                  {/* Skipped URLs Report */}
+                  {entry.skipped_urls && entry.skipped_urls.length > 0 && (
+                    <div className="mt-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const newExpanded = new Set(expandedSkipped);
+                          if (newExpanded.has(entry.id)) {
+                            newExpanded.delete(entry.id);
+                          } else {
+                            newExpanded.add(entry.id);
+                          }
+                          setExpandedSkipped(newExpanded);
+                        }}
+                        className="w-full justify-between text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 p-2 h-auto"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          {entry.skipped_urls.length} URL{entry.skipped_urls.length !== 1 ? 's' : ''} skipped
+                        </span>
+                        {expandedSkipped.has(entry.id) ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </Button>
+                      
+                      {expandedSkipped.has(entry.id) && (
+                        <div className="mt-2 border border-amber-500/20 rounded-md bg-amber-500/5 p-2 space-y-2 max-h-40 overflow-y-auto">
+                          {entry.skipped_urls.map((skipped, idx) => (
+                            <div key={idx} className="text-xs space-y-0.5">
+                              <div className="flex items-start gap-1.5">
+                                <a
+                                  href={skipped.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-muted-foreground hover:text-primary truncate flex-1"
+                                  title={skipped.url}
+                                >
+                                  {skipped.url}
+                                </a>
+                                <ExternalLink className="w-3 h-3 flex-shrink-0 text-muted-foreground" />
+                              </div>
+                              <p className="text-amber-600 pl-0">↳ {skipped.reason}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
