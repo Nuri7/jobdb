@@ -14,7 +14,119 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      company_career_sites: {
+        Row: {
+          career_url: string
+          company_name: string
+          company_size: string | null
+          crawl_status: string | null
+          created_at: string
+          headquarters_city: string | null
+          id: string
+          industry: string | null
+          is_active: boolean | null
+          jobs_found_count: number | null
+          last_crawled_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          career_url: string
+          company_name: string
+          company_size?: string | null
+          crawl_status?: string | null
+          created_at?: string
+          headquarters_city?: string | null
+          id?: string
+          industry?: string | null
+          is_active?: boolean | null
+          jobs_found_count?: number | null
+          last_crawled_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          career_url?: string
+          company_name?: string
+          company_size?: string | null
+          crawl_status?: string | null
+          created_at?: string
+          headquarters_city?: string | null
+          id?: string
+          industry?: string | null
+          is_active?: boolean | null
+          jobs_found_count?: number | null
+          last_crawled_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      job_opportunities: {
+        Row: {
+          closing_date: string | null
+          company_career_site_id: string | null
+          created_at: string
+          department: string | null
+          description: string | null
+          employment_type: string | null
+          experience_level: string | null
+          id: string
+          is_remote: boolean | null
+          job_title: string
+          job_url: string
+          location: string | null
+          posted_date: string | null
+          requirements: string | null
+          salary_range: string | null
+          scraped_at: string
+          updated_at: string
+        }
+        Insert: {
+          closing_date?: string | null
+          company_career_site_id?: string | null
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          employment_type?: string | null
+          experience_level?: string | null
+          id?: string
+          is_remote?: boolean | null
+          job_title: string
+          job_url: string
+          location?: string | null
+          posted_date?: string | null
+          requirements?: string | null
+          salary_range?: string | null
+          scraped_at?: string
+          updated_at?: string
+        }
+        Update: {
+          closing_date?: string | null
+          company_career_site_id?: string | null
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          employment_type?: string | null
+          experience_level?: string | null
+          id?: string
+          is_remote?: boolean | null
+          job_title?: string
+          job_url?: string
+          location?: string | null
+          posted_date?: string | null
+          requirements?: string | null
+          salary_range?: string | null
+          scraped_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_opportunities_company_career_site_id_fkey"
+            columns: ["company_career_site_id"]
+            isOneToOne: false
+            referencedRelation: "company_career_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
