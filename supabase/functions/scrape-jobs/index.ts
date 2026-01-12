@@ -38,9 +38,9 @@ Deno.serve(async (req) => {
 
     console.log('Starting scrape for:', careerUrl);
 
-    // Step 1: Map the career site to find job listing URLs
-    console.log('Mapping career site...');
-    const mapResponse = await fetch('https://api.firecrawl.dev/v1/map', {
+    // Strategy 1: Direct scrape with link extraction
+    console.log('Scraping page for job links...');
+    const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -48,41 +48,140 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         url: careerUrl,
-        search: 'job career vacancy position opening',
-        limit: 100,
-        includeSubdomains: true,
+        formats: ['markdown', 'links', 'html'],
+        onlyMainContent: false,
+        waitFor: 3000, // Wait for JS to load
       }),
     });
 
-    const mapData = await mapResponse.json();
+    const scrapeData = await scrapeResponse.json();
     
-    if (!mapResponse.ok || !mapData.success) {
-      console.error('Map failed:', mapData);
+    if (!scrapeResponse.ok || !scrapeData.success) {
+      console.error('Scrape failed:', scrapeData);
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to map career site' }),
+        JSON.stringify({ success: false, error: 'Failed to scrape career site' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const jobUrls = (mapData.links || []).filter((url: string) => 
-      url.includes('job') || 
-      url.includes('career') || 
-      url.includes('vacancy') || 
-      url.includes('position') ||
-      url.includes('opening') ||
-      url.includes('vacature')
-    ).slice(0, 20); // Limit to 20 job URLs
+    const pageLinks = scrapeData.data?.links || [];
+    const markdown = scrapeData.data?.markdown || '';
+    const html = scrapeData.data?.html || '';
+    
+    console.log(`Found ${pageLinks.length} total links on page`);
 
-    console.log(`Found ${jobUrls.length} potential job URLs`);
+    // Filter for job-related URLs
+    const baseUrl = new URL(careerUrl).origin;
+    const jobUrls = pageLinks.filter((url: string) => {
+      const lowerUrl = url.toLowerCase();
+      // Include URLs that look like job detail pages
+      return (
+        (lowerUrl.includes('job') || 
+         lowerUrl.includes('vacanc') || 
+         lowerUrl.includes('position') ||
+         lowerUrl.includes('career') ||
+         lowerUrl.includes('opening') ||
+         lowerUrl.includes('vacature') ||
+         lowerUrl.includes('werk') ||
+         lowerUrl.includes('apply') ||
+         lowerUrl.includes('/en/') ||
+         /\/\d{5,}/.test(url) || // Job IDs are often long numbers
+         /id=\d+/.test(url) ||
+         /job[_-]?id/i.test(url)) &&
+        !lowerUrl.includes('linkedin.com') &&
+        !lowerUrl.includes('facebook.com') &&
+        !lowerUrl.includes('twitter.com') &&
+        !lowerUrl.includes('instagram.com') &&
+        !lowerUrl.includes('.pdf') &&
+        !lowerUrl.includes('login') &&
+        !lowerUrl.includes('signup') &&
+        !lowerUrl.includes('register') &&
+        url !== careerUrl
+      );
+    });
 
+    console.log(`Filtered to ${jobUrls.length} potential job URLs`);
+
+    // Strategy 2: Extract jobs from markdown content if few URLs found
     const jobs: JobData[] = [];
-
-    // Step 2: Scrape each job URL for details
-    for (const jobUrl of jobUrls) {
-      try {
-        console.log('Scraping job:', jobUrl);
+    
+    if (jobUrls.length < 5) {
+      console.log('Few URLs found, extracting jobs from page content...');
+      
+      // Parse job titles from markdown - look for patterns like:
+      // - [Job Title](url)
+      // - ## Job Title
+      // - **Job Title** - Location
+      const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let match;
+      
+      while ((match = linkPattern.exec(markdown)) !== null) {
+        const title = match[1].trim();
+        let url = match[2].trim();
         
-        const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        // Skip navigation/footer links
+        if (title.length < 5 || title.length > 150) continue;
+        if (/^(home|about|contact|privacy|terms|cookie|menu|nav|skip|back|next|prev|more|all|view)/i.test(title)) continue;
+        if (/^(apply|login|sign|register|search|filter)/i.test(title)) continue;
+        
+        // Make URL absolute
+        if (url.startsWith('/')) {
+          url = baseUrl + url;
+        } else if (!url.startsWith('http')) {
+          continue;
+        }
+        
+        // Check if it looks like a job
+        const lowerUrl = url.toLowerCase();
+        const lowerTitle = title.toLowerCase();
+        
+        if (
+          lowerUrl.includes('job') || 
+          lowerUrl.includes('vacanc') ||
+          lowerUrl.includes('career') ||
+          lowerUrl.includes('position') ||
+          /\d{4,}/.test(url) ||
+          lowerTitle.includes('developer') ||
+          lowerTitle.includes('engineer') ||
+          lowerTitle.includes('manager') ||
+          lowerTitle.includes('analyst') ||
+          lowerTitle.includes('specialist') ||
+          lowerTitle.includes('consultant') ||
+          lowerTitle.includes('designer') ||
+          lowerTitle.includes('lead') ||
+          lowerTitle.includes('senior') ||
+          lowerTitle.includes('junior') ||
+          lowerTitle.includes('intern') ||
+          lowerTitle.includes('director') ||
+          lowerTitle.includes('officer') ||
+          lowerTitle.includes('advisor') ||
+          lowerTitle.includes('expert')
+        ) {
+          if (!jobs.some(j => j.job_url === url)) {
+            jobs.push({
+              job_title: title,
+              job_url: url,
+              location: 'Netherlands',
+              employment_type: 'Full-time',
+            });
+          }
+        }
+      }
+      
+      console.log(`Extracted ${jobs.length} jobs from markdown content`);
+    }
+
+    // Strategy 3: Scrape individual job URLs for more details
+    const urlsToScrape = jobUrls.slice(0, 30); // Limit to 30 URLs
+    
+    for (const jobUrl of urlsToScrape) {
+      // Skip if we already have this job
+      if (jobs.some(j => j.job_url === jobUrl)) continue;
+      
+      try {
+        console.log('Scraping job URL:', jobUrl);
+        
+        const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -95,60 +194,82 @@ Deno.serve(async (req) => {
           }),
         });
 
-        const scrapeData = await scrapeResponse.json();
+        const jobData = await jobResponse.json();
         
-        if (scrapeResponse.ok && scrapeData.success && scrapeData.data) {
-          const content = scrapeData.data.markdown || '';
-          const metadata = scrapeData.data.metadata || {};
+        if (jobResponse.ok && jobData.success && jobData.data) {
+          const content = jobData.data.markdown || '';
+          const metadata = jobData.data.metadata || {};
           
-          // Extract job title from metadata or content
+          // Extract job title
           let jobTitle = metadata.title || '';
-          if (!jobTitle || jobTitle.length > 200) {
-            const titleMatch = content.match(/^#\s+(.+?)$/m);
-            jobTitle = titleMatch ? titleMatch[1] : 'Job Opening';
+          
+          // Clean up title - remove company name suffixes
+          jobTitle = jobTitle
+            .replace(/\s*[-|–—]\s*(ABN AMRO|Careers|Jobs|Vacancies|Career).*/gi, '')
+            .replace(/\s*at\s+.+$/i, '')
+            .trim();
+          
+          // Try to extract from content if title is bad
+          if (!jobTitle || jobTitle.length > 150 || jobTitle.length < 5) {
+            const h1Match = content.match(/^#\s+(.+?)$/m);
+            if (h1Match) {
+              jobTitle = h1Match[1].trim();
+            }
           }
           
-          // Clean up title
-          jobTitle = jobTitle
-            .replace(/\s*[-|]\s*.+$/, '') // Remove company suffix
-            .replace(/careers?|jobs?|vacatu?res?/gi, '')
-            .trim()
-            .slice(0, 200);
-
-          if (jobTitle.length < 3) {
+          if (!jobTitle || jobTitle.length < 3) {
             jobTitle = 'Job Opening';
           }
 
-          // Detect location
-          const locationMatch = content.match(/(?:location|plaats|locatie)[:\s]+([^\n,]+)/i);
-          const location = locationMatch ? locationMatch[1].trim() : 'Netherlands';
+          // Extract location
+          let location = 'Netherlands';
+          const locationPatterns = [
+            /(?:location|plaats|locatie|city)[:\s]+([^\n,|]+)/i,
+            /(?:amsterdam|rotterdam|utrecht|the hague|eindhoven|den haag)/i,
+          ];
+          
+          for (const pattern of locationPatterns) {
+            const locMatch = content.match(pattern);
+            if (locMatch) {
+              location = locMatch[1] ? locMatch[1].trim() : locMatch[0];
+              break;
+            }
+          }
 
           // Detect employment type
           const isFullTime = /full[- ]?time/i.test(content);
           const isPartTime = /part[- ]?time/i.test(content);
-          const isContract = /contract|freelance|interim/i.test(content);
+          const isContract = /contract|freelance|interim|temporary/i.test(content);
           const employmentType = isContract ? 'Contract' : isPartTime ? 'Part-time' : 'Full-time';
 
           // Detect remote
-          const isRemote = /remote|thuiswerk|hybrid/i.test(content);
+          const isRemote = /remote|thuiswerk|hybrid|work from home|wfh/i.test(content);
+
+          // Detect department
+          let department = null;
+          const deptMatch = content.match(/(?:department|team|division|afdeling)[:\s]+([^\n,|]+)/i);
+          if (deptMatch) {
+            department = deptMatch[1].trim();
+          }
 
           jobs.push({
-            job_title: jobTitle,
+            job_title: jobTitle.slice(0, 200),
             job_url: jobUrl,
-            location,
+            location: location.slice(0, 100),
             employment_type: employmentType,
+            department: department?.slice(0, 100),
             description: content.slice(0, 5000),
             is_remote: isRemote,
           });
         }
       } catch (err) {
-        console.error('Error scraping job:', jobUrl, err);
+        console.error('Error scraping job URL:', jobUrl, err);
       }
     }
 
-    console.log(`Successfully scraped ${jobs.length} jobs`);
+    console.log(`Total jobs found: ${jobs.length}`);
 
-    // Step 3: Insert jobs into database
+    // Insert jobs into database
     let insertedCount = 0;
     for (const job of jobs) {
       const { error } = await supabase
@@ -159,6 +280,7 @@ Deno.serve(async (req) => {
           job_url: job.job_url,
           location: job.location,
           employment_type: job.employment_type,
+          department: job.department,
           description: job.description,
           is_remote: job.is_remote,
           scraped_at: new Date().toISOString(),
@@ -173,7 +295,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Update company crawl status
+    // Update company crawl status
     await supabase
       .from('company_career_sites')
       .update({
@@ -190,6 +312,8 @@ Deno.serve(async (req) => {
         success: true, 
         jobsFound: jobs.length,
         jobsInserted: insertedCount,
+        linksFound: pageLinks.length,
+        jobUrlsFiltered: jobUrls.length,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
