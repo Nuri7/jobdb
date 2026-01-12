@@ -8,13 +8,17 @@ interface JobCardProps {
   dateRange: string;
   source: string;
   startDate: string;
+  onClick?: () => void;
 }
 
-const JobCard = ({ title, image, location, dateRange, source, startDate }: JobCardProps) => {
+const JobCard = ({ title, image, location, dateRange, source, startDate, onClick }: JobCardProps) => {
   const hasImage = image && !image.includes("placeholder");
 
   return (
-    <div className="bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow duration-200">
+    <div 
+      className="bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+      onClick={onClick}
+    >
       {/* Image */}
       <div className="aspect-square relative bg-muted">
         {hasImage ? (
