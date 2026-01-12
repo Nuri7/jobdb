@@ -172,7 +172,8 @@ Deno.serve(async (req) => {
     }
 
     // Strategy 3: Scrape individual job URLs for more details
-    const urlsToScrape = jobUrls.slice(0, 30); // Limit to 30 URLs
+    // Increase limit to 100 to capture more jobs from large career sites
+    const urlsToScrape = jobUrls.slice(0, 100);
     
     for (const jobUrl of urlsToScrape) {
       // Skip if we already have this job
