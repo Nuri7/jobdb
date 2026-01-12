@@ -20,6 +20,7 @@ export interface CompanyCareerSite {
   company_name: string;
   career_url: string;
   industry: string | null;
+  company_size: string | null;
   headquarters_city: string | null;
   crawl_status: string | null;
   jobs_found_count: number | null;
