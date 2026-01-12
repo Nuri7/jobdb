@@ -1,6 +1,7 @@
-import { MapPin, Calendar, ExternalLink } from "lucide-react";
+import { MapPin, Calendar, ExternalLink, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface JobCardProps {
   title: string;
@@ -15,10 +16,20 @@ interface JobCardProps {
 }
 
 const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, onClick }: JobCardProps) => {
+  const { toast } = useToast();
+
   const handleApply = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (jobUrl) {
       window.open(jobUrl, '_blank');
+    }
+  };
+
+  const handleCopyUrl = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (jobUrl) {
+      navigator.clipboard.writeText(jobUrl);
+      toast({ title: "Copied!", description: "Job URL copied to clipboard" });
     }
   };
 
@@ -59,15 +70,24 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
       {/* Footer */}
       <div className="flex flex-col gap-2 pt-3 border-t border-border">
         {jobUrl && (
-          <a 
-            href={jobUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs text-muted-foreground hover:text-primary truncate"
-          >
-            {jobUrl}
-          </a>
+          <div className="flex items-center gap-1.5">
+            <a 
+              href={jobUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-muted-foreground hover:text-primary truncate flex-1"
+            >
+              {jobUrl}
+            </a>
+            <button
+              onClick={handleCopyUrl}
+              className="p-1 rounded hover:bg-muted transition-colors flex-shrink-0"
+              title="Copy URL"
+            >
+              <Copy className="w-3 h-3 text-muted-foreground" />
+            </button>
+          </div>
         )}
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{source}</span>
