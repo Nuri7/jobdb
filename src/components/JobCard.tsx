@@ -57,14 +57,27 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-border">
-        <span className="text-xs text-muted-foreground">{source}</span>
+      <div className="flex flex-col gap-2 pt-3 border-t border-border">
         {jobUrl && (
-          <Button size="sm" variant="default" onClick={handleApply} className="h-7 text-xs">
-            <ExternalLink className="w-3 h-3 mr-1.5" />
-            Apply Now
-          </Button>
+          <a 
+            href={jobUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-muted-foreground hover:text-primary truncate"
+          >
+            {jobUrl}
+          </a>
         )}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{source}</span>
+          {jobUrl && (
+            <Button size="sm" variant="default" onClick={handleApply} className="h-7 text-xs">
+              <ExternalLink className="w-3 h-3 mr-1.5" />
+              Job page
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
