@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X } from "lucide-react";
+import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,10 +17,21 @@ interface ScraperSetting {
   description: string | null;
 }
 
+const DEFAULT_SETTINGS: Record<string, any> = {
+  max_pages: 20,
+  max_jobs: 150,
+  wait_time: 3000,
+  job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
+  excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
+  location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
+  remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
+};
+
 const Settings = () => {
   const [settings, setSettings] = useState<ScraperSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [editedValues, setEditedValues] = useState<Record<string, any>>({});
   const { toast } = useToast();
 
@@ -91,6 +102,25 @@ const Settings = () => {
     return settings.some(s => JSON.stringify(s.setting_value) !== JSON.stringify(editedValues[s.setting_key]));
   };
 
+  const resetToDefaults = async () => {
+    setResetting(true);
+    try {
+      for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+        const { error } = await supabase
+          .from('scraper_settings')
+          .update({ setting_value: value })
+          .eq('setting_key', key);
+
+        if (error) throw error;
+      }
+      toast({ title: "Settings reset", description: "Scraper settings have been restored to defaults." });
+      fetchSettings();
+    } catch (error: any) {
+      toast({ title: "Error resetting settings", description: error.message, variant: "destructive" });
+    }
+    setResetting(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -115,10 +145,16 @@ const Settings = () => {
               <p className="text-muted-foreground">Firecrawl scraper configuration and extraction rules</p>
             </div>
           </div>
-          <Button onClick={saveSettings} disabled={saving || !hasChanges()}>
-            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Save Changes
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={resetToDefaults} disabled={resetting || saving}>
+              {resetting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+              Reset to Defaults
+            </Button>
+            <Button onClick={saveSettings} disabled={saving || !hasChanges()}>
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Changes
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-6">
