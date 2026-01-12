@@ -15,6 +15,210 @@ interface JobData {
   is_remote?: boolean;
 }
 
+interface ScrapeResult {
+  links: string[];
+  markdown: string;
+  html: string;
+}
+
+// Helper to scrape a single page
+async function scrapePage(url: string, apiKey: string): Promise<ScrapeResult | null> {
+  try {
+    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        formats: ['markdown', 'links', 'html'],
+        onlyMainContent: false,
+        waitFor: 3000,
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.success && data.data) {
+      return {
+        links: data.data.links || [],
+        markdown: data.data.markdown || '',
+        html: data.data.html || '',
+      };
+    }
+  } catch (err) {
+    console.error('Error scraping page:', url, err);
+  }
+  return null;
+}
+
+// Detect pagination links from a page
+function findPaginationLinks(links: string[], baseUrl: string, currentUrl: string): string[] {
+  const paginationUrls: string[] = [];
+  const seenPages = new Set<string>();
+  
+  for (const link of links) {
+    const lowerLink = link.toLowerCase();
+    
+    // Skip social media, external links, etc.
+    if (
+      lowerLink.includes('linkedin.com') ||
+      lowerLink.includes('facebook.com') ||
+      lowerLink.includes('twitter.com') ||
+      lowerLink.includes('instagram.com') ||
+      !link.startsWith(baseUrl)
+    ) {
+      continue;
+    }
+    
+    // Detect pagination patterns
+    const isPagination = 
+      /[?&]page=\d+/i.test(link) ||
+      /[?&]p=\d+/i.test(link) ||
+      /[?&]offset=\d+/i.test(link) ||
+      /[?&]start=\d+/i.test(link) ||
+      /\/page\/\d+/i.test(link) ||
+      /\/pagina\/\d+/i.test(link) ||
+      /[?&]pageNumber=\d+/i.test(link) ||
+      /[?&]pg=\d+/i.test(link);
+    
+    if (isPagination && link !== currentUrl && !seenPages.has(link)) {
+      seenPages.add(link);
+      paginationUrls.push(link);
+    }
+  }
+  
+  // Sort pagination URLs by page number
+  paginationUrls.sort((a, b) => {
+    const pageA = parseInt(a.match(/(?:page|p|offset|start|pageNumber|pg)[=\/](\d+)/i)?.[1] || '0');
+    const pageB = parseInt(b.match(/(?:page|p|offset|start|pageNumber|pg)[=\/](\d+)/i)?.[1] || '0');
+    return pageA - pageB;
+  });
+  
+  return paginationUrls;
+}
+
+// Filter links to find job URLs
+function filterJobUrls(links: string[], baseUrl: string, careerUrl: string): string[] {
+  return links.filter((url: string) => {
+    const lowerUrl = url.toLowerCase();
+    
+    // Must be on same domain
+    if (!url.startsWith(baseUrl)) return false;
+    
+    // Include URLs that look like job detail pages
+    const isJobUrl = (
+      lowerUrl.includes('job') || 
+      lowerUrl.includes('vacanc') || 
+      lowerUrl.includes('position') ||
+      lowerUrl.includes('opening') ||
+      lowerUrl.includes('vacature') ||
+      lowerUrl.includes('werk') ||
+      /\/\d{5,}/.test(url) || // Job IDs are often long numbers
+      /id=\d+/.test(url) ||
+      /job[_-]?id/i.test(url)
+    );
+    
+    // Exclude non-job URLs
+    const isExcluded = (
+      lowerUrl.includes('linkedin.com') ||
+      lowerUrl.includes('facebook.com') ||
+      lowerUrl.includes('twitter.com') ||
+      lowerUrl.includes('instagram.com') ||
+      lowerUrl.includes('.pdf') ||
+      lowerUrl.includes('login') ||
+      lowerUrl.includes('signup') ||
+      lowerUrl.includes('register') ||
+      lowerUrl.includes('/locations') ||
+      lowerUrl.includes('/career-types') ||
+      lowerUrl.includes('/about') ||
+      lowerUrl.includes('/contact') ||
+      // Exclude pagination/list pages (we want detail pages)
+      /[?&]page=\d+/i.test(url) ||
+      /[?&]p=\d+/i.test(url) ||
+      /\/page\/\d+/i.test(url) ||
+      url === careerUrl
+    );
+    
+    // Must look like a job detail page (has ID or specific job path)
+    const isDetailPage = (
+      /\/\d{4,}/.test(url) || // Contains numeric ID
+      /[?&]id=\d+/.test(url) ||
+      /-[a-f0-9]{8,}/.test(url) || // UUID-like pattern
+      /\/[a-z]+-[a-z]+-[a-z]+/i.test(url) // slug pattern like /senior-developer-amsterdam
+    );
+    
+    return isJobUrl && !isExcluded && isDetailPage;
+  });
+}
+
+// Extract job data from a job page
+function extractJobData(url: string, content: string, metadata: any): JobData {
+  // Extract job title
+  let jobTitle = metadata?.title || '';
+  
+  // Clean up title - remove company name suffixes
+  jobTitle = jobTitle
+    .replace(/\s*[-|–—]\s*(ABN AMRO|Adyen|ING|Careers|Jobs|Vacancies|Career|Werken bij).*/gi, '')
+    .replace(/\s*at\s+.+$/i, '')
+    .replace(/\s*\|\s*.+$/i, '')
+    .trim();
+  
+  // Try to extract from content if title is bad
+  if (!jobTitle || jobTitle.length > 150 || jobTitle.length < 5) {
+    const h1Match = content.match(/^#\s+(.+?)$/m);
+    if (h1Match) {
+      jobTitle = h1Match[1].trim();
+    }
+  }
+  
+  if (!jobTitle || jobTitle.length < 3) {
+    jobTitle = 'Job Opening';
+  }
+
+  // Extract location
+  let location = 'Netherlands';
+  const locationPatterns = [
+    /(?:location|plaats|locatie|city|standort)[:\s]+([^\n,|]+)/i,
+    /(?:amsterdam|rotterdam|utrecht|the hague|eindhoven|den haag|leiden|delft|groningen|maastricht)/i,
+  ];
+  
+  for (const pattern of locationPatterns) {
+    const locMatch = content.match(pattern);
+    if (locMatch) {
+      location = locMatch[1] ? locMatch[1].trim() : locMatch[0];
+      break;
+    }
+  }
+
+  // Detect employment type
+  const isFullTime = /full[- ]?time/i.test(content);
+  const isPartTime = /part[- ]?time/i.test(content);
+  const isContract = /contract|freelance|interim|temporary/i.test(content);
+  const employmentType = isContract ? 'Contract' : isPartTime ? 'Part-time' : 'Full-time';
+
+  // Detect remote
+  const isRemote = /remote|thuiswerk|hybrid|work from home|wfh/i.test(content);
+
+  // Detect department
+  let department = null;
+  const deptMatch = content.match(/(?:department|team|division|afdeling)[:\s]+([^\n,|]+)/i);
+  if (deptMatch) {
+    department = deptMatch[1].trim();
+  }
+
+  return {
+    job_title: jobTitle.slice(0, 200),
+    job_url: url,
+    location: location.slice(0, 100),
+    employment_type: employmentType,
+    department: department?.slice(0, 100),
+    description: content.slice(0, 5000),
+    is_remote: isRemote,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -37,150 +241,69 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     console.log('Starting scrape for:', careerUrl);
-
-    // Strategy 1: Direct scrape with link extraction
-    console.log('Scraping page for job links...');
-    const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: careerUrl,
-        formats: ['markdown', 'links', 'html'],
-        onlyMainContent: false,
-        waitFor: 3000, // Wait for JS to load
-      }),
-    });
-
-    const scrapeData = await scrapeResponse.json();
-    
-    if (!scrapeResponse.ok || !scrapeData.success) {
-      console.error('Scrape failed:', scrapeData);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to scrape career site' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const pageLinks = scrapeData.data?.links || [];
-    const markdown = scrapeData.data?.markdown || '';
-    const html = scrapeData.data?.html || '';
-    
-    console.log(`Found ${pageLinks.length} total links on page`);
-
-    // Filter for job-related URLs
     const baseUrl = new URL(careerUrl).origin;
-    const jobUrls = pageLinks.filter((url: string) => {
-      const lowerUrl = url.toLowerCase();
-      // Include URLs that look like job detail pages
-      return (
-        (lowerUrl.includes('job') || 
-         lowerUrl.includes('vacanc') || 
-         lowerUrl.includes('position') ||
-         lowerUrl.includes('career') ||
-         lowerUrl.includes('opening') ||
-         lowerUrl.includes('vacature') ||
-         lowerUrl.includes('werk') ||
-         lowerUrl.includes('apply') ||
-         lowerUrl.includes('/en/') ||
-         /\/\d{5,}/.test(url) || // Job IDs are often long numbers
-         /id=\d+/.test(url) ||
-         /job[_-]?id/i.test(url)) &&
-        !lowerUrl.includes('linkedin.com') &&
-        !lowerUrl.includes('facebook.com') &&
-        !lowerUrl.includes('twitter.com') &&
-        !lowerUrl.includes('instagram.com') &&
-        !lowerUrl.includes('.pdf') &&
-        !lowerUrl.includes('login') &&
-        !lowerUrl.includes('signup') &&
-        !lowerUrl.includes('register') &&
-        url !== careerUrl
-      );
-    });
 
-    console.log(`Filtered to ${jobUrls.length} potential job URLs`);
-
-    // Strategy 2: Extract jobs from markdown content if few URLs found
-    const jobs: JobData[] = [];
+    // Collect all job URLs from all pages
+    const allJobUrls = new Set<string>();
+    const scrapedPages = new Set<string>();
+    const pagesToScrape: string[] = [careerUrl];
     
-    if (jobUrls.length < 5) {
-      console.log('Few URLs found, extracting jobs from page content...');
+    // Limit pagination to prevent infinite loops
+    const MAX_PAGES = 20;
+    let pagesScraped = 0;
+
+    // Phase 1: Collect all job URLs from listing pages (with pagination)
+    console.log('Phase 1: Collecting job URLs from listing pages...');
+    
+    while (pagesToScrape.length > 0 && pagesScraped < MAX_PAGES) {
+      const currentUrl = pagesToScrape.shift()!;
       
-      // Parse job titles from markdown - look for patterns like:
-      // - [Job Title](url)
-      // - ## Job Title
-      // - **Job Title** - Location
-      const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
-      let match;
+      if (scrapedPages.has(currentUrl)) continue;
+      scrapedPages.add(currentUrl);
+      pagesScraped++;
       
-      while ((match = linkPattern.exec(markdown)) !== null) {
-        const title = match[1].trim();
-        let url = match[2].trim();
-        
-        // Skip navigation/footer links
-        if (title.length < 5 || title.length > 150) continue;
-        if (/^(home|about|contact|privacy|terms|cookie|menu|nav|skip|back|next|prev|more|all|view)/i.test(title)) continue;
-        if (/^(apply|login|sign|register|search|filter)/i.test(title)) continue;
-        
-        // Make URL absolute
-        if (url.startsWith('/')) {
-          url = baseUrl + url;
-        } else if (!url.startsWith('http')) {
-          continue;
-        }
-        
-        // Check if it looks like a job
-        const lowerUrl = url.toLowerCase();
-        const lowerTitle = title.toLowerCase();
-        
-        if (
-          lowerUrl.includes('job') || 
-          lowerUrl.includes('vacanc') ||
-          lowerUrl.includes('career') ||
-          lowerUrl.includes('position') ||
-          /\d{4,}/.test(url) ||
-          lowerTitle.includes('developer') ||
-          lowerTitle.includes('engineer') ||
-          lowerTitle.includes('manager') ||
-          lowerTitle.includes('analyst') ||
-          lowerTitle.includes('specialist') ||
-          lowerTitle.includes('consultant') ||
-          lowerTitle.includes('designer') ||
-          lowerTitle.includes('lead') ||
-          lowerTitle.includes('senior') ||
-          lowerTitle.includes('junior') ||
-          lowerTitle.includes('intern') ||
-          lowerTitle.includes('director') ||
-          lowerTitle.includes('officer') ||
-          lowerTitle.includes('advisor') ||
-          lowerTitle.includes('expert')
-        ) {
-          if (!jobs.some(j => j.job_url === url)) {
-            jobs.push({
-              job_title: title,
-              job_url: url,
-              location: 'Netherlands',
-              employment_type: 'Full-time',
-            });
-          }
-        }
+      console.log(`Scraping listing page ${pagesScraped}/${MAX_PAGES}: ${currentUrl}`);
+      
+      const pageData = await scrapePage(currentUrl, apiKey);
+      
+      if (!pageData) {
+        console.log('Failed to scrape page:', currentUrl);
+        continue;
       }
       
-      console.log(`Extracted ${jobs.length} jobs from markdown content`);
+      // Extract job URLs from this page
+      const jobUrls = filterJobUrls(pageData.links, baseUrl, careerUrl);
+      console.log(`Found ${jobUrls.length} job URLs on this page`);
+      
+      for (const url of jobUrls) {
+        allJobUrls.add(url);
+      }
+      
+      // Find pagination links and add to queue
+      const paginationLinks = findPaginationLinks(pageData.links, baseUrl, currentUrl);
+      console.log(`Found ${paginationLinks.length} pagination links`);
+      
+      for (const link of paginationLinks) {
+        if (!scrapedPages.has(link) && !pagesToScrape.includes(link)) {
+          pagesToScrape.push(link);
+        }
+      }
     }
 
-    // Strategy 3: Scrape individual job URLs for more details
-    // Increase limit to 100 to capture more jobs from large career sites
-    const urlsToScrape = jobUrls.slice(0, 100);
+    console.log(`Phase 1 complete: Found ${allJobUrls.size} unique job URLs across ${pagesScraped} pages`);
+
+    // Phase 2: Scrape individual job detail pages
+    console.log('Phase 2: Scraping individual job pages...');
     
-    for (const jobUrl of urlsToScrape) {
-      // Skip if we already have this job
-      if (jobs.some(j => j.job_url === jobUrl)) continue;
+    const jobs: JobData[] = [];
+    const jobUrlArray = Array.from(allJobUrls);
+    const MAX_JOBS = 150; // Limit to prevent timeout
+    
+    for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
+      const jobUrl = jobUrlArray[i];
       
       try {
-        console.log('Scraping job URL:', jobUrl);
+        console.log(`Scraping job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}: ${jobUrl}`);
         
         const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
           method: 'POST',
@@ -201,76 +324,19 @@ Deno.serve(async (req) => {
           const content = jobData.data.markdown || '';
           const metadata = jobData.data.metadata || {};
           
-          // Extract job title
-          let jobTitle = metadata.title || '';
-          
-          // Clean up title - remove company name suffixes
-          jobTitle = jobTitle
-            .replace(/\s*[-|–—]\s*(ABN AMRO|Careers|Jobs|Vacancies|Career).*/gi, '')
-            .replace(/\s*at\s+.+$/i, '')
-            .trim();
-          
-          // Try to extract from content if title is bad
-          if (!jobTitle || jobTitle.length > 150 || jobTitle.length < 5) {
-            const h1Match = content.match(/^#\s+(.+?)$/m);
-            if (h1Match) {
-              jobTitle = h1Match[1].trim();
-            }
-          }
-          
-          if (!jobTitle || jobTitle.length < 3) {
-            jobTitle = 'Job Opening';
-          }
-
-          // Extract location
-          let location = 'Netherlands';
-          const locationPatterns = [
-            /(?:location|plaats|locatie|city)[:\s]+([^\n,|]+)/i,
-            /(?:amsterdam|rotterdam|utrecht|the hague|eindhoven|den haag)/i,
-          ];
-          
-          for (const pattern of locationPatterns) {
-            const locMatch = content.match(pattern);
-            if (locMatch) {
-              location = locMatch[1] ? locMatch[1].trim() : locMatch[0];
-              break;
-            }
-          }
-
-          // Detect employment type
-          const isFullTime = /full[- ]?time/i.test(content);
-          const isPartTime = /part[- ]?time/i.test(content);
-          const isContract = /contract|freelance|interim|temporary/i.test(content);
-          const employmentType = isContract ? 'Contract' : isPartTime ? 'Part-time' : 'Full-time';
-
-          // Detect remote
-          const isRemote = /remote|thuiswerk|hybrid|work from home|wfh/i.test(content);
-
-          // Detect department
-          let department = null;
-          const deptMatch = content.match(/(?:department|team|division|afdeling)[:\s]+([^\n,|]+)/i);
-          if (deptMatch) {
-            department = deptMatch[1].trim();
-          }
-
-          jobs.push({
-            job_title: jobTitle.slice(0, 200),
-            job_url: jobUrl,
-            location: location.slice(0, 100),
-            employment_type: employmentType,
-            department: department?.slice(0, 100),
-            description: content.slice(0, 5000),
-            is_remote: isRemote,
-          });
+          const job = extractJobData(jobUrl, content, metadata);
+          jobs.push(job);
         }
       } catch (err) {
         console.error('Error scraping job URL:', jobUrl, err);
       }
     }
 
-    console.log(`Total jobs found: ${jobs.length}`);
+    console.log(`Phase 2 complete: Scraped ${jobs.length} job details`);
 
-    // Insert jobs into database
+    // Phase 3: Insert jobs into database
+    console.log('Phase 3: Inserting jobs into database...');
+    
     let insertedCount = 0;
     for (const job of jobs) {
       const { error } = await supabase
@@ -306,15 +372,15 @@ Deno.serve(async (req) => {
       })
       .eq('id', companyId);
 
-    console.log(`Inserted ${insertedCount} jobs for company ${companyId}`);
+    console.log(`Complete: Inserted ${insertedCount} jobs for company ${companyId}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        jobsFound: jobs.length,
+        jobsFound: allJobUrls.size,
+        jobsScraped: jobs.length,
         jobsInserted: insertedCount,
-        linksFound: pageLinks.length,
-        jobUrlsFiltered: jobUrls.length,
+        pagesScraped: pagesScraped,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
