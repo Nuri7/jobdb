@@ -103,4 +103,20 @@ export const jobsApi = {
 
     return data;
   },
+
+  async updateCompanyCareerUrl(companyId: string, careerUrl: string) {
+    const { data, error } = await supabase
+      .from('company_career_sites')
+      .update({ career_url: careerUrl })
+      .eq('id', companyId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating company:', error);
+      throw error;
+    }
+
+    return data;
+  },
 };

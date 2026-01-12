@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useCompanies } from "@/hooks/useJobs";
-import { jobsApi } from "@/lib/api/jobs";
+import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
 import Header from "@/components/Header";
+import CompanyEditModal from "@/components/CompanyEditModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,13 +15,16 @@ import {
   RefreshCw,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Pencil
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Companies = () => {
   const [search, setSearch] = useState("");
   const [scrapingId, setScrapingId] = useState<string | null>(null);
+  const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { data: companies, isLoading, refetch } = useCompanies();
   const { toast } = useToast();
 
@@ -47,6 +51,27 @@ const Companies = () => {
       });
     } finally {
       setScrapingId(null);
+    }
+  };
+
+  const handleSaveCareerUrl = async (companyId: string, careerUrl: string) => {
+    setIsSaving(true);
+    try {
+      await jobsApi.updateCompanyCareerUrl(companyId, careerUrl);
+      toast({
+        title: "URL updated",
+        description: "Career page URL has been updated successfully",
+      });
+      refetch();
+      setEditingCompany(null);
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description: "Failed to update career page URL",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -129,7 +154,16 @@ const Companies = () => {
                       )}
                     </div>
                   </div>
-                  {getStatusIcon(company.crawl_status)}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingCompany(company)}
+                      className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                      title="Edit career URL"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                    {getStatusIcon(company.crawl_status)}
+                  </div>
                 </div>
 
                 {/* Meta */}
@@ -198,6 +232,15 @@ const Companies = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <CompanyEditModal
+        isOpen={!!editingCompany}
+        onClose={() => setEditingCompany(null)}
+        company={editingCompany}
+        onSave={handleSaveCareerUrl}
+        isSaving={isSaving}
+      />
     </div>
   );
 };
