@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Briefcase, Building2 } from "lucide-react";
+import { Briefcase, Building2, BarChart3 } from "lucide-react";
 
 const Header = () => {
   const location = useLocation();
@@ -30,6 +30,15 @@ const Header = () => {
           >
             <Building2 className="w-4 h-4" />
             Companies
+          </Link>
+          <Link
+            to="/dashboard"
+            className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+              location.pathname === "/dashboard" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Dashboard
           </Link>
         </nav>
       </div>
