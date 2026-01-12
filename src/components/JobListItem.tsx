@@ -1,6 +1,5 @@
-import { MapPin, Calendar, Briefcase, ExternalLink, Copy } from "lucide-react";
+import { MapPin, Calendar, Briefcase, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 interface JobListItemProps {
@@ -51,48 +50,14 @@ const JobListItem = ({ title, image, location, dateRange, source, startDate, job
         <h3 className="font-semibold text-foreground text-base truncate">
           {title}
         </h3>
-        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="truncate">{location}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{dateRange}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Meta and URL */}
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">{source}</span>
-          <Badge variant="secondary" className="text-xs font-medium">
-            {startDate}
-          </Badge>
-          {jobUrl && (
-            <Button 
-              size="sm" 
-              variant="default" 
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(jobUrl, '_blank');
-              }} 
-              className="h-7 text-xs"
-            >
-              <ExternalLink className="w-3 h-3 mr-1.5" />
-              Job page
-            </Button>
-          )}
-        </div>
         {jobUrl && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 mt-1">
             <a 
               href={jobUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="text-xs text-muted-foreground hover:text-primary truncate max-w-[300px]"
+              className="text-xs text-muted-foreground hover:text-primary truncate"
             >
               {jobUrl}
             </a>
@@ -105,6 +70,24 @@ const JobListItem = ({ title, image, location, dateRange, source, startDate, job
             </button>
           </div>
         )}
+        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">{location}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>{dateRange}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Meta */}
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-xs text-muted-foreground">{source}</span>
+        <Badge variant="secondary" className="text-xs font-medium">
+          {startDate}
+        </Badge>
       </div>
     </div>
   );
