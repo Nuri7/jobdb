@@ -1,6 +1,5 @@
-import { MapPin, Calendar, ExternalLink, Copy } from "lucide-react";
+import { MapPin, Calendar, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 interface JobCardProps {
@@ -17,13 +16,6 @@ interface JobCardProps {
 
 const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, onClick }: JobCardProps) => {
   const { toast } = useToast();
-
-  const handleApply = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (jobUrl) {
-      window.open(jobUrl, '_blank');
-    }
-  };
 
   const handleCopyUrl = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -89,15 +81,7 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
             </button>
           </div>
         )}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{source}</span>
-          {jobUrl && (
-            <Button size="sm" variant="default" onClick={handleApply} className="h-7 text-xs">
-              <ExternalLink className="w-3 h-3 mr-1.5" />
-              Job page
-            </Button>
-          )}
-        </div>
+        <span className="text-xs text-muted-foreground">{source}</span>
       </div>
     </div>
   );
