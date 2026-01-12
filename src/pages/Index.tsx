@@ -1,85 +1,15 @@
 import { useState } from "react";
+import { useJobs, useCompanies } from "@/hooks/useJobs";
+import { jobsApi } from "@/lib/api/jobs";
 import SearchBar from "@/components/SearchBar";
 import FilterBar from "@/components/FilterBar";
 import JobCard from "@/components/JobCard";
 import JobListItem from "@/components/JobListItem";
 import ViewToggle from "@/components/ViewToggle";
 import Pagination from "@/components/Pagination";
-
-const mockJobs = [
-  {
-    id: 1,
-    title: "Senior Frontend Developer",
-    image: "",
-    location: "Amsterdam, Netherlands",
-    dateRange: "Full-time",
-    source: "LinkedIn",
-    startDate: "Immediate",
-  },
-  {
-    id: 2,
-    title: "Backend Engineer",
-    image: "",
-    location: "Utrecht, Netherlands",
-    dateRange: "Full-time",
-    source: "Indeed",
-    startDate: "January 15",
-  },
-  {
-    id: 3,
-    title: "DevOps Engineer",
-    image: "",
-    location: "Rotterdam, Netherlands",
-    dateRange: "Full-time",
-    source: "LinkedIn",
-    startDate: "January 20",
-  },
-  {
-    id: 4,
-    title: "Product Manager",
-    image: "",
-    location: "Amsterdam, Netherlands",
-    dateRange: "Full-time",
-    source: "Glassdoor",
-    startDate: "February 1",
-  },
-  {
-    id: 5,
-    title: "UX Designer",
-    image: "",
-    location: "The Hague, Netherlands",
-    dateRange: "Full-time",
-    source: "Indeed",
-    startDate: "January 25",
-  },
-  {
-    id: 6,
-    title: "Data Scientist",
-    image: "",
-    location: "Eindhoven, Netherlands",
-    dateRange: "Full-time",
-    source: "LinkedIn",
-    startDate: "February 10",
-  },
-  {
-    id: 7,
-    title: "Full Stack Developer",
-    image: "",
-    location: "Amsterdam, Netherlands",
-    dateRange: "Full-time",
-    source: "Indeed",
-    startDate: "January 30",
-  },
-  {
-    id: 8,
-    title: "Mobile Developer",
-    image: "",
-    location: "Utrecht, Netherlands",
-    dateRange: "Contract",
-    source: "Glassdoor",
-    startDate: "February 5",
-  },
-];
+import { Button } from "@/components/ui/button";
+import { Loader2, RefreshCw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [search, setSearch] = useState("");
@@ -88,25 +18,94 @@ const Index = () => {
   const [source, setSource] = useState("all");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isScraping, setIsScraping] = useState(false);
+  const { toast } = useToast();
+
+  const { data: jobsData, isLoading, refetch } = useJobs({
+    search,
+    location: location !== "all" ? location : undefined,
+    page: currentPage,
+  });
+
+  const { data: companies } = useCompanies();
 
   const handleClearAll = () => {
     setLocation("all");
     setStartDate("all");
     setSource("all");
+    setSearch("");
   };
 
-  const filteredJobs = mockJobs.filter((job) => {
-    if (search && !job.title.toLowerCase().includes(search.toLowerCase())) {
-      return false;
+  const handleScrapeAll = async () => {
+    if (!companies || companies.length === 0) {
+      toast({
+        title: "No companies",
+        description: "No companies to scrape",
+        variant: "destructive",
+      });
+      return;
     }
-    return true;
-  });
 
-  const totalPages = 50;
+    setIsScraping(true);
+    toast({
+      title: "Scraping started",
+      description: `Scraping ${companies.length} companies. This may take a few minutes...`,
+    });
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Scrape first 5 companies to avoid timeout
+    const companiesToScrape = companies.slice(0, 5);
+
+    for (const company of companiesToScrape) {
+      try {
+        await jobsApi.scrapeCompany(company.id, company.career_url);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to scrape ${company.company_name}:`, error);
+        errorCount++;
+      }
+    }
+
+    setIsScraping(false);
+    refetch();
+
+    toast({
+      title: "Scraping complete",
+      description: `Successfully scraped ${successCount} companies. ${errorCount} failed.`,
+    });
+  };
+
+  const jobs = jobsData?.jobs || [];
+  const totalCount = jobsData?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / 12);
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-7xl py-8">
+        {/* Header with Scrape Button */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-foreground">Jobs Directory</h1>
+          <Button 
+            onClick={handleScrapeAll} 
+            disabled={isScraping}
+            variant="outline"
+          >
+            {isScraping ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Scraping...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Scrape Jobs
+              </>
+            )}
+          </Button>
+        </div>
+
         {/* Search */}
         <div className="mb-6">
           <SearchBar value={search} onChange={setSearch} />
@@ -115,7 +114,7 @@ const Index = () => {
         {/* Filters */}
         <div className="flex items-center justify-between gap-4">
           <FilterBar
-            totalJobs={1250}
+            totalJobs={totalCount}
             location={location}
             onLocationChange={setLocation}
             startDate={startDate}
@@ -127,43 +126,66 @@ const Index = () => {
           <ViewToggle view={view} onViewChange={setView} />
         </div>
 
-        {/* Jobs Grid/List */}
-        {view === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-6">
-            {filteredJobs.map((job) => (
-              <JobCard
-                key={job.id}
-                title={job.title}
-                image={job.image}
-                location={job.location}
-                dateRange={job.dateRange}
-                source={job.source}
-                startDate={job.startDate}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3 mt-6">
-            {filteredJobs.map((job) => (
-              <JobListItem
-                key={job.id}
-                title={job.title}
-                image={job.image}
-                location={job.location}
-                dateRange={job.dateRange}
-                source={job.source}
-                startDate={job.startDate}
-              />
-            ))}
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {/* Pagination */}
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
+        {/* Empty State */}
+        {!isLoading && jobs.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-muted-foreground mb-4">No jobs found yet.</p>
+            <Button onClick={handleScrapeAll} disabled={isScraping}>
+              {isScraping ? "Scraping..." : "Scrape Jobs from Companies"}
+            </Button>
+          </div>
+        )}
+
+        {/* Jobs Grid/List */}
+        {!isLoading && jobs.length > 0 && (
+          <>
+            {view === "grid" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-6">
+                {jobs.map((job) => (
+                  <JobCard
+                    key={job.id}
+                    title={job.job_title}
+                    image=""
+                    location={job.location || "Netherlands"}
+                    dateRange={job.employment_type || "Full-time"}
+                    source={job.company_name || "Unknown"}
+                    startDate={job.is_remote ? "Remote" : "On-site"}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 mt-6">
+                {jobs.map((job) => (
+                  <JobListItem
+                    key={job.id}
+                    title={job.job_title}
+                    image=""
+                    location={job.location || "Netherlands"}
+                    dateRange={job.employment_type || "Full-time"}
+                    source={job.company_name || "Unknown"}
+                    startDate={job.is_remote ? "Remote" : "On-site"}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            )}
+          </>
+        )}
       </div>
     </div>
   );
