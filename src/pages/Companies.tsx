@@ -5,9 +5,11 @@ import Header from "@/components/Header";
 import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeProgressModal from "@/components/ScrapeProgressModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
+import BulkScrapeModal from "@/components/BulkScrapeModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Building2, 
   ExternalLink, 
@@ -19,7 +21,9 @@ import {
   Clock,
   AlertCircle,
   Pencil,
-  History
+  History,
+  ListChecks,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,6 +33,9 @@ const Companies = () => {
   const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
   const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  const [showBulkScrapeModal, setShowBulkScrapeModal] = useState(false);
   const { data: companies, isLoading, refetch } = useCompanies();
   const { toast } = useToast();
 
@@ -84,6 +91,50 @@ const Companies = () => {
     }
   };
 
+  const toggleCompanySelection = (companyId: string) => {
+    setSelectedCompanies((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(companyId)) {
+        newSet.delete(companyId);
+      } else {
+        newSet.add(companyId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    const allIds = new Set(filteredCompanies.map((c) => c.id));
+    setSelectedCompanies(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedCompanies(new Set());
+  };
+
+  const handleBulkScrape = () => {
+    if (selectedCompanies.size === 0) {
+      toast({
+        title: "No companies selected",
+        description: "Please select at least one company to scrape",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowBulkScrapeModal(true);
+  };
+
+  const handleBulkScrapeComplete = () => {
+    toast({
+      title: "Bulk scraping complete",
+      description: `Finished scraping ${selectedCompanies.size} companies`,
+    });
+    setShowBulkScrapeModal(false);
+    setBulkSelectMode(false);
+    setSelectedCompanies(new Set());
+    refetch();
+  };
+
   const getStatusIcon = (status: string | null) => {
     switch (status) {
       case "completed":
@@ -97,18 +148,70 @@ const Companies = () => {
     }
   };
 
+  const selectedCompaniesData = companies?.filter((c) => selectedCompanies.has(c.id)) || [];
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
       <div className="container max-w-7xl py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground mb-2">Companies</h1>
-          <p className="text-muted-foreground">
-            Browse career pages from top Dutch companies
-          </p>
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground mb-2">Companies</h1>
+            <p className="text-muted-foreground">
+              Browse career pages from top Dutch companies
+            </p>
+          </div>
+          <Button
+            variant={bulkSelectMode ? "default" : "outline"}
+            onClick={() => {
+              setBulkSelectMode(!bulkSelectMode);
+              if (bulkSelectMode) {
+                setSelectedCompanies(new Set());
+              }
+            }}
+          >
+            <ListChecks className="w-4 h-4 mr-2" />
+            {bulkSelectMode ? "Exit Bulk Mode" : "Bulk Scrape"}
+          </Button>
         </div>
+
+        {/* Bulk Actions Bar */}
+        {bulkSelectMode && (
+          <div className="flex items-center gap-4 mb-6 p-4 bg-muted/50 rounded-lg border border-border">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={selectedCompanies.size === filteredCompanies.length && filteredCompanies.length > 0}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    selectAllFiltered();
+                  } else {
+                    clearSelection();
+                  }
+                }}
+              />
+              <span className="text-sm font-medium">
+                {selectedCompanies.size} selected
+              </span>
+            </div>
+            <div className="flex-1" />
+            <Button variant="ghost" size="sm" onClick={selectAllFiltered}>
+              Select All ({filteredCompanies.length})
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              <X className="w-4 h-4 mr-1" />
+              Clear
+            </Button>
+            <Button 
+              onClick={handleBulkScrape} 
+              disabled={selectedCompanies.size === 0}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Scrape Selected ({selectedCompanies.size})
+            </Button>
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative mb-6">
@@ -144,11 +247,28 @@ const Companies = () => {
             {filteredCompanies.map((company) => (
               <div
                 key={company.id}
-                className="bg-card border border-border rounded-lg p-5 hover:shadow-lg transition-shadow"
+                className={`bg-card border rounded-lg p-5 hover:shadow-lg transition-all ${
+                  bulkSelectMode && selectedCompanies.has(company.id)
+                    ? 'border-primary ring-2 ring-primary/20'
+                    : 'border-border'
+                }`}
+                onClick={() => {
+                  if (bulkSelectMode) {
+                    toggleCompanySelection(company.id);
+                  }
+                }}
+                style={{ cursor: bulkSelectMode ? 'pointer' : 'default' }}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
+                    {bulkSelectMode && (
+                      <Checkbox
+                        checked={selectedCompanies.has(company.id)}
+                        onCheckedChange={() => toggleCompanySelection(company.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
                     <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
                       <Building2 className="w-5 h-5 text-muted-foreground" />
                     </div>
@@ -163,23 +283,26 @@ const Companies = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setHistoryCompany({ id: company.id, name: company.company_name })}
-                      className="p-1.5 rounded-full hover:bg-muted transition-colors"
-                      title="View scrape history"
-                    >
-                      <History className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                    <button
-                      onClick={() => setEditingCompany(company)}
-                      className="p-1.5 rounded-full hover:bg-muted transition-colors"
-                      title="Edit career URL"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                    {getStatusIcon(company.crawl_status)}
-                  </div>
+                  {!bulkSelectMode && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setHistoryCompany({ id: company.id, name: company.company_name })}
+                        className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                        title="View scrape history"
+                      >
+                        <History className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => setEditingCompany(company)}
+                        className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                        title="Edit career URL"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                      {getStatusIcon(company.crawl_status)}
+                    </div>
+                  )}
+                  {bulkSelectMode && getStatusIcon(company.crawl_status)}
                 </div>
 
                 {/* Meta */}
@@ -204,37 +327,39 @@ const Companies = () => {
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-3 border-t border-border">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => window.open(company.career_url, '_blank')}
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                    Careers Page
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="flex-1"
-                    disabled={scrapingCompany?.id === company.id}
-                    onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
-                  >
-                    {scrapingCompany?.id === company.id ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                        Scraping...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                        Scrape
-                      </>
-                    )}
-                  </Button>
-                </div>
+                {/* Actions - only show when not in bulk mode */}
+                {!bulkSelectMode && (
+                  <div className="flex items-center gap-2 pt-3 border-t border-border">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => window.open(company.career_url, '_blank')}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                      Careers Page
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1"
+                      disabled={scrapingCompany?.id === company.id}
+                      onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
+                    >
+                      {scrapingCompany?.id === company.id ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          Scraping...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                          Scrape
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -272,6 +397,18 @@ const Companies = () => {
         onClose={() => setHistoryCompany(null)}
         companyId={historyCompany?.id || null}
         companyName={historyCompany?.name || ""}
+      />
+
+      {/* Bulk Scrape Modal */}
+      <BulkScrapeModal
+        isOpen={showBulkScrapeModal}
+        onClose={() => setShowBulkScrapeModal(false)}
+        companies={selectedCompaniesData.map((c) => ({
+          id: c.id,
+          name: c.company_name,
+          careerUrl: c.career_url,
+        }))}
+        onComplete={handleBulkScrapeComplete}
       />
     </div>
   );
