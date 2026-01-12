@@ -1,7 +1,7 @@
-import { MapPin, Calendar, Heart, Share2, Music } from "lucide-react";
+import { MapPin, Calendar, Heart, Share2, Briefcase } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-interface EventCardProps {
+interface JobCardProps {
   title: string;
   image: string;
   location: string;
@@ -10,7 +10,7 @@ interface EventCardProps {
   startDate: string;
 }
 
-const EventCard = ({ title, image, location, dateRange, source, startDate }: EventCardProps) => {
+const JobCard = ({ title, image, location, dateRange, source, startDate }: JobCardProps) => {
   const hasImage = image && !image.includes("placeholder");
 
   return (
@@ -25,7 +25,7 @@ const EventCard = ({ title, image, location, dateRange, source, startDate }: Eve
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Music className="w-16 h-16 text-muted-foreground/30" />
+            <Briefcase className="w-16 h-16 text-muted-foreground/30" />
           </div>
         )}
       </div>
@@ -71,4 +71,4 @@ const EventCard = ({ title, image, location, dateRange, source, startDate }: Eve
   );
 };
 
-export default EventCard;
+export default JobCard;

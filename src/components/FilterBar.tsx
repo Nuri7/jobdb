@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/select";
 
 interface FilterBarProps {
-  totalEvents: number;
+  totalJobs: number;
   location: string;
   onLocationChange: (value: string) => void;
   startDate: string;
@@ -19,7 +19,7 @@ interface FilterBarProps {
 }
 
 const FilterBar = ({
-  totalEvents,
+  totalJobs,
   location,
   onLocationChange,
   startDate,
@@ -31,7 +31,7 @@ const FilterBar = ({
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4">
       <h2 className="text-xl font-semibold text-foreground">
-        {totalEvents.toLocaleString()} Events
+        {totalJobs.toLocaleString()} Jobs
       </h2>
 
       <div className="flex flex-wrap items-center gap-3">
