@@ -51,6 +51,7 @@ async function updateHistory(
     pages_scraped?: number;
     jobs_found?: number;
     jobs_inserted?: number;
+    jobs_removed?: number;
     completed_at?: string;
     error_message?: string;
   }
@@ -456,6 +457,8 @@ Deno.serve(async (req) => {
 
     // Delete jobs that no longer exist on the career page
     const currentJobUrls = jobs.map(job => job.job_url);
+    let jobsRemoved = 0;
+    
     if (currentJobUrls.length > 0) {
       const { data: deletedJobs, error: deleteError } = await supabase
         .from('job_opportunities')
@@ -467,7 +470,8 @@ Deno.serve(async (req) => {
       if (deleteError) {
         console.error('Error deleting stale jobs:', deleteError);
       } else {
-        console.log(`Deleted ${deletedJobs?.length || 0} stale jobs that no longer exist`);
+        jobsRemoved = deletedJobs?.length || 0;
+        console.log(`Deleted ${jobsRemoved} stale jobs that no longer exist`);
       }
     }
 
@@ -492,11 +496,12 @@ Deno.serve(async (req) => {
         pages_scraped: pagesScraped,
         jobs_found: jobs.length,
         jobs_inserted: insertedCount,
+        jobs_removed: jobsRemoved,
         completed_at: new Date().toISOString(),
       });
     }
 
-    console.log(`Complete: Inserted ${insertedCount} jobs for company ${companyId}`);
+    console.log(`Complete: Inserted ${insertedCount} jobs, removed ${jobsRemoved} stale jobs for company ${companyId}`);
 
     return new Response(
       JSON.stringify({ 
@@ -504,6 +509,7 @@ Deno.serve(async (req) => {
         jobsFound: allJobUrls.size,
         jobsScraped: jobs.length,
         jobsInserted: insertedCount,
+        jobsRemoved: jobsRemoved,
         pagesScraped: pagesScraped,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

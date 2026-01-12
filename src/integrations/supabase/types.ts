@@ -157,6 +157,7 @@ export type Database = {
           id: string
           jobs_found: number | null
           jobs_inserted: number | null
+          jobs_removed: number | null
           pages_scraped: number | null
           started_at: string
           status: string
@@ -169,6 +170,7 @@ export type Database = {
           id?: string
           jobs_found?: number | null
           jobs_inserted?: number | null
+          jobs_removed?: number | null
           pages_scraped?: number | null
           started_at?: string
           status?: string
@@ -181,6 +183,7 @@ export type Database = {
           id?: string
           jobs_found?: number | null
           jobs_inserted?: number | null
+          jobs_removed?: number | null
           pages_scraped?: number | null
           started_at?: string
           status?: string

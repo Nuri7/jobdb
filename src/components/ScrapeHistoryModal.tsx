@@ -15,7 +15,8 @@ import {
   Clock,
   FileText,
   Briefcase,
-  Database
+  Database,
+  Trash2
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -27,6 +28,7 @@ interface ScrapeHistoryEntry {
   pages_scraped: number;
   jobs_found: number;
   jobs_inserted: number;
+  jobs_removed: number | null;
   error_message: string | null;
   career_url: string;
 }
@@ -172,7 +174,7 @@ const ScrapeHistoryModal = ({
                   </div>
 
                   {/* Stats */}
-                  <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="grid grid-cols-4 gap-2 mb-3">
                     <div className="text-center p-2 bg-muted/50 rounded">
                       <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
                         <FileText className="w-3 h-3" />
@@ -193,6 +195,13 @@ const ScrapeHistoryModal = ({
                         Saved
                       </div>
                       <p className="font-semibold text-foreground">{entry.jobs_inserted}</p>
+                    </div>
+                    <div className="text-center p-2 bg-muted/50 rounded">
+                      <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
+                        <Trash2 className="w-3 h-3" />
+                        Removed
+                      </div>
+                      <p className="font-semibold text-foreground">{entry.jobs_removed ?? 0}</p>
                     </div>
                   </div>
 
