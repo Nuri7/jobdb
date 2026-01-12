@@ -20,6 +20,8 @@ const Index = () => {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
   const [isScraping, setIsScraping] = useState(false);
+  const [scrapingCompany, setScrapingCompany] = useState<string | null>(null);
+  const [scrapeProgress, setScrapeProgress] = useState({ current: 0, total: 0 });
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const { toast } = useToast();
 
@@ -39,7 +41,7 @@ const Index = () => {
     setSearch("");
   };
 
-  const handleScrapeAll = async () => {
+  const handleScrape = async () => {
     if (!companies || companies.length === 0) {
       toast({
         title: "No companies",
@@ -49,19 +51,36 @@ const Index = () => {
       return;
     }
 
+    // Determine which companies to scrape based on selection
+    let companiesToScrape;
+    if (source === "all") {
+      // Scrape first 10 companies when "All Companies" is selected
+      companiesToScrape = companies.slice(0, 10);
+    } else {
+      // Scrape only the selected company
+      const selectedCompany = companies.find(c => c.id === source);
+      if (!selectedCompany) {
+        toast({
+          title: "Company not found",
+          description: "Could not find the selected company",
+          variant: "destructive",
+        });
+        return;
+      }
+      companiesToScrape = [selectedCompany];
+    }
+
     setIsScraping(true);
-    toast({
-      title: "Scraping started",
-      description: `Scraping ${companies.length} companies. This may take a few minutes...`,
-    });
+    setScrapeProgress({ current: 0, total: companiesToScrape.length });
 
     let successCount = 0;
     let errorCount = 0;
 
-    // Scrape first 5 companies to avoid timeout
-    const companiesToScrape = companies.slice(0, 5);
+    for (let i = 0; i < companiesToScrape.length; i++) {
+      const company = companiesToScrape[i];
+      setScrapingCompany(company.company_name);
+      setScrapeProgress({ current: i + 1, total: companiesToScrape.length });
 
-    for (const company of companiesToScrape) {
       try {
         await jobsApi.scrapeCompany(company.id, company.career_url);
         successCount++;
@@ -72,12 +91,20 @@ const Index = () => {
     }
 
     setIsScraping(false);
+    setScrapingCompany(null);
+    setScrapeProgress({ current: 0, total: 0 });
     refetch();
 
     toast({
       title: "Scraping complete",
-      description: `Successfully scraped ${successCount} companies. ${errorCount} failed.`,
+      description: `Successfully scraped ${successCount} ${successCount === 1 ? 'company' : 'companies'}. ${errorCount > 0 ? `${errorCount} failed.` : ''}`,
     });
+  };
+
+  const getSelectedCompanyName = () => {
+    if (source === "all") return "All Companies";
+    const company = companies?.find(c => c.id === source);
+    return company?.company_name || "Selected Company";
   };
 
   const jobs = jobsData?.jobs || [];
@@ -88,25 +115,35 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <div className="container max-w-7xl py-8">
         {/* Header with Scrape Button */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-foreground">Jobs Directory</h1>
-          <Button 
-            onClick={handleScrapeAll} 
-            disabled={isScraping}
-            variant="outline"
-          >
-            {isScraping ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Scraping...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Scrape Jobs
-              </>
-            )}
-          </Button>
+        <div className="flex flex-col items-end gap-2 mb-6">
+          <div className="flex items-center justify-between w-full">
+            <h1 className="text-2xl font-bold text-foreground">Jobs Directory</h1>
+            <Button 
+              onClick={handleScrape} 
+              disabled={isScraping}
+              variant="outline"
+            >
+              {isScraping ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scraping...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Scrape {source === "all" ? "All Companies" : getSelectedCompanyName()}
+                </>
+              )}
+            </Button>
+          </div>
+          {isScraping && scrapingCompany && (
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>
+                Scraping {scrapingCompany} ({scrapeProgress.current}/{scrapeProgress.total})
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Search */}
@@ -141,8 +178,8 @@ const Index = () => {
         {!isLoading && jobs.length === 0 && (
           <div className="text-center py-20">
             <p className="text-muted-foreground mb-4">No jobs found yet.</p>
-            <Button onClick={handleScrapeAll} disabled={isScraping}>
-              {isScraping ? "Scraping..." : "Scrape Jobs from Companies"}
+            <Button onClick={handleScrape} disabled={isScraping}>
+              {isScraping ? "Scraping..." : `Scrape ${source === "all" ? "All Companies" : getSelectedCompanyName()}`}
             </Button>
           </div>
         )}
