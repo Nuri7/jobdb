@@ -454,6 +454,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Delete jobs that no longer exist on the career page
+    const currentJobUrls = jobs.map(job => job.job_url);
+    if (currentJobUrls.length > 0) {
+      const { data: deletedJobs, error: deleteError } = await supabase
+        .from('job_opportunities')
+        .delete()
+        .eq('company_career_site_id', companyId)
+        .not('job_url', 'in', `(${currentJobUrls.map(url => `"${url}"`).join(',')})`)
+        .select('id');
+      
+      if (deleteError) {
+        console.error('Error deleting stale jobs:', deleteError);
+      } else {
+        console.log(`Deleted ${deletedJobs?.length || 0} stale jobs that no longer exist`);
+      }
+    }
+
     // Mark as complete
     await supabase
       .from('company_career_sites')
