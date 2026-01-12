@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useJobs, useCompanies } from "@/hooks/useJobs";
-import { jobsApi } from "@/lib/api/jobs";
+import { jobsApi, Job } from "@/lib/api/jobs";
 import SearchBar from "@/components/SearchBar";
 import FilterBar from "@/components/FilterBar";
 import JobCard from "@/components/JobCard";
 import JobListItem from "@/components/JobListItem";
+import JobDetailModal from "@/components/JobDetailModal";
 import ViewToggle from "@/components/ViewToggle";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ const Index = () => {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
   const [isScraping, setIsScraping] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const { toast } = useToast();
 
   const { data: jobsData, isLoading, refetch } = useJobs({
@@ -157,6 +159,7 @@ const Index = () => {
                     dateRange={job.employment_type || "Full-time"}
                     source={job.company_name || "Unknown"}
                     startDate={job.is_remote ? "Remote" : "On-site"}
+                    onClick={() => setSelectedJob(job)}
                   />
                 ))}
               </div>
@@ -171,6 +174,7 @@ const Index = () => {
                     dateRange={job.employment_type || "Full-time"}
                     source={job.company_name || "Unknown"}
                     startDate={job.is_remote ? "Remote" : "On-site"}
+                    onClick={() => setSelectedJob(job)}
                   />
                 ))}
               </div>
@@ -187,6 +191,13 @@ const Index = () => {
           </>
         )}
       </div>
+
+      {/* Job Detail Modal */}
+      <JobDetailModal
+        isOpen={!!selectedJob}
+        onClose={() => setSelectedJob(null)}
+        job={selectedJob}
+      />
     </div>
   );
 };

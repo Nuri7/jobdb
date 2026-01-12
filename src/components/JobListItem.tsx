@@ -8,13 +8,17 @@ interface JobListItemProps {
   dateRange: string;
   source: string;
   startDate: string;
+  onClick?: () => void;
 }
 
-const JobListItem = ({ title, image, location, dateRange, source, startDate }: JobListItemProps) => {
+const JobListItem = ({ title, image, location, dateRange, source, startDate, onClick }: JobListItemProps) => {
   const hasImage = image && !image.includes("placeholder");
 
   return (
-    <div className="bg-card rounded-lg border border-border hover:shadow-lg transition-shadow duration-200 p-4 flex items-center gap-4">
+    <div 
+      className="bg-card rounded-lg border border-border hover:shadow-lg transition-shadow duration-200 p-4 flex items-center gap-4 cursor-pointer"
+      onClick={onClick}
+    >
       {/* Image */}
       <div className="w-16 h-16 flex-shrink-0 rounded-lg bg-muted overflow-hidden">
         {hasImage ? (
