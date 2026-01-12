@@ -139,6 +139,53 @@ export type Database = {
           },
         ]
       }
+      scrape_history: {
+        Row: {
+          career_url: string
+          company_career_site_id: string
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          jobs_found: number | null
+          jobs_inserted: number | null
+          pages_scraped: number | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          career_url: string
+          company_career_site_id: string
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          jobs_found?: number | null
+          jobs_inserted?: number | null
+          pages_scraped?: number | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          career_url?: string
+          company_career_site_id?: string
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          jobs_found?: number | null
+          jobs_inserted?: number | null
+          pages_scraped?: number | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrape_history_company_career_site_id_fkey"
+            columns: ["company_career_site_id"]
+            isOneToOne: false
+            referencedRelation: "company_career_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
