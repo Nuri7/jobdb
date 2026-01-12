@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useJobs, useCompanies } from "@/hooks/useJobs";
 import { jobsApi, Job } from "@/lib/api/jobs";
+import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import FilterBar from "@/components/FilterBar";
 import JobCard from "@/components/JobCard";
@@ -113,6 +114,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       <div className="container max-w-7xl py-8">
         {/* Header with Scrape Button */}
         <div className="flex flex-col items-end gap-2 mb-6">
