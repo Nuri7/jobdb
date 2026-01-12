@@ -1,5 +1,6 @@
-import { MapPin, Calendar, Heart, Share2, Briefcase } from "lucide-react";
+import { MapPin, Calendar, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface JobCardProps {
   title: string;
@@ -8,68 +9,62 @@ interface JobCardProps {
   dateRange: string;
   source: string;
   startDate: string;
+  description?: string;
+  jobUrl?: string;
   onClick?: () => void;
 }
 
-const JobCard = ({ title, image, location, dateRange, source, startDate, onClick }: JobCardProps) => {
-  const hasImage = image && !image.includes("placeholder");
+const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, onClick }: JobCardProps) => {
+  const handleApply = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (jobUrl) {
+      window.open(jobUrl, '_blank');
+    }
+  };
 
   return (
     <div 
-      className="bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+      className="bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow duration-200 cursor-pointer p-4"
       onClick={onClick}
     >
-      {/* Image */}
-      <div className="aspect-square relative bg-muted">
-        {hasImage ? (
-          <img 
-            src={image} 
-            alt={title} 
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Briefcase className="w-16 h-16 text-muted-foreground/30" />
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="p-4">
-        {/* Actions */}
-        <div className="flex justify-end gap-2 mb-2">
-          <button className="p-1.5 rounded-full hover:bg-muted transition-colors">
-            <Heart className="w-4 h-4 text-muted-foreground" />
-          </button>
-          <button className="p-1.5 rounded-full hover:bg-muted transition-colors">
-            <Share2 className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-
-        {/* Title */}
-        <h3 className="font-semibold text-foreground text-base mb-3 line-clamp-2 min-h-[48px]">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <h3 className="font-semibold text-foreground text-base line-clamp-2 flex-1">
           {title}
         </h3>
+        <Badge variant="secondary" className="text-xs font-medium shrink-0">
+          {startDate}
+        </Badge>
+      </div>
 
-        {/* Location */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-          <MapPin className="w-4 h-4 flex-shrink-0" />
+      {/* Meta */}
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-3">
+        <div className="flex items-center gap-1.5">
+          <MapPin className="w-3.5 h-3.5" />
           <span className="truncate">{location}</span>
         </div>
-
-        {/* Date Range */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <Calendar className="w-4 h-4 flex-shrink-0" />
+        <div className="flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5" />
           <span>{dateRange}</span>
         </div>
+      </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-border">
-          <span className="text-xs text-muted-foreground">{source}</span>
-          <Badge variant="secondary" className="text-xs font-medium">
-            {startDate}
-          </Badge>
-        </div>
+      {/* Description */}
+      {description && (
+        <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
+          {description.replace(/[#*_`]/g, '').slice(0, 200)}
+        </p>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-3 border-t border-border">
+        <span className="text-xs text-muted-foreground">{source}</span>
+        {jobUrl && (
+          <Button size="sm" variant="default" onClick={handleApply} className="h-7 text-xs">
+            <ExternalLink className="w-3 h-3 mr-1.5" />
+            Apply Now
+          </Button>
+        )}
       </div>
     </div>
   );
