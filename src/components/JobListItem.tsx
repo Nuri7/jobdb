@@ -1,5 +1,6 @@
-import { MapPin, Calendar, Heart, Share2, Briefcase } from "lucide-react";
+import { MapPin, Calendar, Briefcase, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface JobListItemProps {
   title: string;
@@ -8,10 +9,11 @@ interface JobListItemProps {
   dateRange: string;
   source: string;
   startDate: string;
+  jobUrl?: string;
   onClick?: () => void;
 }
 
-const JobListItem = ({ title, image, location, dateRange, source, startDate, onClick }: JobListItemProps) => {
+const JobListItem = ({ title, image, location, dateRange, source, startDate, jobUrl, onClick }: JobListItemProps) => {
   const hasImage = image && !image.includes("placeholder");
 
   return (
@@ -51,20 +53,39 @@ const JobListItem = ({ title, image, location, dateRange, source, startDate, onC
         </div>
       </div>
 
-      {/* Meta */}
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <span className="text-xs text-muted-foreground">{source}</span>
-        <Badge variant="secondary" className="text-xs font-medium">
-          {startDate}
-        </Badge>
-        <div className="flex items-center gap-1">
-          <button className="p-1.5 rounded-full hover:bg-muted transition-colors">
-            <Heart className="w-4 h-4 text-muted-foreground" />
-          </button>
-          <button className="p-1.5 rounded-full hover:bg-muted transition-colors">
-            <Share2 className="w-4 h-4 text-muted-foreground" />
-          </button>
+      {/* Meta and URL */}
+      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{source}</span>
+          <Badge variant="secondary" className="text-xs font-medium">
+            {startDate}
+          </Badge>
+          {jobUrl && (
+            <Button 
+              size="sm" 
+              variant="default" 
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(jobUrl, '_blank');
+              }} 
+              className="h-7 text-xs"
+            >
+              <ExternalLink className="w-3 h-3 mr-1.5" />
+              Job page
+            </Button>
+          )}
         </div>
+        {jobUrl && (
+          <a 
+            href={jobUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-muted-foreground hover:text-primary truncate max-w-[300px]"
+          >
+            {jobUrl}
+          </a>
+        )}
       </div>
     </div>
   );
