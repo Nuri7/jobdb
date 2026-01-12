@@ -54,6 +54,7 @@ async function updateHistory(
     jobs_removed?: number;
     completed_at?: string;
     error_message?: string;
+    skipped_urls?: Array<{ url: string; reason: string }>;
   }
 ) {
   await supabase
@@ -437,6 +438,7 @@ Deno.serve(async (req) => {
     await updateProgress(supabase, companyId, 'scraping', pagesScraped, allJobUrls.size, null);
     
     const jobs: JobData[] = [];
+    const skippedUrls: Array<{ url: string; reason: string }> = [];
     const jobUrlArray = Array.from(allJobUrls);
     
     for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
@@ -480,18 +482,22 @@ Deno.serve(async (req) => {
           // Validate that this is actually a job posting
           if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS)) {
             console.log(`Skipping non-job page: ${jobUrl} (missing required keywords)`);
+            skippedUrls.push({ url: jobUrl, reason: 'Missing required keywords (apply, requirements, etc.)' });
             continue;
           }
           
           const job = extractJobData(jobUrl, content, metadata);
           jobs.push(job);
+        } else {
+          skippedUrls.push({ url: jobUrl, reason: 'Failed to scrape page' });
         }
       } catch (err) {
         console.error('Error scraping job URL:', jobUrl, err);
+        skippedUrls.push({ url: jobUrl, reason: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` });
       }
     }
 
-    console.log(`Phase 2 complete: Scraped ${jobs.length} job details`);
+    console.log(`Phase 2 complete: Scraped ${jobs.length} job details, skipped ${skippedUrls.length} URLs`);
 
     // Phase 3: Insert jobs into database
     console.log('Phase 3: Inserting jobs into database...');
@@ -565,6 +571,7 @@ Deno.serve(async (req) => {
         jobs_inserted: insertedCount,
         jobs_removed: jobsRemoved,
         completed_at: new Date().toISOString(),
+        skipped_urls: skippedUrls,
       });
     }
 
