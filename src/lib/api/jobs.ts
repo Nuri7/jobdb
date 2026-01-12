@@ -56,6 +56,10 @@ export const jobsApi = {
       query = query.ilike('location', `%${location}%`);
     }
 
+    if (source && source !== 'all') {
+      query = query.eq('company_career_site_id', source);
+    }
+
     const { data, error, count } = await query;
 
     if (error) {

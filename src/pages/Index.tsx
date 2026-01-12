@@ -26,6 +26,7 @@ const Index = () => {
   const { data: jobsData, isLoading, refetch } = useJobs({
     search,
     location: location !== "all" ? location : undefined,
+    source: source !== "all" ? source : undefined,
     page: currentPage,
   });
 
@@ -124,6 +125,7 @@ const Index = () => {
             source={source}
             onSourceChange={setSource}
             onClearAll={handleClearAll}
+            companies={companies || []}
           />
           <ViewToggle view={view} onViewChange={setView} />
         </div>

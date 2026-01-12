@@ -6,6 +6,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+interface Company {
+  id: string;
+  company_name: string;
+}
 
 interface FilterBarProps {
   totalJobs: number;
@@ -16,6 +22,7 @@ interface FilterBarProps {
   source: string;
   onSourceChange: (value: string) => void;
   onClearAll: () => void;
+  companies?: Company[];
 }
 
 const FilterBar = ({
@@ -27,6 +34,7 @@ const FilterBar = ({
   source,
   onSourceChange,
   onClearAll,
+  companies = [],
 }: FilterBarProps) => {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4">
@@ -44,31 +52,37 @@ const FilterBar = ({
             <SelectItem value="amsterdam">Amsterdam</SelectItem>
             <SelectItem value="utrecht">Utrecht</SelectItem>
             <SelectItem value="rotterdam">Rotterdam</SelectItem>
-            <SelectItem value="netherlands">Netherlands</SelectItem>
+            <SelectItem value="eindhoven">Eindhoven</SelectItem>
+            <SelectItem value="the hague">The Hague</SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={startDate} onValueChange={onStartDateChange}>
           <SelectTrigger className="w-[140px] bg-card">
-            <SelectValue placeholder="Start Date" />
+            <SelectValue placeholder="Job Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Dates</SelectItem>
-            <SelectItem value="today">Today</SelectItem>
-            <SelectItem value="this-week">This Week</SelectItem>
-            <SelectItem value="this-month">This Month</SelectItem>
-            <SelectItem value="next-month">Next Month</SelectItem>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="full-time">Full-time</SelectItem>
+            <SelectItem value="part-time">Part-time</SelectItem>
+            <SelectItem value="contract">Contract</SelectItem>
+            <SelectItem value="remote">Remote</SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={source} onValueChange={onSourceChange}>
-          <SelectTrigger className="w-[140px] bg-card">
-            <SelectValue placeholder="Source" />
+          <SelectTrigger className="w-[180px] bg-card">
+            <SelectValue placeholder="Company" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Sources</SelectItem>
-            <SelectItem value="songkick">Song Kick</SelectItem>
-            <SelectItem value="festivalinfo">Festival Info</SelectItem>
+            <ScrollArea className="h-[300px]">
+              <SelectItem value="all">All Companies</SelectItem>
+              {companies.map((company) => (
+                <SelectItem key={company.id} value={company.id}>
+                  {company.company_name}
+                </SelectItem>
+              ))}
+            </ScrollArea>
           </SelectContent>
         </Select>
 
