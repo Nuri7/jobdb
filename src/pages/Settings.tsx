@@ -23,6 +23,8 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   wait_time: 3000,
   job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
   excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
+  excluded_url_patterns: ['/locations', '/career-types', '/about', '/contact', '/teams', '/departments', '/benefits', '/culture', '/events', '/news', '/blog'],
+  required_content_keywords: ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications', 'experience', 'skills'],
   location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
   remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
 };
@@ -289,6 +291,48 @@ const Settings = () => {
                 placeholder="Add domain..."
                 variant="outline"
                 className="border-red-500/50 text-red-700"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Excluded URL Patterns */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-red-500" />
+                <CardTitle>Excluded URL Patterns</CardTitle>
+              </div>
+              <CardDescription>URL path patterns to exclude (e.g., /locations, /about)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EditableTagList
+                tags={getSetting('excluded_url_patterns') || []}
+                onAdd={(item) => handleArrayAdd('excluded_url_patterns', item)}
+                onRemove={(item) => handleArrayRemove('excluded_url_patterns', item)}
+                placeholder="Add pattern (e.g. /events)..."
+                variant="outline"
+                className="border-red-500/50 text-red-700"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Required Content Keywords */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <FileSearch className="w-5 h-5 text-green-500" />
+                <CardTitle>Required Content Keywords</CardTitle>
+              </div>
+              <CardDescription>Job pages must contain at least one of these keywords to be considered valid</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EditableTagList
+                tags={getSetting('required_content_keywords') || []}
+                onAdd={(item) => handleArrayAdd('required_content_keywords', item)}
+                onRemove={(item) => handleArrayRemove('required_content_keywords', item)}
+                placeholder="Add keyword..."
+                variant="outline"
+                className="border-green-500/50 text-green-700"
               />
             </CardContent>
           </Card>

@@ -70,6 +70,8 @@ async function getScraperSettings(supabase: any): Promise<Record<string, any>> {
     wait_time: 3000,
     job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
     excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
+    excluded_url_patterns: ['/locations', '/career-types', '/about', '/contact', '/teams', '/departments', '/benefits', '/culture', '/events', '/news', '/blog'],
+    required_content_keywords: ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications', 'experience', 'skills'],
     location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
     remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
   };
@@ -176,7 +178,7 @@ function findPaginationLinks(links: string[], baseUrl: string, currentUrl: strin
 }
 
 // Filter links to find job URLs
-function filterJobUrls(links: string[], baseUrl: string, careerUrl: string): string[] {
+function filterJobUrls(links: string[], baseUrl: string, careerUrl: string, excludedUrlPatterns: string[] = []): string[] {
   return links.filter((url: string) => {
     const lowerUrl = url.toLowerCase();
     
@@ -196,8 +198,14 @@ function filterJobUrls(links: string[], baseUrl: string, careerUrl: string): str
       /job[_-]?id/i.test(url)
     );
     
+    // Check against excluded URL patterns from settings
+    const matchesExcludedPattern = excludedUrlPatterns.some(pattern => 
+      lowerUrl.includes(pattern.toLowerCase())
+    );
+    
     // Exclude non-job URLs
     const isExcluded = (
+      matchesExcludedPattern ||
       lowerUrl.includes('linkedin.com') ||
       lowerUrl.includes('facebook.com') ||
       lowerUrl.includes('twitter.com') ||
@@ -206,10 +214,6 @@ function filterJobUrls(links: string[], baseUrl: string, careerUrl: string): str
       lowerUrl.includes('login') ||
       lowerUrl.includes('signup') ||
       lowerUrl.includes('register') ||
-      lowerUrl.includes('/locations') ||
-      lowerUrl.includes('/career-types') ||
-      lowerUrl.includes('/about') ||
-      lowerUrl.includes('/contact') ||
       // Exclude pagination/list pages (we want detail pages)
       /[?&]page=\d+/i.test(url) ||
       /[?&]p=\d+/i.test(url) ||
@@ -227,6 +231,21 @@ function filterJobUrls(links: string[], baseUrl: string, careerUrl: string): str
     
     return isJobUrl && !isExcluded && isDetailPage;
   });
+}
+
+// Validate if scraped content is actually a job posting
+function isValidJobContent(content: string, requiredKeywords: string[]): boolean {
+  const lowerContent = content.toLowerCase();
+  
+  // Must contain at least one of the required keywords
+  const hasRequiredKeyword = requiredKeywords.some(keyword => 
+    lowerContent.includes(keyword.toLowerCase())
+  );
+  
+  // Additional validation: should have reasonable content length
+  const hasReasonableLength = content.length > 200;
+  
+  return hasRequiredKeyword && hasReasonableLength;
 }
 
 // Extract job data from a job page
@@ -324,9 +343,12 @@ Deno.serve(async (req) => {
     const MAX_PAGES = settings.max_pages || 20;
     const MAX_JOBS = settings.max_jobs || 150;
     const WAIT_TIME = settings.wait_time || 3000;
+    const EXCLUDED_URL_PATTERNS = settings.excluded_url_patterns || [];
+    const REQUIRED_CONTENT_KEYWORDS = settings.required_content_keywords || ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications'];
 
     console.log('Starting scrape for:', careerUrl);
     console.log(`Settings: MAX_PAGES=${MAX_PAGES}, MAX_JOBS=${MAX_JOBS}, WAIT_TIME=${WAIT_TIME}`);
+    console.log(`Excluded URL patterns: ${EXCLUDED_URL_PATTERNS.length}, Required keywords: ${REQUIRED_CONTENT_KEYWORDS.length}`);
     const baseUrl = new URL(careerUrl).origin;
 
     // Create history entry
@@ -379,7 +401,7 @@ Deno.serve(async (req) => {
       }
       
       // Extract job URLs from this page
-      const jobUrls = filterJobUrls(pageData.links, baseUrl, careerUrl);
+      const jobUrls = filterJobUrls(pageData.links, baseUrl, careerUrl, EXCLUDED_URL_PATTERNS);
       console.log(`Found ${jobUrls.length} job URLs on this page`);
       
       for (const url of jobUrls) {
@@ -454,6 +476,12 @@ Deno.serve(async (req) => {
         if (jobResponse.ok && jobData.success && jobData.data) {
           const content = jobData.data.markdown || '';
           const metadata = jobData.data.metadata || {};
+          
+          // Validate that this is actually a job posting
+          if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS)) {
+            console.log(`Skipping non-job page: ${jobUrl} (missing required keywords)`);
+            continue;
+          }
           
           const job = extractJobData(jobUrl, content, metadata);
           jobs.push(job);
