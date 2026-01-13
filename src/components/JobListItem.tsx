@@ -15,10 +15,11 @@ interface JobListItemProps {
   experienceLevel?: string;
   salaryRange?: string;
   companyCareerUrl?: string | null;
+  isInternship?: boolean;
   onClick?: () => void;
 }
 
-const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, companyCareerUrl, onClick }: JobListItemProps) => {
+const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, onClick }: JobListItemProps) => {
   const { toast } = useToast();
   const [logoError, setLogoError] = useState(false);
 
@@ -110,6 +111,11 @@ const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, ex
       {/* Meta */}
       <div className="flex items-center gap-3 flex-shrink-0">
         <span className="text-xs text-muted-foreground">{source}</span>
+        {isInternship && (
+          <Badge variant="outline" className="text-xs font-medium border-purple-300 text-purple-600 bg-purple-50">
+            Internship
+          </Badge>
+        )}
         <Badge variant="secondary" className="text-xs font-medium">
           {startDate}
         </Badge>

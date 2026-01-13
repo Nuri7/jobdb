@@ -205,6 +205,7 @@ const Index = () => {
                     experienceLevel={job.experience_level || undefined}
                     salaryRange={job.salary_range || undefined}
                     companyCareerUrl={job.company_career_url}
+                    isInternship={job.is_internship || false}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}
@@ -224,6 +225,7 @@ const Index = () => {
                     experienceLevel={job.experience_level || undefined}
                     salaryRange={job.salary_range || undefined}
                     companyCareerUrl={job.company_career_url}
+                    isInternship={job.is_internship || false}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}

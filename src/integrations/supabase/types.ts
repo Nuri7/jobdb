@@ -90,6 +90,7 @@ export type Database = {
           employment_type: string | null
           experience_level: string | null
           id: string
+          is_internship: boolean | null
           is_remote: boolean | null
           job_title: string
           job_url: string
@@ -109,6 +110,7 @@ export type Database = {
           employment_type?: string | null
           experience_level?: string | null
           id?: string
+          is_internship?: boolean | null
           is_remote?: boolean | null
           job_title: string
           job_url: string
@@ -128,6 +130,7 @@ export type Database = {
           employment_type?: string | null
           experience_level?: string | null
           id?: string
+          is_internship?: boolean | null
           is_remote?: boolean | null
           job_title?: string
           job_url?: string
