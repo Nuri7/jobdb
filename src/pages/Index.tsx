@@ -147,12 +147,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container max-w-7xl py-8">
-        {/* Search */}
-        <div className="mb-8">
-          <SearchBar value={search} onChange={setSearch} />
-        </div>
-
-        {/* Filters Row */}
+        {/* Filters Row with Actions */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <FilterBar
             totalJobs={totalCount}
@@ -166,7 +161,6 @@ const Index = () => {
             companies={companies || []}
           />
           <div className="flex items-center gap-2">
-            <ViewToggle view={view} onViewChange={setView} />
             <Button 
               onClick={handleScrape} 
               disabled={isScraping || isDeleting}
@@ -193,9 +187,15 @@ const Index = () => {
               className="text-destructive hover:text-destructive"
             >
               {isDeleting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
               ) : (
-                <Trash2 className="w-4 h-4" />
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete {source === "all" ? "All Jobs" : `${getSelectedCompanyName()} Jobs`}
+                </>
               )}
             </Button>
           </div>
@@ -210,6 +210,16 @@ const Index = () => {
             </span>
           </div>
         )}
+
+        {/* Search */}
+        <div className="mb-4">
+          <SearchBar value={search} onChange={setSearch} />
+        </div>
+
+        {/* View Toggle */}
+        <div className="flex justify-end mb-4">
+          <ViewToggle view={view} onViewChange={setView} />
+        </div>
 
         {/* Loading State */}
         {isLoading && (
