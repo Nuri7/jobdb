@@ -47,7 +47,7 @@ const FilterBar = ({
       <div className="flex flex-wrap items-center gap-3">
 
         <Select value={location} onValueChange={onLocationChange}>
-          <SelectTrigger className="w-[140px] bg-card">
+          <SelectTrigger className="w-[140px] bg-card font-semibold">
             <SelectValue placeholder="Location" />
           </SelectTrigger>
           <SelectContent>
@@ -63,7 +63,7 @@ const FilterBar = ({
         </Select>
 
         <Select value={jobType} onValueChange={onJobTypeChange}>
-          <SelectTrigger className="w-[140px] bg-card">
+          <SelectTrigger className="w-[140px] bg-card font-semibold">
             <SelectValue placeholder="Job Type" />
           </SelectTrigger>
           <SelectContent>
@@ -76,7 +76,7 @@ const FilterBar = ({
         </Select>
 
         <Select value={experienceLevel} onValueChange={onExperienceLevelChange}>
-          <SelectTrigger className="w-[160px] bg-card">
+          <SelectTrigger className="w-[160px] bg-card font-semibold">
             <SelectValue placeholder="Experience" />
           </SelectTrigger>
           <SelectContent>
@@ -92,7 +92,7 @@ const FilterBar = ({
         </Select>
 
         <Select value={source} onValueChange={onSourceChange}>
-          <SelectTrigger className="w-[180px] bg-card">
+          <SelectTrigger className="w-[180px] bg-card font-semibold">
             <SelectValue placeholder="Company" />
           </SelectTrigger>
           <SelectContent>
