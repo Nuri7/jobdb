@@ -410,6 +410,25 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     }
   }
 
+  // Override internship detection based on salary - if salary > €1000/month or significant annual, it's not an internship
+  let finalIsInternship = isInternship;
+  if (isInternship && salaryRange && salaryRange !== 'Competitive') {
+    // Extract numeric value from salary
+    const salaryNumbers = salaryRange.match(/[\d.,]+/g);
+    if (salaryNumbers && salaryNumbers.length > 0) {
+      // Take the first number and parse it (removing dots/commas used as thousand separators)
+      const firstNumber = salaryNumbers[0].replace(/\./g, '').replace(',', '.');
+      const salaryValue = parseFloat(firstNumber);
+      
+      // If salary is > 1000 (monthly) or > 20000 (annual), it's not an internship
+      // Most salaries in €X.XXX format are annual (e.g., €50.000), monthly would be €X.XXX (e.g., €3.500)
+      if (salaryValue > 1000) {
+        finalIsInternship = false;
+        console.log(`Overriding internship=false due to salary: ${salaryRange} (parsed: ${salaryValue})`);
+      }
+    }
+  }
+
   return {
     job_title: jobTitle.slice(0, 200),
     job_url: url,
@@ -418,7 +437,7 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     department: department?.slice(0, 100),
     description: content.slice(0, 5000),
     is_remote: isRemote,
-    is_internship: isInternship,
+    is_internship: finalIsInternship,
     experience_level: experienceLevel?.slice(0, 50) || undefined,
     salary_range: salaryRange || undefined,
   };
