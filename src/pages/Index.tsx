@@ -147,47 +147,27 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container max-w-7xl py-8">
-        {/* Header with Scrape & Delete Buttons */}
+        {/* Header with Scrape Button */}
         <div className="flex flex-col items-end gap-2 mb-6">
           <div className="flex items-center justify-between w-full">
             <h1 className="text-2xl font-bold text-foreground">Jobs Directory</h1>
-            <div className="flex items-center gap-2">
-              <Button 
-                onClick={handleDeleteJobs} 
-                disabled={isDeleting || isScraping || totalCount === 0}
-                variant="outline"
-                className="text-destructive hover:text-destructive"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete {source === "all" ? "All Jobs" : `${getSelectedCompanyName()} Jobs`}
-                  </>
-                )}
-              </Button>
-              <Button 
-                onClick={handleScrape} 
-                disabled={isScraping || isDeleting}
-                variant="outline"
-              >
-                {isScraping ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Scraping...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Scrape {source === "all" ? "All Companies" : getSelectedCompanyName()}
-                  </>
-                )}
-              </Button>
-            </div>
+            <Button 
+              onClick={handleScrape} 
+              disabled={isScraping || isDeleting}
+              variant="outline"
+            >
+              {isScraping ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scraping...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Scrape {source === "all" ? "All Companies" : getSelectedCompanyName()}
+                </>
+              )}
+            </Button>
           </div>
           {isScraping && scrapingCompany && (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
@@ -217,7 +197,23 @@ const Index = () => {
             onClearAll={handleClearAll}
             companies={companies || []}
           />
-          <ViewToggle view={view} onViewChange={setView} />
+          <div className="flex items-center gap-2">
+            <ViewToggle view={view} onViewChange={setView} />
+            <Button 
+              onClick={handleDeleteJobs} 
+              disabled={isDeleting || isScraping || totalCount === 0}
+              variant="outline"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              title={`Delete ${source === "all" ? "All Jobs" : `${getSelectedCompanyName()} Jobs`}`}
+            >
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Loading State */}
