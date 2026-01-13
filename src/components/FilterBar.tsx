@@ -44,11 +44,8 @@ const FilterBar = ({
 }: FilterBarProps) => {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4">
-      <h2 className="text-xl font-semibold text-foreground">
-        {totalJobs.toLocaleString()} Jobs
-      </h2>
-
       <div className="flex flex-wrap items-center gap-3">
+
         <Select value={location} onValueChange={onLocationChange}>
           <SelectTrigger className="w-[140px] bg-card">
             <SelectValue placeholder="Location" />
