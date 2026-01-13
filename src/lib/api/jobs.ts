@@ -145,4 +145,37 @@ export const jobsApi = {
 
     return { deletedCount: count || 0 };
   },
+
+  async getDistinctLocations() {
+    const { data, error } = await supabase
+      .from('job_opportunities')
+      .select('location')
+      .not('location', 'is', null);
+
+    if (error) {
+      console.error('Error fetching locations:', error);
+      throw error;
+    }
+
+    // Extract unique locations and filter for valid city names
+    const validCityPattern = /^[A-Za-z\s\-']+$/;
+    const locationCounts = new Map<string, number>();
+    
+    data?.forEach(job => {
+      if (job.location) {
+        // Normalize: trim, capitalize first letter
+        const normalized = job.location.trim();
+        // Only include if it looks like a city name (letters, spaces, hyphens, max 30 chars)
+        if (normalized.length <= 30 && normalized.length >= 2 && validCityPattern.test(normalized)) {
+          const key = normalized.toLowerCase();
+          locationCounts.set(key, (locationCounts.get(key) || 0) + 1);
+        }
+      }
+    });
+
+    // Sort by count (most common first) and return unique locations
+    return Array.from(locationCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([location]) => location.charAt(0).toUpperCase() + location.slice(1));
+  },
 };

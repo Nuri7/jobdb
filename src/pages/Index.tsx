@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useJobs, useCompanies } from "@/hooks/useJobs";
+import { useJobs, useCompanies, useLocations } from "@/hooks/useJobs";
 import { jobsApi, Job } from "@/lib/api/jobs";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
@@ -35,6 +35,7 @@ const Index = () => {
   });
 
   const { data: companies } = useCompanies();
+  const { data: locations } = useLocations();
 
   const handleClearAll = () => {
     setLocation("all");
@@ -159,6 +160,7 @@ const Index = () => {
             onSourceChange={setSource}
             onClearAll={handleClearAll}
             companies={companies || []}
+            locations={locations || []}
           />
           <div className="flex items-center gap-2">
             <Button 
