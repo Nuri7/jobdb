@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
 import { 
   Building2, 
   ExternalLink, 
@@ -28,6 +29,34 @@ import {
   Calendar
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Company logo component with fallback
+const CompanyLogo = ({ careerUrl, companyName }: { careerUrl: string; companyName: string }) => {
+  const [logoError, setLogoError] = useState(false);
+  const logoUrl = getCompanyLogoUrl(careerUrl);
+  const fallbackUrl = getCompanyFaviconUrl(careerUrl);
+
+  return (
+    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+      {logoUrl && !logoError ? (
+        <img 
+          src={logoUrl}
+          alt={`${companyName} logo`}
+          className="w-full h-full object-contain p-1"
+          onError={() => setLogoError(true)}
+        />
+      ) : fallbackUrl && logoError ? (
+        <img 
+          src={fallbackUrl}
+          alt={`${companyName} logo`}
+          className="w-5 h-5 object-contain"
+        />
+      ) : (
+        <Building2 className="w-5 h-5 text-muted-foreground" />
+      )}
+    </div>
+  );
+};
 
 const Companies = () => {
   const [search, setSearch] = useState("");
@@ -272,9 +301,7 @@ const Companies = () => {
                         onClick={(e) => e.stopPropagation()}
                       />
                     )}
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                      <Building2 className="w-5 h-5 text-muted-foreground" />
-                    </div>
+                    <CompanyLogo careerUrl={company.career_url} companyName={company.company_name} />
                     <div>
                       <h3 className="font-semibold text-foreground">
                         {company.company_name}
