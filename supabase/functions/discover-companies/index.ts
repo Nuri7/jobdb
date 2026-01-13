@@ -7,16 +7,16 @@ const corsHeaders = {
 
 // Default search queries (used if no setting found in database)
 const DEFAULT_SEARCH_QUERIES = [
-  'site:werkenbij*.nl careers',
-  'site:jobs.*.nl vacatures',
-  'site:careers.*.com Netherlands',
-  '"careers at" Dutch company Amsterdam',
-  '"join our team" Netherlands tech',
-  '"we are hiring" Amsterdam startup',
-  'werkenbij vacatures Amsterdam',
-  'careers page Dutch fintech',
-  '"open positions" Netherlands software',
-  '"job openings" Rotterdam company',
+  'werkenbij Netherlands careers page',
+  'Dutch company careers hiring',
+  'Amsterdam tech company jobs',
+  'Rotterdam company vacatures',
+  'Netherlands startup hiring team',
+  'Dutch software company careers',
+  'Amsterdam fintech jobs page',
+  'Netherlands e-commerce careers',
+  'Utrecht company job openings',
+  'Eindhoven tech careers page',
 ];
 
 // Known industry patterns for classification

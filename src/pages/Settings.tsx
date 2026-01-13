@@ -32,16 +32,16 @@ const DEFAULT_EXTRACTION_PROMPT = `Extract job details from this career page con
 Return structured data with these fields. For location, prioritize Dutch city names found in content or URL.`;
 
 const DEFAULT_DISCOVERY_QUERIES = [
-  'site:werkenbij*.nl careers',
-  'site:jobs.*.nl vacatures',
-  'site:careers.*.com Netherlands',
-  '"careers at" Dutch company Amsterdam',
-  '"join our team" Netherlands tech',
-  '"we are hiring" Amsterdam startup',
-  'werkenbij vacatures Amsterdam',
-  'careers page Dutch fintech',
-  '"open positions" Netherlands software',
-  '"job openings" Rotterdam company',
+  'werkenbij Netherlands careers page',
+  'Dutch company careers hiring',
+  'Amsterdam tech company jobs',
+  'Rotterdam company vacatures',
+  'Netherlands startup hiring team',
+  'Dutch software company careers',
+  'Amsterdam fintech jobs page',
+  'Netherlands e-commerce careers',
+  'Utrecht company job openings',
+  'Eindhoven tech careers page',
 ];
 
 const DEFAULT_SETTINGS: Record<string, any> = {
