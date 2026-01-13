@@ -5,6 +5,7 @@ export function useJobs(options?: {
   search?: string;
   location?: string;
   source?: string;
+  jobType?: string;
   page?: number;
 }) {
   return useQuery({

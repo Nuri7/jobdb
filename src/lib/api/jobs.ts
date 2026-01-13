@@ -33,10 +33,11 @@ export const jobsApi = {
     search?: string;
     location?: string;
     source?: string;
+    jobType?: string;
     page?: number;
     limit?: number;
   }) {
-    const { search, location, source, page = 1, limit = 12 } = options || {};
+    const { search, location, source, jobType, page = 1, limit = 12 } = options || {};
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -62,6 +63,14 @@ export const jobsApi = {
 
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
+    }
+
+    if (jobType && jobType !== 'all') {
+      if (jobType === 'internship') {
+        query = query.eq('is_internship', true);
+      } else {
+        query = query.ilike('employment_type', `%${jobType}%`);
+      }
     }
 
     const { data, error, count } = await query;

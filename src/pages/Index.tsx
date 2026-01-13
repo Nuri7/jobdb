@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 const Index = () => {
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
-  const [startDate, setStartDate] = useState("all");
+  const [jobType, setJobType] = useState("all");
   const [source, setSource] = useState("all");
   const [view, setView] = useState<"grid" | "list">("list");
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,6 +31,7 @@ const Index = () => {
     search,
     location: location !== "all" ? location : undefined,
     source: source !== "all" ? source : undefined,
+    jobType: jobType !== "all" ? jobType : undefined,
     page: currentPage,
   });
 
@@ -39,7 +40,7 @@ const Index = () => {
 
   const handleClearAll = () => {
     setLocation("all");
-    setStartDate("all");
+    setJobType("all");
     setSource("all");
     setSearch("");
   };
@@ -154,8 +155,8 @@ const Index = () => {
             totalJobs={totalCount}
             location={location}
             onLocationChange={setLocation}
-            startDate={startDate}
-            onStartDateChange={setStartDate}
+            jobType={jobType}
+            onJobTypeChange={setJobType}
             source={source}
             onSourceChange={setSource}
             onClearAll={handleClearAll}

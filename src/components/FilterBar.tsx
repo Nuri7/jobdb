@@ -17,8 +17,8 @@ interface FilterBarProps {
   totalJobs: number;
   location: string;
   onLocationChange: (value: string) => void;
-  startDate: string;
-  onStartDateChange: (value: string) => void;
+  jobType: string;
+  onJobTypeChange: (value: string) => void;
   source: string;
   onSourceChange: (value: string) => void;
   onClearAll: () => void;
@@ -30,8 +30,8 @@ const FilterBar = ({
   totalJobs,
   location,
   onLocationChange,
-  startDate,
-  onStartDateChange,
+  jobType,
+  onJobTypeChange,
   source,
   onSourceChange,
   onClearAll,
@@ -61,7 +61,7 @@ const FilterBar = ({
           </SelectContent>
         </Select>
 
-        <Select value={startDate} onValueChange={onStartDateChange}>
+        <Select value={jobType} onValueChange={onJobTypeChange}>
           <SelectTrigger className="w-[140px] bg-card">
             <SelectValue placeholder="Job Type" />
           </SelectTrigger>
@@ -70,7 +70,7 @@ const FilterBar = ({
             <SelectItem value="full-time">Full-time</SelectItem>
             <SelectItem value="part-time">Part-time</SelectItem>
             <SelectItem value="contract">Contract</SelectItem>
-            <SelectItem value="remote">Remote</SelectItem>
+            <SelectItem value="internship">Internship</SelectItem>
           </SelectContent>
         </Select>
 
