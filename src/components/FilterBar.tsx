@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MapPin, Briefcase, GraduationCap, Building2 } from "lucide-react";
 
 interface Company {
   id: string;
@@ -47,7 +48,8 @@ const FilterBar = ({
       <div className="flex flex-wrap items-center gap-3">
 
         <Select value={location} onValueChange={onLocationChange}>
-          <SelectTrigger className="w-[140px] bg-card font-semibold">
+          <SelectTrigger className="w-[160px] bg-card font-semibold">
+            <MapPin className="w-4 h-4 mr-2 text-muted-foreground" />
             <SelectValue placeholder="Location" />
           </SelectTrigger>
           <SelectContent>
@@ -63,7 +65,8 @@ const FilterBar = ({
         </Select>
 
         <Select value={jobType} onValueChange={onJobTypeChange}>
-          <SelectTrigger className="w-[140px] bg-card font-semibold">
+          <SelectTrigger className="w-[150px] bg-card font-semibold">
+            <Briefcase className="w-4 h-4 mr-2 text-muted-foreground" />
             <SelectValue placeholder="Job Type" />
           </SelectTrigger>
           <SelectContent>
@@ -76,7 +79,8 @@ const FilterBar = ({
         </Select>
 
         <Select value={experienceLevel} onValueChange={onExperienceLevelChange}>
-          <SelectTrigger className="w-[160px] bg-card font-semibold">
+          <SelectTrigger className="w-[170px] bg-card font-semibold">
+            <GraduationCap className="w-4 h-4 mr-2 text-muted-foreground" />
             <SelectValue placeholder="Experience" />
           </SelectTrigger>
           <SelectContent>
@@ -92,7 +96,8 @@ const FilterBar = ({
         </Select>
 
         <Select value={source} onValueChange={onSourceChange}>
-          <SelectTrigger className="w-[180px] bg-card font-semibold">
+          <SelectTrigger className="w-[190px] bg-card font-semibold">
+            <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
             <SelectValue placeholder="Company" />
           </SelectTrigger>
           <SelectContent>
