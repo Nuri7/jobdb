@@ -28,6 +28,11 @@ const Index = () => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const { toast } = useToast();
 
+  const { data: companies } = useCompanies();
+  
+  // Get enabled company IDs for filtering
+  const enabledCompanyIds = companies?.filter(c => c.is_scrape_enabled === true).map(c => c.id) || [];
+
   const { data: jobsData, isLoading, refetch } = useJobs({
     search,
     location: location !== "all" ? location : undefined,
@@ -35,9 +40,9 @@ const Index = () => {
     jobType: jobType !== "all" ? jobType : undefined,
     experienceLevel: experienceLevel !== "all" ? experienceLevel : undefined,
     page: currentPage,
+    enabledCompanyIds: source === "all" ? enabledCompanyIds : undefined,
   });
 
-  const { data: companies } = useCompanies();
   const { data: locations } = useLocations();
 
   const handleClearAll = () => {
@@ -61,8 +66,17 @@ const Index = () => {
     // Determine which companies to scrape based on selection
     let companiesToScrape;
     if (source === "all") {
-      // Scrape first 10 companies when "All Companies" is selected
-      companiesToScrape = companies.slice(0, 10);
+      // Scrape only enabled companies when "All Companies" is selected
+      const enabledCompanies = companies.filter(c => c.is_scrape_enabled === true);
+      if (enabledCompanies.length === 0) {
+        toast({
+          title: "No enabled companies",
+          description: "No companies are enabled for scraping. Enable companies in the Companies page.",
+          variant: "destructive",
+        });
+        return;
+      }
+      companiesToScrape = enabledCompanies.slice(0, 10);
     } else {
       // Scrape only the selected company
       const selectedCompany = companies.find(c => c.id === source);

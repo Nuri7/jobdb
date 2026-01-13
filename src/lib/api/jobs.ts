@@ -26,6 +26,7 @@ export interface CompanyCareerSite {
   headquarters_city: string | null;
   crawl_status: string | null;
   jobs_found_count: number | null;
+  is_scrape_enabled: boolean | null;
 }
 
 export const jobsApi = {
@@ -37,8 +38,9 @@ export const jobsApi = {
     experienceLevel?: string;
     page?: number;
     limit?: number;
+    enabledCompanyIds?: string[];
   }) {
-    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12 } = options || {};
+    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12, enabledCompanyIds } = options || {};
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -48,7 +50,8 @@ export const jobsApi = {
         company_career_sites (
           company_name,
           industry,
-          career_url
+          career_url,
+          is_scrape_enabled
         )
       `, { count: 'exact' })
       .order('scraped_at', { ascending: false })
@@ -64,6 +67,9 @@ export const jobsApi = {
 
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
+    } else if (enabledCompanyIds && enabledCompanyIds.length > 0) {
+      // When viewing all sources, only show jobs from enabled companies
+      query = query.in('company_career_site_id', enabledCompanyIds);
     }
 
     if (jobType && jobType !== 'all') {

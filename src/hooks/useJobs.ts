@@ -8,6 +8,7 @@ export function useJobs(options?: {
   jobType?: string;
   experienceLevel?: string;
   page?: number;
+  enabledCompanyIds?: string[];
 }) {
   return useQuery({
     queryKey: ['jobs', options],

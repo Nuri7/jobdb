@@ -12,6 +12,7 @@ import { MapPin, Briefcase, GraduationCap, Building2 } from "lucide-react";
 interface Company {
   id: string;
   company_name: string;
+  is_scrape_enabled?: boolean | null;
 }
 
 interface FilterBarProps {
@@ -103,7 +104,9 @@ const FilterBar = ({
           <SelectContent>
             <ScrollArea className="h-[300px]">
               <SelectItem value="all">All Companies</SelectItem>
-              {companies.map((company) => (
+              {companies
+                .filter((company) => company.is_scrape_enabled === true)
+                .map((company) => (
                 <SelectItem key={company.id} value={company.id}>
                   {company.company_name}
                 </SelectItem>
