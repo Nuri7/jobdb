@@ -300,9 +300,20 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
   // Detect remote
   const isRemote = /remote|thuiswerk|hybrid|work from home|wfh/i.test(content);
 
-  // Detect internship
-  const isInternship = /\b(?:internship|intern|stage|stagiair|werkstudent|student\s*job|traineeship)\b/i.test(content) ||
-    /\b(?:internship|intern|stage|stagiair)\b/i.test(jobTitle);
+  // Detect internship - be strict to avoid false positives
+  // Only match if: 1) explicitly in title, or 2) appears in specific context indicating THIS job is an internship
+  const titleHasInternship = /\b(?:internship|intern|stage|stagiair|werkstudent|traineeship)\b/i.test(jobTitle);
+  
+  // Look for contextual patterns that indicate this specific job is an internship
+  const contentHasInternshipContext = 
+    /\b(?:this\s+)?(?:is\s+(?:an?\s+)?)?(?:internship|traineeship)\s+(?:position|role|opportunity|program)/i.test(content) ||
+    /\b(?:internship|stage)\s+(?:duration|period|length)/i.test(content) ||
+    /\b(?:as\s+(?:an?\s+)?)?(?:intern|stagiair|werkstudent)\s+(?:you|je|u)\b/i.test(content) ||
+    /\bstudent\s+(?:position|job|role)\b/i.test(content) ||
+    /\b(?:seeking|looking for|zoeken)\s+(?:an?\s+)?(?:intern|stagiair|werkstudent)s?\b/i.test(content) ||
+    /\b(?:duration|duur)[:\s]+\d+\s*(?:weeks?|weken|months?|maanden)\b/i.test(content);
+  
+  const isInternship = titleHasInternship || contentHasInternshipContext;
 
   // Detect department
   let department = null;
