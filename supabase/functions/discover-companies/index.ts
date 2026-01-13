@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Search queries to find Dutch companies with career pages
-const SEARCH_QUERIES = [
+// Default search queries (used if no setting found in database)
+const DEFAULT_SEARCH_QUERIES = [
   'top Dutch companies careers page',
   'Netherlands tech startups hiring jobs',
   'Amsterdam companies career opportunities',
@@ -137,8 +137,17 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${existingNames.size} existing companies`);
 
+    // Get search queries from settings
+    const { data: querySetting } = await supabase
+      .from('scraper_settings')
+      .select('setting_value')
+      .eq('setting_key', 'discovery_search_queries')
+      .single();
+
+    const searchQueries: string[] = querySetting?.setting_value || DEFAULT_SEARCH_QUERIES;
+    
     // Pick a random search query
-    const randomQuery = SEARCH_QUERIES[Math.floor(Math.random() * SEARCH_QUERIES.length)];
+    const randomQuery = searchQueries[Math.floor(Math.random() * searchQueries.length)];
     console.log('Searching with query:', randomQuery);
 
     // Use Firecrawl search API
