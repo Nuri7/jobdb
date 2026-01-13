@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code } from "lucide-react";
+import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,11 +31,25 @@ const DEFAULT_EXTRACTION_PROMPT = `Extract job details from this career page con
 
 Return structured data with these fields. For location, prioritize Dutch city names found in content or URL.`;
 
+const DEFAULT_DISCOVERY_QUERIES = [
+  'top Dutch companies careers page',
+  'Netherlands tech startups hiring jobs',
+  'Amsterdam companies career opportunities',
+  'Dutch unicorn startups jobs page',
+  'Rotterdam companies vacancies',
+  'Netherlands fintech companies careers',
+  'Dutch software companies job openings',
+  'Netherlands e-commerce companies hiring',
+  'Dutch healthcare companies careers',
+  'Amsterdam startups career page',
+];
+
 const DEFAULT_SETTINGS: Record<string, any> = {
   max_pages: 20,
   max_jobs: 150,
   wait_time: 3000,
   extraction_prompt: DEFAULT_EXTRACTION_PROMPT,
+  discovery_search_queries: DEFAULT_DISCOVERY_QUERIES,
   job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
   excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
   excluded_url_patterns: ['/locations', '/career-types', '/about', '/contact', '/teams', '/departments', '/benefits', '/culture', '/events', '/news', '/blog'],
@@ -298,6 +312,27 @@ const Settings = () => {
                   className="font-mono text-sm min-h-[200px]"
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Company Discovery Search Queries */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Search className="w-5 h-5 text-indigo-500" />
+                <CardTitle>Company Discovery Search Queries</CardTitle>
+              </div>
+              <CardDescription>Search queries used by Firecrawl to discover new companies with career pages (one query is randomly selected per discovery run)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EditableTagList
+                tags={getSetting('discovery_search_queries') || []}
+                onAdd={(item) => handleArrayAdd('discovery_search_queries', item)}
+                onRemove={(item) => handleArrayRemove('discovery_search_queries', item)}
+                placeholder="Add search query..."
+                variant="outline"
+                className="border-indigo-500/50 text-indigo-700"
+              />
             </CardContent>
           </Card>
 
