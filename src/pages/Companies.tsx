@@ -33,7 +33,12 @@ import {
   Calendar,
   CalendarRange,
   Plus,
-  Sparkles
+  Sparkles,
+  ArrowUpDown,
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ArrowDown01,
+  ArrowUp01
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
@@ -94,10 +99,12 @@ const Companies = () => {
   const [isAddingRandomCompanies, setIsAddingRandomCompanies] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<'name' | 'date'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const { data: companies, isLoading, refetch } = useCompanies();
   const { toast } = useToast();
 
-  const filteredCompanies = companies?.filter(company => {
+  const filteredCompanies = (companies?.filter(company => {
     // Text search filter
     const matchesSearch = company.company_name.toLowerCase().includes(search.toLowerCase()) ||
       company.industry?.toLowerCase().includes(search.toLowerCase()) ||
@@ -109,7 +116,25 @@ const Companies = () => {
     const matchesDateTo = !dateTo || !isAfter(companyDate, endOfDay(dateTo));
     
     return matchesSearch && matchesDateFrom && matchesDateTo;
-  }) || [];
+  }) || []).sort((a, b) => {
+    if (sortBy === 'name') {
+      const comparison = a.company_name.localeCompare(b.company_name);
+      return sortOrder === 'asc' ? comparison : -comparison;
+    } else {
+      const dateA = parseISO(a.created_at).getTime();
+      const dateB = parseISO(b.created_at).getTime();
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    }
+  });
+
+  const toggleSort = (newSortBy: 'name' | 'date') => {
+    if (sortBy === newSortBy) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('asc');
+    }
+  };
 
   const handleScrapeCompany = async (companyId: string, careerUrl: string, companyName: string) => {
     setScrapingCompany({ id: companyId, name: companyName });
@@ -450,7 +475,7 @@ const Companies = () => {
           </div>
         </div>
 
-        {/* Stats and View Toggle */}
+        {/* Stats, Sort and View Toggle */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span>{filteredCompanies.length} companies</span>
@@ -459,7 +484,35 @@ const Companies = () => {
               {filteredCompanies.filter(c => c.crawl_status === "completed").length} scraped
             </span>
           </div>
-          <ViewToggle view={view} onViewChange={setView} />
+          <div className="flex items-center gap-2">
+            <Button
+              variant={sortBy === 'name' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => toggleSort('name')}
+              className="gap-1"
+            >
+              {sortBy === 'name' ? (
+                sortOrder === 'asc' ? <ArrowDownAZ className="w-4 h-4" /> : <ArrowUpAZ className="w-4 h-4" />
+              ) : (
+                <ArrowDownAZ className="w-4 h-4" />
+              )}
+              Name
+            </Button>
+            <Button
+              variant={sortBy === 'date' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => toggleSort('date')}
+              className="gap-1"
+            >
+              {sortBy === 'date' ? (
+                sortOrder === 'asc' ? <ArrowUp01 className="w-4 h-4" /> : <ArrowDown01 className="w-4 h-4" />
+              ) : (
+                <ArrowDown01 className="w-4 h-4" />
+              )}
+              Date
+            </Button>
+            <ViewToggle view={view} onViewChange={setView} />
+          </div>
         </div>
 
         {/* Loading State */}
