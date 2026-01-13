@@ -1,6 +1,8 @@
-import { MapPin, Calendar, Briefcase, Copy, DollarSign, GraduationCap } from "lucide-react";
+import { useState } from "react";
+import { MapPin, Calendar, Copy, DollarSign, GraduationCap, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
 
 interface JobListItemProps {
   title: string;
@@ -12,12 +14,16 @@ interface JobListItemProps {
   jobUrl?: string;
   experienceLevel?: string;
   salaryRange?: string;
+  companyCareerUrl?: string | null;
   onClick?: () => void;
 }
 
-const JobListItem = ({ title, image, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, onClick }: JobListItemProps) => {
+const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, companyCareerUrl, onClick }: JobListItemProps) => {
   const { toast } = useToast();
-  const hasImage = image && !image.includes("placeholder");
+  const [logoError, setLogoError] = useState(false);
+
+  const logoUrl = getCompanyLogoUrl(companyCareerUrl);
+  const fallbackUrl = getCompanyFaviconUrl(companyCareerUrl);
 
   const handleCopyUrl = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -32,18 +38,23 @@ const JobListItem = ({ title, image, location, dateRange, source, startDate, job
       className="bg-card rounded-lg border border-border hover:shadow-lg transition-shadow duration-200 p-4 flex items-center gap-4 cursor-pointer"
       onClick={onClick}
     >
-      {/* Image */}
-      <div className="w-16 h-16 flex-shrink-0 rounded-lg bg-muted overflow-hidden">
-        {hasImage ? (
+      {/* Company Logo */}
+      <div className="w-12 h-12 flex-shrink-0 rounded-lg bg-muted overflow-hidden flex items-center justify-center">
+        {logoUrl && !logoError ? (
           <img 
-            src={image} 
-            alt={title} 
-            className="w-full h-full object-cover"
+            src={logoUrl}
+            alt={`${source} logo`}
+            className="w-full h-full object-contain p-1"
+            onError={() => setLogoError(true)}
+          />
+        ) : fallbackUrl && logoError ? (
+          <img 
+            src={fallbackUrl}
+            alt={`${source} logo`}
+            className="w-6 h-6 object-contain"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Briefcase className="w-6 h-6 text-muted-foreground/30" />
-          </div>
+          <Building2 className="w-5 h-5 text-muted-foreground/40" />
         )}
       </div>
 

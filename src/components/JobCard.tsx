@@ -1,6 +1,8 @@
-import { MapPin, Calendar, Copy, DollarSign, GraduationCap } from "lucide-react";
+import { useState } from "react";
+import { MapPin, Calendar, Copy, DollarSign, GraduationCap, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
 
 interface JobCardProps {
   title: string;
@@ -13,11 +15,16 @@ interface JobCardProps {
   jobUrl?: string;
   experienceLevel?: string;
   salaryRange?: string;
+  companyCareerUrl?: string | null;
   onClick?: () => void;
 }
 
-const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, onClick }: JobCardProps) => {
+const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, companyCareerUrl, onClick }: JobCardProps) => {
   const { toast } = useToast();
+  const [logoError, setLogoError] = useState(false);
+
+  const logoUrl = getCompanyLogoUrl(companyCareerUrl);
+  const fallbackUrl = getCompanyFaviconUrl(companyCareerUrl);
 
   const handleCopyUrl = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -32,11 +39,35 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
       className="bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow duration-200 cursor-pointer p-4"
       onClick={onClick}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <h3 className="font-semibold text-foreground text-base line-clamp-2 flex-1">
-          {title}
-        </h3>
+      {/* Header with Logo */}
+      <div className="flex items-start gap-3 mb-3">
+        {/* Company Logo */}
+        <div className="w-10 h-10 flex-shrink-0 rounded-lg bg-muted overflow-hidden flex items-center justify-center">
+          {logoUrl && !logoError ? (
+            <img 
+              src={logoUrl}
+              alt={`${source} logo`}
+              className="w-full h-full object-contain p-1"
+              onError={() => setLogoError(true)}
+            />
+          ) : fallbackUrl && logoError ? (
+            <img 
+              src={fallbackUrl}
+              alt={`${source} logo`}
+              className="w-6 h-6 object-contain"
+            />
+          ) : (
+            <Building2 className="w-5 h-5 text-muted-foreground/40" />
+          )}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-foreground text-base line-clamp-2">
+            {title}
+          </h3>
+          <span className="text-xs text-muted-foreground">{source}</span>
+        </div>
+        
         <Badge variant="secondary" className="text-xs font-medium shrink-0">
           {startDate}
         </Badge>
@@ -97,7 +128,6 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
             </button>
           </div>
         )}
-        <span className="text-xs text-muted-foreground">{source}</span>
       </div>
     </div>
   );
