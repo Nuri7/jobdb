@@ -288,7 +288,9 @@ const Companies = () => {
                   mode="single"
                   selected={dateFrom}
                   onSelect={setDateFrom}
+                  disabled={(date) => date > new Date()}
                   initialFocus
+                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
@@ -307,7 +309,9 @@ const Companies = () => {
                   mode="single"
                   selected={dateTo}
                   onSelect={setDateTo}
+                  disabled={(date) => date > new Date()}
                   initialFocus
+                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
