@@ -17,6 +17,7 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
   const [jobType, setJobType] = useState("all");
+  const [experienceLevel, setExperienceLevel] = useState("all");
   const [source, setSource] = useState("all");
   const [view, setView] = useState<"grid" | "list">("list");
   const [currentPage, setCurrentPage] = useState(1);
@@ -32,6 +33,7 @@ const Index = () => {
     location: location !== "all" ? location : undefined,
     source: source !== "all" ? source : undefined,
     jobType: jobType !== "all" ? jobType : undefined,
+    experienceLevel: experienceLevel !== "all" ? experienceLevel : undefined,
     page: currentPage,
   });
 
@@ -41,6 +43,7 @@ const Index = () => {
   const handleClearAll = () => {
     setLocation("all");
     setJobType("all");
+    setExperienceLevel("all");
     setSource("all");
     setSearch("");
   };
@@ -157,6 +160,8 @@ const Index = () => {
             onLocationChange={setLocation}
             jobType={jobType}
             onJobTypeChange={setJobType}
+            experienceLevel={experienceLevel}
+            onExperienceLevelChange={setExperienceLevel}
             source={source}
             onSourceChange={setSource}
             onClearAll={handleClearAll}

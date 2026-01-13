@@ -19,6 +19,8 @@ interface FilterBarProps {
   onLocationChange: (value: string) => void;
   jobType: string;
   onJobTypeChange: (value: string) => void;
+  experienceLevel: string;
+  onExperienceLevelChange: (value: string) => void;
   source: string;
   onSourceChange: (value: string) => void;
   onClearAll: () => void;
@@ -32,6 +34,8 @@ const FilterBar = ({
   onLocationChange,
   jobType,
   onJobTypeChange,
+  experienceLevel,
+  onExperienceLevelChange,
   source,
   onSourceChange,
   onClearAll,
@@ -71,6 +75,22 @@ const FilterBar = ({
             <SelectItem value="part-time">Part-time</SelectItem>
             <SelectItem value="contract">Contract</SelectItem>
             <SelectItem value="internship">Internship</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={experienceLevel} onValueChange={onExperienceLevelChange}>
+          <SelectTrigger className="w-[160px] bg-card">
+            <SelectValue placeholder="Experience" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Levels</SelectItem>
+            <SelectItem value="bachelor">Bachelor</SelectItem>
+            <SelectItem value="bachelor-master">Bachelor/Master</SelectItem>
+            <SelectItem value="master">Master</SelectItem>
+            <SelectItem value="junior">Junior</SelectItem>
+            <SelectItem value="medior">Medior</SelectItem>
+            <SelectItem value="senior">Senior</SelectItem>
+            <SelectItem value="principal">Principal</SelectItem>
           </SelectContent>
         </Select>
 

@@ -6,6 +6,7 @@ export function useJobs(options?: {
   location?: string;
   source?: string;
   jobType?: string;
+  experienceLevel?: string;
   page?: number;
 }) {
   return useQuery({
