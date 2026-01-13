@@ -147,10 +147,15 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container max-w-7xl py-8">
+        {/* Search */}
+        <div className="mb-6">
+          <SearchBar value={search} onChange={setSearch} />
+        </div>
+
         {/* Header with Scrape Button */}
         <div className="flex flex-col items-end gap-2 mb-6">
           <div className="flex items-center justify-end w-full">
-            <Button
+            <Button 
               onClick={handleScrape} 
               disabled={isScraping || isDeleting}
               variant="outline"
@@ -176,11 +181,6 @@ const Index = () => {
               </span>
             </div>
           )}
-        </div>
-
-        {/* Search */}
-        <div className="mb-6">
-          <SearchBar value={search} onChange={setSearch} />
         </div>
 
         {/* Filters */}
