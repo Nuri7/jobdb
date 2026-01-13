@@ -148,43 +148,12 @@ const Index = () => {
       <Header />
       <div className="container max-w-7xl py-8">
         {/* Search */}
-        <div className="mb-6">
+        <div className="mb-8">
           <SearchBar value={search} onChange={setSearch} />
         </div>
 
-        {/* Header with Scrape Button */}
-        <div className="flex flex-col items-end gap-2 mb-6">
-          <div className="flex items-center justify-end w-full">
-            <Button 
-              onClick={handleScrape} 
-              disabled={isScraping || isDeleting}
-              variant="outline"
-            >
-              {isScraping ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Scraping...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Scrape {source === "all" ? "All Companies" : getSelectedCompanyName()}
-                </>
-              )}
-            </Button>
-          </div>
-          {isScraping && scrapingCompany && (
-            <div className="text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>
-                Scraping {scrapingCompany} ({scrapeProgress.current}/{scrapeProgress.total})
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex items-center justify-between gap-4">
+        {/* Filters Row */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <FilterBar
             totalJobs={totalCount}
             location={location}
@@ -196,30 +165,51 @@ const Index = () => {
             onClearAll={handleClearAll}
             companies={companies || []}
           />
-          <ViewToggle view={view} onViewChange={setView} />
+          <div className="flex items-center gap-2">
+            <ViewToggle view={view} onViewChange={setView} />
+            <Button 
+              onClick={handleScrape} 
+              disabled={isScraping || isDeleting}
+              variant="outline"
+              size="sm"
+            >
+              {isScraping ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scraping...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Scrape
+                </>
+              )}
+            </Button>
+            <Button 
+              onClick={handleDeleteJobs} 
+              disabled={isDeleting || isScraping || totalCount === 0}
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+            >
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
-        {/* Delete Button */}
-        <div className="flex justify-end mt-3">
-          <Button 
-            onClick={handleDeleteJobs} 
-            disabled={isDeleting || isScraping || totalCount === 0}
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-          >
-            {isDeleting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete {source === "all" ? "All Jobs" : `${getSelectedCompanyName()} Jobs`}
-              </>
-            )}
-          </Button>
-        </div>
+        {/* Scraping Progress */}
+        {isScraping && scrapingCompany && (
+          <div className="text-sm text-muted-foreground flex items-center gap-2 mb-4">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span>
+              Scraping {scrapingCompany} ({scrapeProgress.current}/{scrapeProgress.total})
+            </span>
+          </div>
+        )}
 
         {/* Loading State */}
         {isLoading && (
