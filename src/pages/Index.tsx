@@ -204,6 +204,7 @@ const Index = () => {
                     jobUrl={job.job_url}
                     experienceLevel={job.experience_level || undefined}
                     salaryRange={job.salary_range || undefined}
+                    companyCareerUrl={job.company_career_url}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}
@@ -222,6 +223,7 @@ const Index = () => {
                     jobUrl={job.job_url}
                     experienceLevel={job.experience_level || undefined}
                     salaryRange={job.salary_range || undefined}
+                    companyCareerUrl={job.company_career_url}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}

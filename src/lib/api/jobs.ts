@@ -13,6 +13,7 @@ export interface Job {
   experience_level: string | null;
   scraped_at: string;
   company_name?: string;
+  company_career_url?: string | null;
 }
 
 export interface CompanyCareerSite {
@@ -43,7 +44,8 @@ export const jobsApi = {
         *,
         company_career_sites (
           company_name,
-          industry
+          industry,
+          career_url
         )
       `, { count: 'exact' })
       .order('scraped_at', { ascending: false })
@@ -72,6 +74,7 @@ export const jobsApi = {
       jobs: data?.map(job => ({
         ...job,
         company_name: job.company_career_sites?.company_name || 'Unknown Company',
+        company_career_url: job.company_career_sites?.career_url || null,
       })) || [],
       totalCount: count || 0,
     };
