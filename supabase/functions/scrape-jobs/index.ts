@@ -13,6 +13,8 @@ interface JobData {
   department?: string;
   description?: string;
   is_remote?: boolean;
+  experience_level?: string;
+  salary_range?: string;
 }
 
 interface ScrapeResult {
@@ -304,6 +306,94 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     department = deptMatch[1].trim();
   }
 
+  // Extract experience level
+  let experienceLevel: string | null = null;
+  const lowerContent = content.toLowerCase();
+  
+  // Check for explicit experience level labels
+  const experiencePatterns = [
+    /(?:experience level|seniority|niveau|level)[:\s]+([^\n,|]+)/i,
+    /(?:experience|ervaring)[:\s]+(\d+[\+]?\s*(?:years?|jaar|yrs?))/i,
+  ];
+  
+  for (const pattern of experiencePatterns) {
+    const expMatch = content.match(pattern);
+    if (expMatch) {
+      experienceLevel = expMatch[1].trim();
+      break;
+    }
+  }
+  
+  // If no explicit label, detect from keywords
+  if (!experienceLevel) {
+    if (/\b(?:intern(?:ship)?|stage|trainee|werkstudent|student)\b/i.test(content)) {
+      experienceLevel = 'Internship';
+    } else if (/\b(?:junior|entry[- ]?level|starter|graduate|afgestudeerd)\b/i.test(content)) {
+      experienceLevel = 'Junior';
+    } else if (/\b(?:medior|mid[- ]?level|regular)\b/i.test(content)) {
+      experienceLevel = 'Medior';
+    } else if (/\b(?:senior|experienced|ervaren|lead)\b/i.test(content)) {
+      experienceLevel = 'Senior';
+    } else if (/\b(?:principal|staff|architect|expert|specialist)\b/i.test(content)) {
+      experienceLevel = 'Principal';
+    } else if (/\b(?:manager|head of|director|lead|team lead)\b/i.test(content)) {
+      experienceLevel = 'Management';
+    }
+    
+    // Also check years of experience mentioned
+    const yearsMatch = content.match(/(\d+)[\+]?\s*(?:years?|jaar|yrs?)\s*(?:of\s+)?(?:experience|ervaring|work)/i);
+    if (yearsMatch && !experienceLevel) {
+      const years = parseInt(yearsMatch[1]);
+      if (years <= 1) {
+        experienceLevel = 'Junior';
+      } else if (years <= 3) {
+        experienceLevel = 'Medior';
+      } else if (years <= 7) {
+        experienceLevel = 'Senior';
+      } else {
+        experienceLevel = 'Principal';
+      }
+    }
+  }
+
+  // Extract salary range
+  let salaryRange: string | null = null;
+  
+  // Common salary patterns (€, EUR, euro)
+  const salaryPatterns = [
+    // Explicit salary labels
+    /(?:salary|salaris|compensation|loon|vergoeding)[:\s]+([€$]?\s*[\d.,]+\s*[-–—to]+\s*[€$]?\s*[\d.,]+(?:\s*(?:per\s+)?(?:year|yr|month|mo|jaar|maand|annually|monthly|p\.m\.|p\.a\.))?)/i,
+    /(?:salary|salaris|compensation|loon|vergoeding)[:\s]+([€$]\s*[\d.,]+(?:\s*[-–—]\s*[€$]?\s*[\d.,]+)?(?:\s*(?:per\s+)?(?:year|yr|month|mo|jaar|maand|annually|monthly|p\.m\.|p\.a\.))?)/i,
+    // Euro ranges: €50.000 - €70.000, €50k-€70k
+    /€\s*([\d.,]+)\s*[kK]?\s*[-–—to]+\s*€?\s*([\d.,]+)\s*[kK]?(?:\s*(?:per\s+)?(?:year|yr|month|mo|jaar|maand|annually|monthly|bruto|gross|p\.m\.|p\.a\.))?/i,
+    // Single euro amount with context
+    /(?:earn|verdien|starting at|vanaf|tot)\s*€\s*([\d.,]+)(?:\s*[kK])?/i,
+    // EUR format
+    /EUR\s*([\d.,]+)\s*[-–—to]+\s*([\d.,]+)/i,
+    // Salary bands like "Scale 10-12" or "Schaal 10"
+    /(?:salary\s*)?(?:scale|schaal)\s*(\d+(?:\s*[-–—]\s*\d+)?)/i,
+  ];
+  
+  for (const pattern of salaryPatterns) {
+    const salaryMatch = content.match(pattern);
+    if (salaryMatch) {
+      // Clean up and format the salary
+      let salary = salaryMatch[0];
+      // Remove the label prefix
+      salary = salary.replace(/^(?:salary|salaris|compensation|loon|vergoeding)[:\s]+/i, '');
+      salary = salary.replace(/^(?:earn|verdien|starting at|vanaf|tot)\s*/i, '');
+      salaryRange = salary.trim().slice(0, 100);
+      break;
+    }
+  }
+  
+  // Also look for competitive/market rate mentions
+  if (!salaryRange) {
+    if (/(?:competitive|marktconform|aantrekkelijk)\s*(?:salary|salaris|compensation)?/i.test(content)) {
+      salaryRange = 'Competitive';
+    }
+  }
+
   return {
     job_title: jobTitle.slice(0, 200),
     job_url: url,
@@ -312,6 +402,8 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     department: department?.slice(0, 100),
     description: content.slice(0, 5000),
     is_remote: isRemote,
+    experience_level: experienceLevel?.slice(0, 50) || undefined,
+    salary_range: salaryRange || undefined,
   };
 }
 
@@ -516,6 +608,8 @@ Deno.serve(async (req) => {
           department: job.department,
           description: job.description,
           is_remote: job.is_remote,
+          experience_level: job.experience_level,
+          salary_range: job.salary_range,
           scraped_at: new Date().toISOString(),
         }, {
           onConflict: 'job_url',
