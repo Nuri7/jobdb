@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useCompanies } from "@/hooks/useJobs";
 import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
+import { format } from "date-fns";
 import Header from "@/components/Header";
 import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeProgressModal from "@/components/ScrapeProgressModal";
@@ -334,6 +335,9 @@ const Companies = () => {
                             <span className="capitalize">{company.scrape_schedule === '12hours' ? 'Every 12h' : company.scrape_schedule}</span>
                           </span>
                         )}
+                        <span className="text-xs text-muted-foreground/70">
+                          Added {format(new Date(company.created_at), 'MMM d, yyyy')}
+                        </span>
                       </div>
                     </div>
                     {!bulkSelectMode && (
@@ -460,10 +464,15 @@ const Companies = () => {
 
                     {/* Stats */}
                     {company.jobs_found_count !== null && company.jobs_found_count > 0 && (
-                      <div className="text-sm text-muted-foreground mb-4">
+                      <div className="text-sm text-muted-foreground mb-2">
                         <span className="font-medium text-foreground">{company.jobs_found_count}</span> jobs found
                       </div>
                     )}
+
+                    {/* Added Date */}
+                    <div className="text-xs text-muted-foreground/70 mb-4">
+                      Added {format(new Date(company.created_at), 'MMM d, yyyy')}
+                    </div>
 
                     {/* Actions - only show when not in bulk mode */}
                     {!bulkSelectMode && (
