@@ -213,13 +213,14 @@ const Index = () => {
           </div>
         )}
 
-        {/* Search */}
-        <div className="mb-4">
-          <SearchBar value={search} onChange={setSearch} />
-        </div>
-
-        {/* View Toggle */}
-        <div className="flex justify-end mb-4">
+        {/* Job Count, Search & View Toggle */}
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-foreground">
+              {totalCount} {totalCount === 1 ? 'job' : 'jobs'}
+            </span>
+            <SearchBar value={search} onChange={setSearch} />
+          </div>
           <ViewToggle view={view} onViewChange={setView} />
         </div>
 
