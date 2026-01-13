@@ -39,8 +39,10 @@ import {
   ArrowUpAZ,
   ArrowDown01,
   ArrowUp01,
-  Copy
+  Copy,
+  Power
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -246,6 +248,7 @@ const Companies = () => {
           career_url: newCompanyUrl.trim(),
           industry: newCompanyIndustry.trim() || null,
           is_active: true,
+          is_scrape_enabled: false, // Default to off
         });
 
       if (error) throw error;
@@ -318,7 +321,27 @@ const Companies = () => {
     }
   };
 
-  const selectedCompaniesData = companies?.filter((c) => selectedCompanies.has(c.id)) || [];
+  // Only include enabled companies in bulk scrape
+  const selectedCompaniesData = companies?.filter((c) => selectedCompanies.has(c.id) && c.is_scrape_enabled === true) || [];
+
+  const toggleScrapeEnabled = async (companyId: string, enabled: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('company_career_sites')
+        .update({ is_scrape_enabled: enabled })
+        .eq('id', companyId);
+
+      if (error) throw error;
+      refetch();
+    } catch (error) {
+      console.error('Error updating scrape enabled:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update company status",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -608,6 +631,12 @@ const Companies = () => {
                     </div>
                     {!bulkSelectMode && (
                       <div className="flex items-center gap-1 flex-shrink-0">
+                        <Switch
+                          checked={company.is_scrape_enabled === true}
+                          onCheckedChange={(checked) => toggleScrapeEnabled(company.id, checked)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="scale-75"
+                        />
                         <button
                           onClick={() => setScheduleCompany(company)}
                           className="p-1.5 rounded-full hover:bg-muted transition-colors"
@@ -678,6 +707,12 @@ const Companies = () => {
                       </div>
                       {!bulkSelectMode && (
                         <div className="flex items-center gap-1">
+                          <Switch
+                            checked={company.is_scrape_enabled === true}
+                            onCheckedChange={(checked) => toggleScrapeEnabled(company.id, checked)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="scale-75"
+                          />
                           <button
                             onClick={() => setScheduleCompany(company)}
                             className="p-1.5 rounded-full hover:bg-muted transition-colors"
