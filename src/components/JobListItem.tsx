@@ -1,4 +1,4 @@
-import { MapPin, Calendar, Briefcase, Copy } from "lucide-react";
+import { MapPin, Calendar, Briefcase, Copy, DollarSign, GraduationCap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,10 +10,12 @@ interface JobListItemProps {
   source: string;
   startDate: string;
   jobUrl?: string;
+  experienceLevel?: string;
+  salaryRange?: string;
   onClick?: () => void;
 }
 
-const JobListItem = ({ title, image, location, dateRange, source, startDate, jobUrl, onClick }: JobListItemProps) => {
+const JobListItem = ({ title, image, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, onClick }: JobListItemProps) => {
   const { toast } = useToast();
   const hasImage = image && !image.includes("placeholder");
 
@@ -79,6 +81,18 @@ const JobListItem = ({ title, image, location, dateRange, source, startDate, job
             <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{dateRange}</span>
           </div>
+          {experienceLevel && (
+            <div className="flex items-center gap-1">
+              <GraduationCap className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{experienceLevel}</span>
+            </div>
+          )}
+          {salaryRange && (
+            <div className="flex items-center gap-1 text-green-600 font-medium">
+              <DollarSign className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{salaryRange}</span>
+            </div>
+          )}
         </div>
       </div>
 

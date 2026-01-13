@@ -202,6 +202,8 @@ const Index = () => {
                     startDate={job.is_remote ? "Remote" : "On-site"}
                     description={job.description || undefined}
                     jobUrl={job.job_url}
+                    experienceLevel={job.experience_level || undefined}
+                    salaryRange={job.salary_range || undefined}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}
@@ -218,6 +220,8 @@ const Index = () => {
                     source={job.company_name || "Unknown"}
                     startDate={job.is_remote ? "Remote" : "On-site"}
                     jobUrl={job.job_url}
+                    experienceLevel={job.experience_level || undefined}
+                    salaryRange={job.salary_range || undefined}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}

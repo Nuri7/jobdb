@@ -1,4 +1,4 @@
-import { MapPin, Calendar, Copy } from "lucide-react";
+import { MapPin, Calendar, Copy, DollarSign, GraduationCap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,10 +11,12 @@ interface JobCardProps {
   startDate: string;
   description?: string;
   jobUrl?: string;
+  experienceLevel?: string;
+  salaryRange?: string;
   onClick?: () => void;
 }
 
-const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, onClick }: JobCardProps) => {
+const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, onClick }: JobCardProps) => {
   const { toast } = useToast();
 
   const handleCopyUrl = (e: React.MouseEvent) => {
@@ -50,7 +52,21 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
           <Calendar className="w-3.5 h-3.5" />
           <span>{dateRange}</span>
         </div>
+        {experienceLevel && (
+          <div className="flex items-center gap-1.5">
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span>{experienceLevel}</span>
+          </div>
+        )}
       </div>
+
+      {/* Salary */}
+      {salaryRange && (
+        <div className="flex items-center gap-1.5 text-sm text-green-600 font-medium mb-3">
+          <DollarSign className="w-3.5 h-3.5" />
+          <span>{salaryRange}</span>
+        </div>
+      )}
 
       {/* Description */}
       {description && (
