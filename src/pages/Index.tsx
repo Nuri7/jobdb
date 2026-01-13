@@ -149,9 +149,8 @@ const Index = () => {
       <div className="container max-w-7xl py-8">
         {/* Header with Scrape Button */}
         <div className="flex flex-col items-end gap-2 mb-6">
-          <div className="flex items-center justify-between w-full">
-            <h1 className="text-2xl font-bold text-foreground">Jobs Directory</h1>
-            <Button 
+          <div className="flex items-center justify-end w-full">
+            <Button
               onClick={handleScrape} 
               disabled={isScraping || isDeleting}
               variant="outline"
