@@ -16,10 +16,11 @@ interface JobCardProps {
   experienceLevel?: string;
   salaryRange?: string;
   companyCareerUrl?: string | null;
+  isInternship?: boolean;
   onClick?: () => void;
 }
 
-const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, companyCareerUrl, onClick }: JobCardProps) => {
+const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, onClick }: JobCardProps) => {
   const { toast } = useToast();
   const [logoError, setLogoError] = useState(false);
 
@@ -68,9 +69,16 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
           <span className="text-xs text-muted-foreground">{source}</span>
         </div>
         
-        <Badge variant="secondary" className="text-xs font-medium shrink-0">
-          {startDate}
-        </Badge>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isInternship && (
+            <Badge variant="outline" className="text-xs font-medium border-purple-300 text-purple-600 bg-purple-50">
+              Internship
+            </Badge>
+          )}
+          <Badge variant="secondary" className="text-xs font-medium">
+            {startDate}
+          </Badge>
+        </div>
       </div>
 
       {/* Meta */}

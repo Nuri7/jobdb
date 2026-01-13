@@ -13,6 +13,7 @@ interface JobData {
   department?: string;
   description?: string;
   is_remote?: boolean;
+  is_internship?: boolean;
   experience_level?: string;
   salary_range?: string;
 }
@@ -299,6 +300,10 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
   // Detect remote
   const isRemote = /remote|thuiswerk|hybrid|work from home|wfh/i.test(content);
 
+  // Detect internship
+  const isInternship = /\b(?:internship|intern|stage|stagiair|werkstudent|student\s*job|traineeship)\b/i.test(content) ||
+    /\b(?:internship|intern|stage|stagiair)\b/i.test(jobTitle);
+
   // Detect department
   let department = null;
   const deptMatch = content.match(/(?:department|team|division|afdeling)[:\s]+([^\n,|]+)/i);
@@ -402,6 +407,7 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     department: department?.slice(0, 100),
     description: content.slice(0, 5000),
     is_remote: isRemote,
+    is_internship: isInternship,
     experience_level: experienceLevel?.slice(0, 50) || undefined,
     salary_range: salaryRange || undefined,
   };

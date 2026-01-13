@@ -10,6 +10,7 @@ export interface Job {
   salary_range: string | null;
   description: string | null;
   is_remote: boolean | null;
+  is_internship: boolean | null;
   experience_level: string | null;
   scraped_at: string;
   company_name?: string;
