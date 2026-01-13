@@ -34,10 +34,11 @@ export const jobsApi = {
     location?: string;
     source?: string;
     jobType?: string;
+    experienceLevel?: string;
     page?: number;
     limit?: number;
   }) {
-    const { search, location, source, jobType, page = 1, limit = 12 } = options || {};
+    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12 } = options || {};
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -71,6 +72,10 @@ export const jobsApi = {
       } else {
         query = query.ilike('employment_type', `%${jobType}%`);
       }
+    }
+
+    if (experienceLevel && experienceLevel !== 'all') {
+      query = query.ilike('experience_level', `%${experienceLevel}%`);
     }
 
     const { data, error, count } = await query;
