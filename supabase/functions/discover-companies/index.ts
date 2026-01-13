@@ -5,39 +5,96 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Sample Dutch companies to discover (career page URLs)
-const DUTCH_COMPANY_SOURCES = [
-  { name: 'Booking.com', url: 'https://careers.booking.com/jobs', industry: 'Travel' },
-  { name: 'Philips', url: 'https://www.careers.philips.com/global/en/search-results', industry: 'Healthcare Technology' },
-  { name: 'ASML', url: 'https://www.asml.com/en/careers/find-your-job', industry: 'Semiconductor' },
-  { name: 'Shell', url: 'https://www.shell.com/careers/browse-opportunities', industry: 'Energy' },
-  { name: 'Heineken', url: 'https://careers.heineken.com/global/en/search-results', industry: 'Beverages' },
-  { name: 'KLM', url: 'https://careers.klm.com/en/vacancies', industry: 'Aviation' },
-  { name: 'Rabobank', url: 'https://www.rabobank.jobs/en/vacancies/', industry: 'Banking' },
-  { name: 'TomTom', url: 'https://www.tomtom.com/careers/jobs/', industry: 'Navigation Technology' },
-  { name: 'Just Eat Takeaway', url: 'https://careers.justeattakeaway.com/global/en/search-results', industry: 'Food Delivery' },
-  { name: 'Picnic', url: 'https://picnic.app/careers/all-jobs', industry: 'E-commerce' },
-  { name: 'Coolblue', url: 'https://www.careersatcoolblue.com/vacancies', industry: 'E-commerce' },
-  { name: 'Elastic', url: 'https://www.elastic.co/careers', industry: 'Software' },
-  { name: 'GitLab', url: 'https://about.gitlab.com/jobs/all-jobs/', industry: 'Software' },
-  { name: 'MessageBird', url: 'https://messagebird.com/careers', industry: 'Communications' },
-  { name: 'Mollie', url: 'https://jobs.mollie.com/', industry: 'Fintech' },
-  { name: 'Bunq', url: 'https://www.bunq.com/careers', industry: 'Banking' },
-  { name: 'WeTransfer', url: 'https://wetransfer.com/careers', industry: 'File Sharing' },
-  { name: 'Miro', url: 'https://miro.com/careers/', industry: 'Collaboration Software' },
-  { name: 'Remote', url: 'https://remote.com/careers', industry: 'HR Tech' },
-  { name: 'Catawiki', url: 'https://www.catawiki.com/en/jobs', industry: 'E-commerce' },
-  { name: 'Bol.com', url: 'https://careers.bol.com/en/all-vacancies/', industry: 'E-commerce' },
-  { name: 'NXP Semiconductors', url: 'https://www.nxp.com/company/about-nxp/careers', industry: 'Semiconductor' },
-  { name: 'Randstad', url: 'https://www.randstad.com/careers/', industry: 'Staffing' },
-  { name: 'Wolters Kluwer', url: 'https://www.wolterskluwer.com/en/careers', industry: 'Information Services' },
-  { name: 'Prosus', url: 'https://www.prosus.com/careers', industry: 'Investment' },
-  { name: 'Ahold Delhaize', url: 'https://careers.aholddelhaize.com/', industry: 'Retail' },
-  { name: 'NN Group', url: 'https://www.nn-group.com/careers.htm', industry: 'Insurance' },
-  { name: 'Aegon', url: 'https://www.aegon.com/careers/', industry: 'Insurance' },
-  { name: 'DSM', url: 'https://www.dsm.com/corporate/careers.html', industry: 'Life Sciences' },
-  { name: 'Signify', url: 'https://www.signify.com/global/careers', industry: 'Lighting' },
+// Search queries to find Dutch companies with career pages
+const SEARCH_QUERIES = [
+  'top Dutch companies careers page',
+  'Netherlands tech startups hiring jobs',
+  'Amsterdam companies career opportunities',
+  'Dutch unicorn startups jobs page',
+  'Rotterdam companies vacancies',
+  'Netherlands fintech companies careers',
+  'Dutch software companies job openings',
+  'Netherlands e-commerce companies hiring',
+  'Dutch healthcare companies careers',
+  'Amsterdam startups career page',
 ];
+
+// Known industry patterns for classification
+const INDUSTRY_PATTERNS: Record<string, string[]> = {
+  'Technology': ['tech', 'software', 'saas', 'cloud', 'ai', 'data', 'digital'],
+  'Fintech': ['fintech', 'payment', 'banking', 'finance', 'insurance'],
+  'E-commerce': ['ecommerce', 'e-commerce', 'retail', 'shop', 'marketplace'],
+  'Healthcare': ['health', 'medical', 'pharma', 'biotech', 'care'],
+  'Travel': ['travel', 'booking', 'hotel', 'tourism', 'airline'],
+  'Food & Beverage': ['food', 'beverage', 'restaurant', 'delivery'],
+  'Energy': ['energy', 'oil', 'gas', 'solar', 'renewable'],
+  'Logistics': ['logistics', 'shipping', 'transport', 'delivery'],
+};
+
+function classifyIndustry(text: string): string {
+  const lowerText = text.toLowerCase();
+  for (const [industry, keywords] of Object.entries(INDUSTRY_PATTERNS)) {
+    if (keywords.some(keyword => lowerText.includes(keyword))) {
+      return industry;
+    }
+  }
+  return 'Other';
+}
+
+function extractCompanyName(title: string, url: string): string | null {
+  // Try to extract company name from the title
+  // Common patterns: "Careers at Company", "Company - Careers", "Jobs at Company"
+  const patterns = [
+    /careers?\s+(?:at|@)\s+([^|–\-]+)/i,
+    /jobs?\s+(?:at|@)\s+([^|–\-]+)/i,
+    /([^|–\-]+?)\s+(?:careers?|jobs?|vacancies|openings)/i,
+    /work\s+(?:at|@)\s+([^|–\-]+)/i,
+    /join\s+([^|–\-]+)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = title.match(pattern);
+    if (match && match[1]) {
+      const name = match[1].trim().replace(/[|–\-].*/g, '').trim();
+      if (name.length >= 2 && name.length <= 50) {
+        return name;
+      }
+    }
+  }
+  
+  // Fallback: try to extract from domain
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    // Remove common prefixes and suffixes
+    const domain = hostname
+      .replace(/^(www\.|careers\.|jobs\.|work\.)/i, '')
+      .replace(/\.(com|nl|eu|io|co|org|net)$/i, '')
+      .replace(/\./g, ' ');
+    
+    if (domain.length >= 2 && domain.length <= 30) {
+      // Capitalize first letter of each word
+      return domain.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+  } catch {
+    // Invalid URL
+  }
+  
+  return null;
+}
+
+function isCareerUrl(url: string): boolean {
+  const careerPatterns = [
+    /career/i,
+    /jobs?/i,
+    /vacancies/i,
+    /openings/i,
+    /hiring/i,
+    /werk/i, // Dutch for work
+    /vacature/i, // Dutch for vacancy
+  ];
+  return careerPatterns.some(pattern => pattern.test(url));
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,44 +104,148 @@ Deno.serve(async (req) => {
   try {
     const { count = 10 } = await req.json();
 
+    const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
+    if (!apiKey) {
+      console.error('FIRECRAWL_API_KEY not configured');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Firecrawl connector not configured. Please connect Firecrawl in Settings.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get existing company names to avoid duplicates
+    // Get existing company URLs to avoid duplicates
     const { data: existingCompanies } = await supabase
       .from('company_career_sites')
-      .select('company_name');
+      .select('company_name, career_url');
     
     const existingNames = new Set(
       existingCompanies?.map(c => c.company_name.toLowerCase()) || []
     );
-
-    // Filter out companies that already exist
-    const availableCompanies = DUTCH_COMPANY_SOURCES.filter(
-      c => !existingNames.has(c.name.toLowerCase())
+    const existingDomains = new Set(
+      existingCompanies?.map(c => {
+        try {
+          return new URL(c.career_url).hostname.toLowerCase();
+        } catch {
+          return '';
+        }
+      }) || []
     );
 
-    if (availableCompanies.length === 0) {
+    console.log(`Found ${existingNames.size} existing companies`);
+
+    // Pick a random search query
+    const randomQuery = SEARCH_QUERIES[Math.floor(Math.random() * SEARCH_QUERIES.length)];
+    console.log('Searching with query:', randomQuery);
+
+    // Use Firecrawl search API
+    const searchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: randomQuery,
+        limit: count * 3, // Request more to account for filtering
+        lang: 'en',
+        country: 'nl',
+      }),
+    });
+
+    if (!searchResponse.ok) {
+      const errorData = await searchResponse.json();
+      console.error('Firecrawl search error:', errorData);
+      throw new Error(errorData.error || `Search failed with status ${searchResponse.status}`);
+    }
+
+    const searchData = await searchResponse.json();
+    console.log(`Firecrawl returned ${searchData.data?.length || 0} results`);
+
+    if (!searchData.success || !searchData.data?.length) {
       return new Response(
         JSON.stringify({ 
           success: true, 
           companiesAdded: 0, 
-          message: 'All predefined companies already exist in the database' 
+          message: 'No new companies found in search results' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Shuffle and pick random companies
-    const shuffled = availableCompanies.sort(() => Math.random() - 0.5);
-    const toAdd = shuffled.slice(0, Math.min(count, shuffled.length));
+    // Process search results
+    const newCompanies: { name: string; url: string; industry: string }[] = [];
+
+    for (const result of searchData.data) {
+      if (newCompanies.length >= count) break;
+
+      const url = result.url;
+      const title = result.title || '';
+      const description = result.description || '';
+
+      // Skip if not a career-related URL
+      if (!isCareerUrl(url) && !isCareerUrl(title)) {
+        console.log('Skipping non-career URL:', url);
+        continue;
+      }
+
+      // Check if domain already exists
+      try {
+        const domain = new URL(url).hostname.toLowerCase();
+        if (existingDomains.has(domain)) {
+          console.log('Skipping existing domain:', domain);
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      // Extract company name
+      const companyName = extractCompanyName(title, url);
+      if (!companyName) {
+        console.log('Could not extract company name from:', title);
+        continue;
+      }
+
+      // Check if company name already exists
+      if (existingNames.has(companyName.toLowerCase())) {
+        console.log('Skipping existing company:', companyName);
+        continue;
+      }
+
+      // Classify industry
+      const industry = classifyIndustry(`${title} ${description}`);
+
+      newCompanies.push({
+        name: companyName,
+        url: url,
+        industry: industry,
+      });
+
+      // Add to existing sets to avoid duplicates in this batch
+      existingNames.add(companyName.toLowerCase());
+      existingDomains.add(new URL(url).hostname.toLowerCase());
+    }
+
+    if (newCompanies.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          companiesAdded: 0, 
+          message: 'All discovered companies already exist in the database' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Insert the companies
     const { data: inserted, error } = await supabase
       .from('company_career_sites')
       .insert(
-        toAdd.map(c => ({
+        newCompanies.map(c => ({
           company_name: c.name,
           career_url: c.url,
           industry: c.industry,
@@ -97,13 +258,14 @@ Deno.serve(async (req) => {
       throw error;
     }
 
-    console.log(`Added ${inserted?.length || 0} companies:`, toAdd.map(c => c.name));
+    console.log(`Added ${inserted?.length || 0} companies:`, newCompanies.map(c => c.name));
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         companiesAdded: inserted?.length || 0,
-        companies: toAdd.map(c => c.name)
+        companies: newCompanies.map(c => ({ name: c.name, industry: c.industry })),
+        searchQuery: randomQuery
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
