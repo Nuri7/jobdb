@@ -197,23 +197,29 @@ const Index = () => {
             onClearAll={handleClearAll}
             companies={companies || []}
           />
-          <div className="flex items-center gap-2">
-            <ViewToggle view={view} onViewChange={setView} />
-            <Button 
-              onClick={handleDeleteJobs} 
-              disabled={isDeleting || isScraping || totalCount === 0}
-              variant="outline"
-              size="icon"
-              className="text-destructive hover:text-destructive"
-              title={`Delete ${source === "all" ? "All Jobs" : `${getSelectedCompanyName()} Jobs`}`}
-            >
-              {isDeleting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
+          <ViewToggle view={view} onViewChange={setView} />
+        </div>
+
+        {/* Delete Button */}
+        <div className="flex justify-end mt-3">
+          <Button 
+            onClick={handleDeleteJobs} 
+            disabled={isDeleting || isScraping || totalCount === 0}
+            variant="outline"
+            className="text-destructive hover:text-destructive"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete {source === "all" ? "All Jobs" : `${getSelectedCompanyName()} Jobs`}
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Loading State */}
