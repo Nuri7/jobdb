@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code } from "lucide-react";
@@ -17,15 +18,29 @@ interface ScraperSetting {
   description: string | null;
 }
 
+const DEFAULT_EXTRACTION_PROMPT = `Extract job details from this career page content. Look for:
+
+1. **Job Title**: The main position title, clean of company names and special characters
+2. **Location**: City name (especially Dutch cities like Amsterdam, Rotterdam, Utrecht, Nijmegen, etc.). Check the URL path for city names if not in content.
+3. **Employment Type**: Full-time, Part-time, or Contract
+4. **Remote/Hybrid**: Is remote or hybrid work mentioned?
+5. **Department**: Team or department name if mentioned
+6. **Experience Level**: Junior, Medior, Senior, Principal, or years of experience
+7. **Salary Range**: Any salary or compensation information (look for € amounts)
+8. **Internship**: Is this an internship, traineeship, or student position?
+
+Return structured data with these fields. For location, prioritize Dutch city names found in content or URL.`;
+
 const DEFAULT_SETTINGS: Record<string, any> = {
   max_pages: 20,
   max_jobs: 150,
   wait_time: 3000,
+  extraction_prompt: DEFAULT_EXTRACTION_PROMPT,
   job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
   excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
   excluded_url_patterns: ['/locations', '/career-types', '/about', '/contact', '/teams', '/departments', '/benefits', '/culture', '/events', '/news', '/blog'],
   required_content_keywords: ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications', 'experience', 'skills'],
-  location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
+  location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht', 'nijmegen', 'arnhem', 'breda', 'tilburg', 'almere', 'enschede', 'haarlem', 'amersfoort', 'apeldoorn', 'zwolle', 'dordrecht', 'zoetermeer', 'deventer', 'hilversum', 'alkmaar', 'venlo', 'leeuwarden', 'heerlen', 'helmond', 'oss', 'amstelveen', 'schiphol', 'hoofddorp'],
   remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
   location_patterns: ['location', 'plaats', 'locatie', 'city', 'standort'],
   salary_patterns: ['salary', 'salaris', 'compensation', 'loon', 'vergoeding'],
@@ -264,6 +279,24 @@ const Settings = () => {
 }, null, 2)}
                   </pre>
                 </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <Code className="w-4 h-4 text-cyan-500" />
+                  Extraction Prompt
+                </h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  This prompt guides how job data is extracted from scraped content. Customize it to improve location detection, title parsing, and metadata extraction.
+                </p>
+                <Textarea
+                  value={getSetting('extraction_prompt') || DEFAULT_EXTRACTION_PROMPT}
+                  onChange={(e) => updateSetting('extraction_prompt', e.target.value)}
+                  placeholder="Enter extraction instructions..."
+                  className="font-mono text-sm min-h-[200px]"
+                />
               </div>
             </CardContent>
           </Card>
