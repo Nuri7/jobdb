@@ -19,3 +19,10 @@ export function useCompanies() {
     queryFn: () => jobsApi.getCompanies(),
   });
 }
+
+export function useLocations() {
+  return useQuery({
+    queryKey: ['locations'],
+    queryFn: () => jobsApi.getDistinctLocations(),
+  });
+}

@@ -23,6 +23,7 @@ interface FilterBarProps {
   onSourceChange: (value: string) => void;
   onClearAll: () => void;
   companies?: Company[];
+  locations?: string[];
 }
 
 const FilterBar = ({
@@ -35,6 +36,7 @@ const FilterBar = ({
   onSourceChange,
   onClearAll,
   companies = [],
+  locations = [],
 }: FilterBarProps) => {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4">
@@ -48,12 +50,14 @@ const FilterBar = ({
             <SelectValue placeholder="Location" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Locations</SelectItem>
-            <SelectItem value="amsterdam">Amsterdam</SelectItem>
-            <SelectItem value="utrecht">Utrecht</SelectItem>
-            <SelectItem value="rotterdam">Rotterdam</SelectItem>
-            <SelectItem value="eindhoven">Eindhoven</SelectItem>
-            <SelectItem value="the hague">The Hague</SelectItem>
+            <ScrollArea className="h-[300px]">
+              <SelectItem value="all">All Locations</SelectItem>
+              {locations.map((loc) => (
+                <SelectItem key={loc} value={loc.toLowerCase()}>
+                  {loc}
+                </SelectItem>
+              ))}
+            </ScrollArea>
           </SelectContent>
         </Select>
 
