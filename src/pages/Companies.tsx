@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useCompanies } from "@/hooks/useJobs";
 import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
-import { format } from "date-fns";
+import { format, isAfter, isBefore, startOfDay, endOfDay, parseISO } from "date-fns";
 import Header from "@/components/Header";
 import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeProgressModal from "@/components/ScrapeProgressModal";
@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
 import { 
   Building2, 
@@ -28,7 +30,8 @@ import {
   History,
   ListChecks,
   X,
-  Calendar
+  Calendar,
+  CalendarRange
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,14 +74,24 @@ const Companies = () => {
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [showBulkScrapeModal, setShowBulkScrapeModal] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const { data: companies, isLoading, refetch } = useCompanies();
   const { toast } = useToast();
 
-  const filteredCompanies = companies?.filter(company =>
-    company.company_name.toLowerCase().includes(search.toLowerCase()) ||
-    company.industry?.toLowerCase().includes(search.toLowerCase()) ||
-    company.headquarters_city?.toLowerCase().includes(search.toLowerCase())
-  ) || [];
+  const filteredCompanies = companies?.filter(company => {
+    // Text search filter
+    const matchesSearch = company.company_name.toLowerCase().includes(search.toLowerCase()) ||
+      company.industry?.toLowerCase().includes(search.toLowerCase()) ||
+      company.headquarters_city?.toLowerCase().includes(search.toLowerCase());
+    
+    // Date range filter
+    const companyDate = parseISO(company.created_at);
+    const matchesDateFrom = !dateFrom || !isBefore(companyDate, startOfDay(dateFrom));
+    const matchesDateTo = !dateTo || !isAfter(companyDate, endOfDay(dateTo));
+    
+    return matchesSearch && matchesDateFrom && matchesDateTo;
+  }) || [];
 
   const handleScrapeCompany = async (companyId: string, careerUrl: string, companyName: string) => {
     setScrapingCompany({ id: companyId, name: companyName });
@@ -248,16 +261,67 @@ const Companies = () => {
           </div>
         )}
 
-        {/* Search */}
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search companies by name, industry, or city..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+        {/* Search and Date Filter */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search companies by name, industry, or city..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          {/* Date Range Filter */}
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[140px] justify-start text-left font-normal">
+                  <CalendarRange className="mr-2 h-4 w-4" />
+                  {dateFrom ? format(dateFrom, "MMM d, yyyy") : "From"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={dateFrom}
+                  onSelect={setDateFrom}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            
+            <span className="text-muted-foreground">–</span>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[140px] justify-start text-left font-normal">
+                  <CalendarRange className="mr-2 h-4 w-4" />
+                  {dateTo ? format(dateTo, "MMM d, yyyy") : "To"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={dateTo}
+                  onSelect={setDateTo}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            
+            {(dateFrom || dateTo) && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Stats and View Toggle */}
