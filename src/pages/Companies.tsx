@@ -7,6 +7,7 @@ import ScrapeProgressModal from "@/components/ScrapeProgressModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import BulkScrapeModal from "@/components/BulkScrapeModal";
 import ScheduleSettingsModal from "@/components/ScheduleSettingsModal";
+import ViewToggle from "@/components/ViewToggle";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ const CompanyLogo = ({ careerUrl, companyName }: { careerUrl: string; companyNam
 
 const Companies = () => {
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"grid" | "list">("list");
   const [scrapingCompany, setScrapingCompany] = useState<{id: string; name: string} | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
   const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
@@ -257,13 +259,16 @@ const Companies = () => {
           />
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-4 mb-6 text-sm text-muted-foreground">
-          <span>{filteredCompanies.length} companies</span>
-          <span>•</span>
-          <span>
-            {filteredCompanies.filter(c => c.crawl_status === "completed").length} scraped
-          </span>
+        {/* Stats and View Toggle */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>{filteredCompanies.length} companies</span>
+            <span>•</span>
+            <span>
+              {filteredCompanies.filter(c => c.crawl_status === "completed").length} scraped
+            </span>
+          </div>
+          <ViewToggle view={view} onViewChange={setView} />
         </div>
 
         {/* Loading State */}
@@ -273,17 +278,20 @@ const Companies = () => {
           </div>
         )}
 
-        {/* Companies Grid */}
+        {/* Companies Grid/List */}
         {!isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={view === "grid" 
+            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" 
+            : "flex flex-col gap-3"
+          }>
             {filteredCompanies.map((company) => (
               <div
                 key={company.id}
-                className={`bg-card border rounded-lg p-5 hover:shadow-lg transition-all ${
+                className={`bg-card border rounded-lg hover:shadow-lg transition-all ${
                   bulkSelectMode && selectedCompanies.has(company.id)
                     ? 'border-primary ring-2 ring-primary/20'
                     : 'border-border'
-                }`}
+                } ${view === "list" ? "p-4 flex items-center gap-4" : "p-5"}`}
                 onClick={() => {
                   if (bulkSelectMode) {
                     toggleCompanySelection(company.id);
@@ -291,9 +299,9 @@ const Companies = () => {
                 }}
                 style={{ cursor: bulkSelectMode ? 'pointer' : 'default' }}
               >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
+                {view === "list" ? (
+                  <>
+                    {/* List View */}
                     {bulkSelectMode && (
                       <Checkbox
                         checked={selectedCompanies.has(company.id)}
@@ -302,108 +310,195 @@ const Companies = () => {
                       />
                     )}
                     <CompanyLogo careerUrl={company.career_url} companyName={company.company_name} />
-                    <div>
-                      <h3 className="font-semibold text-foreground">
-                        {company.company_name}
-                      </h3>
-                      {company.industry && (
-                        <p className="text-xs text-muted-foreground">
-                          {company.industry}
-                        </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-foreground truncate">
+                          {company.company_name}
+                        </h3>
+                        {getStatusIcon(company.crawl_status)}
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                        {company.industry && <span>{company.industry}</span>}
+                        {company.headquarters_city && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {company.headquarters_city}
+                          </span>
+                        )}
+                        {company.jobs_found_count !== null && company.jobs_found_count > 0 && (
+                          <span className="font-medium text-foreground">{company.jobs_found_count} jobs</span>
+                        )}
+                        {company.scrape_schedule && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-primary" />
+                            <span className="capitalize">{company.scrape_schedule === '12hours' ? 'Every 12h' : company.scrape_schedule}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {!bulkSelectMode && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => setScheduleCompany(company)}
+                          className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                          title="Schedule settings"
+                        >
+                          <Calendar className={`w-3.5 h-3.5 ${company.scrape_schedule ? 'text-primary' : 'text-muted-foreground'}`} />
+                        </button>
+                        <button
+                          onClick={() => setHistoryCompany({ id: company.id, name: company.company_name })}
+                          className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                          title="View scrape history"
+                        >
+                          <History className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                        <button
+                          onClick={() => setEditingCompany(company)}
+                          className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                          title="Edit career URL"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(company.career_url, '_blank')}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          disabled={scrapingCompany?.id === company.id}
+                          onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
+                        >
+                          {scrapingCompany?.id === company.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {/* Grid View */}
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {bulkSelectMode && (
+                          <Checkbox
+                            checked={selectedCompanies.has(company.id)}
+                            onCheckedChange={() => toggleCompanySelection(company.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
+                        <CompanyLogo careerUrl={company.career_url} companyName={company.company_name} />
+                        <div>
+                          <h3 className="font-semibold text-foreground">
+                            {company.company_name}
+                          </h3>
+                          {company.industry && (
+                            <p className="text-xs text-muted-foreground">
+                              {company.industry}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {!bulkSelectMode && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setScheduleCompany(company)}
+                            className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                            title="Schedule settings"
+                          >
+                            <Calendar className={`w-3.5 h-3.5 ${company.scrape_schedule ? 'text-primary' : 'text-muted-foreground'}`} />
+                          </button>
+                          <button
+                            onClick={() => setHistoryCompany({ id: company.id, name: company.company_name })}
+                            className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                            title="View scrape history"
+                          >
+                            <History className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                          <button
+                            onClick={() => setEditingCompany(company)}
+                            className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                            title="Edit career URL"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                          {getStatusIcon(company.crawl_status)}
+                        </div>
+                      )}
+                      {bulkSelectMode && getStatusIcon(company.crawl_status)}
+                    </div>
+
+                    {/* Meta */}
+                    <div className="space-y-2 mb-4">
+                      {company.headquarters_city && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span>{company.headquarters_city}</span>
+                        </div>
+                      )}
+                      {company.company_size && (
+                        <Badge variant="secondary" className="text-xs">
+                          {company.company_size} employees
+                        </Badge>
                       )}
                     </div>
-                  </div>
-                  {!bulkSelectMode && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setScheduleCompany(company)}
-                        className="p-1.5 rounded-full hover:bg-muted transition-colors"
-                        title="Schedule settings"
-                      >
-                        <Calendar className={`w-3.5 h-3.5 ${company.scrape_schedule ? 'text-primary' : 'text-muted-foreground'}`} />
-                      </button>
-                      <button
-                        onClick={() => setHistoryCompany({ id: company.id, name: company.company_name })}
-                        className="p-1.5 rounded-full hover:bg-muted transition-colors"
-                        title="View scrape history"
-                      >
-                        <History className="w-3.5 h-3.5 text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={() => setEditingCompany(company)}
-                        className="p-1.5 rounded-full hover:bg-muted transition-colors"
-                        title="Edit career URL"
-                      >
-                        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                      </button>
-                      {getStatusIcon(company.crawl_status)}
-                    </div>
-                  )}
-                  {bulkSelectMode && getStatusIcon(company.crawl_status)}
-                </div>
 
-                {/* Meta */}
-                <div className="space-y-2 mb-4">
-                  {company.headquarters_city && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span>{company.headquarters_city}</span>
-                    </div>
-                  )}
-                  {company.company_size && (
-                    <Badge variant="secondary" className="text-xs">
-                      {company.company_size} employees
-                    </Badge>
-                  )}
-                </div>
+                    {/* Schedule indicator */}
+                    {company.scrape_schedule && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                        <Calendar className="w-3 h-3 text-primary" />
+                        <span className="capitalize">{company.scrape_schedule === '12hours' ? 'Every 12h' : company.scrape_schedule}</span>
+                      </div>
+                    )}
 
-                {/* Schedule indicator */}
-                {company.scrape_schedule && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                    <Calendar className="w-3 h-3 text-primary" />
-                    <span className="capitalize">{company.scrape_schedule === '12hours' ? 'Every 12h' : company.scrape_schedule}</span>
-                  </div>
-                )}
+                    {/* Stats */}
+                    {company.jobs_found_count !== null && company.jobs_found_count > 0 && (
+                      <div className="text-sm text-muted-foreground mb-4">
+                        <span className="font-medium text-foreground">{company.jobs_found_count}</span> jobs found
+                      </div>
+                    )}
 
-                {/* Stats */}
-                {company.jobs_found_count !== null && company.jobs_found_count > 0 && (
-                  <div className="text-sm text-muted-foreground mb-4">
-                    <span className="font-medium text-foreground">{company.jobs_found_count}</span> jobs found
-                  </div>
-                )}
-
-                {/* Actions - only show when not in bulk mode */}
-                {!bulkSelectMode && (
-                  <div className="flex items-center gap-2 pt-3 border-t border-border">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => window.open(company.career_url, '_blank')}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                      Careers Page
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex-1"
-                      disabled={scrapingCompany?.id === company.id}
-                      onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
-                    >
-                      {scrapingCompany?.id === company.id ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                          Scraping...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                          Scrape
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                    {/* Actions - only show when not in bulk mode */}
+                    {!bulkSelectMode && (
+                      <div className="flex items-center gap-2 pt-3 border-t border-border">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => window.open(company.career_url, '_blank')}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                          Careers Page
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="flex-1"
+                          disabled={scrapingCompany?.id === company.id}
+                          onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
+                        >
+                          {scrapingCompany?.id === company.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                              Scraping...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                              Scrape
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}

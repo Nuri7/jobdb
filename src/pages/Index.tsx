@@ -18,7 +18,7 @@ const Index = () => {
   const [location, setLocation] = useState("all");
   const [startDate, setStartDate] = useState("all");
   const [source, setSource] = useState("all");
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [view, setView] = useState<"grid" | "list">("list");
   const [currentPage, setCurrentPage] = useState(1);
   const [isScraping, setIsScraping] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
