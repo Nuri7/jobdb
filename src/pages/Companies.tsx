@@ -281,7 +281,7 @@ const Companies = () => {
               }}
             >
               <ListChecks className="w-4 h-4 mr-2" />
-              {bulkSelectMode ? "Exit Bulk Mode" : "Bulk Scrape"}
+              {bulkSelectMode ? "Exit Bulk Mode" : "Bulk scrape company careers sites for job opportunities"}
             </Button>
             <Button
               variant="outline"
