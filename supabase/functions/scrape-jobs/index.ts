@@ -78,6 +78,21 @@ async function getScraperSettings(supabase: any): Promise<Record<string, any>> {
     required_content_keywords: ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications', 'experience', 'skills'],
     location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
     remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
+    location_patterns: ['location', 'plaats', 'locatie', 'city', 'standort'],
+    salary_patterns: ['salary', 'salaris', 'compensation', 'loon', 'vergoeding'],
+    internship_title_keywords: ['internship', 'intern', 'stage', 'stagiair', 'werkstudent', 'traineeship'],
+    experience_level_keywords: {
+      internship: ['intern', 'stage', 'trainee', 'werkstudent'],
+      junior: ['junior', 'entry-level', 'starter', 'graduate'],
+      medior: ['medior', 'mid-level', 'regular'],
+      senior: ['senior', 'experienced', 'lead'],
+      principal: ['principal', 'staff', 'architect', 'expert']
+    },
+    employment_type_keywords: {
+      fulltime: ['full-time', 'full time', 'fulltime'],
+      parttime: ['part-time', 'part time', 'parttime'],
+      contract: ['contract', 'freelance', 'interim', 'temporary']
+    }
   };
 
   try {
@@ -253,7 +268,7 @@ function isValidJobContent(content: string, requiredKeywords: string[]): boolean
 }
 
 // Extract job data from a job page
-function extractJobData(url: string, content: string, metadata: any): JobData {
+function extractJobData(url: string, content: string, metadata: any, settings: Record<string, any>): JobData {
   // Extract job title
   let jobTitle = metadata?.title || '';
   
@@ -276,33 +291,44 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     jobTitle = 'Job Opening';
   }
 
-  // Extract location
+  // Extract location using configurable patterns
   let location = 'Netherlands';
-  const locationPatterns = [
-    /(?:location|plaats|locatie|city|standort)[:\s]+([^\n,|]+)/i,
-    /(?:amsterdam|rotterdam|utrecht|the hague|eindhoven|den haag|leiden|delft|groningen|maastricht)/i,
-  ];
+  const locationLabelPatterns = settings.location_patterns || ['location', 'plaats', 'locatie', 'city', 'standort'];
+  const locationLabelRegex = new RegExp(`(?:${locationLabelPatterns.join('|')})[:\\s]+([^\\n,|]+)`, 'i');
+  const locationKeywords = settings.location_keywords || ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'];
+  const locationCityRegex = new RegExp(`(?:${locationKeywords.join('|')})`, 'i');
   
-  for (const pattern of locationPatterns) {
-    const locMatch = content.match(pattern);
-    if (locMatch) {
-      location = locMatch[1] ? locMatch[1].trim() : locMatch[0];
-      break;
+  const locLabelMatch = content.match(locationLabelRegex);
+  if (locLabelMatch) {
+    location = locLabelMatch[1].trim();
+  } else {
+    const locCityMatch = content.match(locationCityRegex);
+    if (locCityMatch) {
+      location = locCityMatch[0];
     }
   }
 
-  // Detect employment type
-  const isFullTime = /full[- ]?time/i.test(content);
-  const isPartTime = /part[- ]?time/i.test(content);
-  const isContract = /contract|freelance|interim|temporary/i.test(content);
+  // Detect employment type using configurable keywords
+  const employmentKeywords = settings.employment_type_keywords || {
+    fulltime: ['full-time', 'full time', 'fulltime'],
+    parttime: ['part-time', 'part time', 'parttime'],
+    contract: ['contract', 'freelance', 'interim', 'temporary']
+  };
+  
+  const lowerContent = content.toLowerCase();
+  const isFullTime = employmentKeywords.fulltime?.some((kw: string) => lowerContent.includes(kw.toLowerCase())) || false;
+  const isPartTime = employmentKeywords.parttime?.some((kw: string) => lowerContent.includes(kw.toLowerCase())) || false;
+  const isContract = employmentKeywords.contract?.some((kw: string) => lowerContent.includes(kw.toLowerCase())) || false;
   const employmentType = isContract ? 'Contract' : isPartTime ? 'Part-time' : 'Full-time';
 
-  // Detect remote
-  const isRemote = /remote|thuiswerk|hybrid|work from home|wfh/i.test(content);
+  // Detect remote using configurable keywords
+  const remoteKeywords = settings.remote_keywords || ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'];
+  const isRemote = remoteKeywords.some((kw: string) => lowerContent.includes(kw.toLowerCase()));
 
-  // Detect internship - be strict to avoid false positives
-  // Only match if: 1) explicitly in title, or 2) appears in specific context indicating THIS job is an internship
-  const titleHasInternship = /\b(?:internship|intern|stage|stagiair|werkstudent|traineeship)\b/i.test(jobTitle);
+  // Detect internship using configurable title keywords
+  const internshipTitleKeywords = settings.internship_title_keywords || ['internship', 'intern', 'stage', 'stagiair', 'werkstudent', 'traineeship'];
+  const internshipTitleRegex = new RegExp(`\\b(?:${internshipTitleKeywords.join('|')})\\b`, 'i');
+  const titleHasInternship = internshipTitleRegex.test(jobTitle);
   
   // Look for contextual patterns that indicate this specific job is an internship
   const contentHasInternshipContext = 
@@ -322,9 +348,8 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     department = deptMatch[1].trim();
   }
 
-  // Extract experience level
+  // Extract experience level using configurable keywords
   let experienceLevel: string | null = null;
-  const lowerContent = content.toLowerCase();
   
   // Check for explicit experience level labels
   const experiencePatterns = [
@@ -340,19 +365,27 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     }
   }
   
-  // If no explicit label, detect from keywords
+  // If no explicit label, detect from configurable keywords
   if (!experienceLevel) {
-    if (/\b(?:intern(?:ship)?|stage|trainee|werkstudent|student)\b/i.test(content)) {
+    const expKeywords = settings.experience_level_keywords || {
+      internship: ['intern', 'stage', 'trainee', 'werkstudent'],
+      junior: ['junior', 'entry-level', 'starter', 'graduate'],
+      medior: ['medior', 'mid-level', 'regular'],
+      senior: ['senior', 'experienced', 'lead'],
+      principal: ['principal', 'staff', 'architect', 'expert']
+    };
+    
+    if (expKeywords.internship?.some((kw: string) => lowerContent.includes(kw.toLowerCase()))) {
       experienceLevel = 'Internship';
-    } else if (/\b(?:junior|entry[- ]?level|starter|graduate|afgestudeerd)\b/i.test(content)) {
+    } else if (expKeywords.junior?.some((kw: string) => lowerContent.includes(kw.toLowerCase()))) {
       experienceLevel = 'Junior';
-    } else if (/\b(?:medior|mid[- ]?level|regular)\b/i.test(content)) {
+    } else if (expKeywords.medior?.some((kw: string) => lowerContent.includes(kw.toLowerCase()))) {
       experienceLevel = 'Medior';
-    } else if (/\b(?:senior|experienced|ervaren|lead)\b/i.test(content)) {
+    } else if (expKeywords.senior?.some((kw: string) => lowerContent.includes(kw.toLowerCase()))) {
       experienceLevel = 'Senior';
-    } else if (/\b(?:principal|staff|architect|expert|specialist)\b/i.test(content)) {
+    } else if (expKeywords.principal?.some((kw: string) => lowerContent.includes(kw.toLowerCase()))) {
       experienceLevel = 'Principal';
-    } else if (/\b(?:manager|head of|director|lead|team lead)\b/i.test(content)) {
+    } else if (/\b(?:manager|head of|director|team lead)\b/i.test(content)) {
       experienceLevel = 'Management';
     }
     
@@ -372,14 +405,15 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     }
   }
 
-  // Extract salary range
+  // Extract salary range using configurable patterns
   let salaryRange: string | null = null;
+  const salaryLabelPatterns = settings.salary_patterns || ['salary', 'salaris', 'compensation', 'loon', 'vergoeding'];
   
-  // Common salary patterns (€, EUR, euro)
-  const salaryPatterns = [
-    // Explicit salary labels
-    /(?:salary|salaris|compensation|loon|vergoeding)[:\s]+([€$]?\s*[\d.,]+\s*[-–—to]+\s*[€$]?\s*[\d.,]+(?:\s*(?:per\s+)?(?:year|yr|month|mo|jaar|maand|annually|monthly|p\.m\.|p\.a\.))?)/i,
-    /(?:salary|salaris|compensation|loon|vergoeding)[:\s]+([€$]\s*[\d.,]+(?:\s*[-–—]\s*[€$]?\s*[\d.,]+)?(?:\s*(?:per\s+)?(?:year|yr|month|mo|jaar|maand|annually|monthly|p\.m\.|p\.a\.))?)/i,
+  // Build salary regex patterns
+  const salaryLabelRegex = new RegExp(`(?:${salaryLabelPatterns.join('|')})[:\\s]+([€$]?\\s*[\\d.,]+(?:\\s*[-–—to]+\\s*[€$]?\\s*[\\d.,]+)?(?:\\s*(?:per\\s+)?(?:year|yr|month|mo|jaar|maand|annually|monthly|p\\.m\\.|p\\.a\\.))?)`, 'i');
+  
+  const salaryPatternList = [
+    salaryLabelRegex,
     // Euro ranges: €50.000 - €70.000, €50k-€70k
     /€\s*([\d.,]+)\s*[kK]?\s*[-–—to]+\s*€?\s*([\d.,]+)\s*[kK]?(?:\s*(?:per\s+)?(?:year|yr|month|mo|jaar|maand|annually|monthly|bruto|gross|p\.m\.|p\.a\.))?/i,
     // Single euro amount with context
@@ -390,13 +424,14 @@ function extractJobData(url: string, content: string, metadata: any): JobData {
     /(?:salary\s*)?(?:scale|schaal)\s*(\d+(?:\s*[-–—]\s*\d+)?)/i,
   ];
   
-  for (const pattern of salaryPatterns) {
+  for (const pattern of salaryPatternList) {
     const salaryMatch = content.match(pattern);
     if (salaryMatch) {
       // Clean up and format the salary
       let salary = salaryMatch[0];
       // Remove the label prefix
-      salary = salary.replace(/^(?:salary|salaris|compensation|loon|vergoeding)[:\s]+/i, '');
+      const salaryLabelCleanRegex = new RegExp(`^(?:${salaryLabelPatterns.join('|')})[:\\s]+`, 'i');
+      salary = salary.replace(salaryLabelCleanRegex, '');
       salary = salary.replace(/^(?:earn|verdien|starting at|vanaf|tot)\s*/i, '');
       salaryRange = salary.trim().slice(0, 100);
       break;
@@ -614,7 +649,7 @@ Deno.serve(async (req) => {
             continue;
           }
           
-          const job = extractJobData(jobUrl, content, metadata);
+          const job = extractJobData(jobUrl, content, metadata, settings);
           jobs.push(job);
         } else {
           skippedUrls.push({ url: jobUrl, reason: 'Failed to scrape page' });

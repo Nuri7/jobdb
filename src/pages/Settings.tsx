@@ -27,6 +27,21 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   required_content_keywords: ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications', 'experience', 'skills'],
   location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
   remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
+  location_patterns: ['location', 'plaats', 'locatie', 'city', 'standort'],
+  salary_patterns: ['salary', 'salaris', 'compensation', 'loon', 'vergoeding'],
+  internship_title_keywords: ['internship', 'intern', 'stage', 'stagiair', 'werkstudent', 'traineeship'],
+  experience_level_keywords: {
+    internship: ['intern', 'stage', 'trainee', 'werkstudent'],
+    junior: ['junior', 'entry-level', 'starter', 'graduate'],
+    medior: ['medior', 'mid-level', 'regular'],
+    senior: ['senior', 'experienced', 'lead'],
+    principal: ['principal', 'staff', 'architect', 'expert']
+  },
+  employment_type_keywords: {
+    fulltime: ['full-time', 'full time', 'fulltime'],
+    parttime: ['part-time', 'part time', 'parttime'],
+    contract: ['contract', 'freelance', 'interim', 'temporary']
+  }
 };
 
 const Settings = () => {
@@ -377,94 +392,280 @@ const Settings = () => {
             </CardContent>
           </Card>
 
-          {/* Extraction Prompt / Logic */}
+          {/* Extraction Patterns - Editable */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Code className="w-5 h-5 text-cyan-500" />
-                <CardTitle>Job Data Extraction Logic</CardTitle>
+                <CardTitle>Job Data Extraction Patterns</CardTitle>
               </div>
-              <CardDescription>The extraction patterns used to parse job details from scraped pages</CardDescription>
+              <CardDescription>Editable patterns used to parse job details from scraped pages</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Location Patterns */}
               <div>
-                <h4 className="font-medium mb-2">Location Detection</h4>
-                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
-                  <pre className="whitespace-pre-wrap text-muted-foreground">
-{`// Pattern 1: Labeled location
-/(?:location|plaats|locatie|city|standort)[:\\s]+([^\\n,|]+)/i
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-amber-500" />
+                  Location Label Keywords
+                </h4>
+                <p className="text-xs text-muted-foreground mb-2">Keywords that precede location values (e.g., "Location: Amsterdam")</p>
+                <EditableTagList
+                  tags={getSetting('location_patterns') || ['location', 'plaats', 'locatie', 'city', 'standort']}
+                  onAdd={(item) => handleArrayAdd('location_patterns', item)}
+                  onRemove={(item) => handleArrayRemove('location_patterns', item)}
+                  placeholder="Add keyword..."
+                  variant="secondary"
+                />
+              </div>
 
-// Pattern 2: Dutch city names
-/(?:amsterdam|rotterdam|utrecht|the hague|eindhoven|den haag|leiden|delft|groningen|maastricht)/i`}
-                  </pre>
+              <Separator />
+
+              {/* Salary Patterns */}
+              <div>
+                <h4 className="font-medium mb-2">Salary Label Keywords</h4>
+                <p className="text-xs text-muted-foreground mb-2">Keywords that precede salary values (e.g., "Salary: €50.000")</p>
+                <EditableTagList
+                  tags={getSetting('salary_patterns') || ['salary', 'salaris', 'compensation', 'loon', 'vergoeding']}
+                  onAdd={(item) => handleArrayAdd('salary_patterns', item)}
+                  onRemove={(item) => handleArrayRemove('salary_patterns', item)}
+                  placeholder="Add keyword..."
+                  variant="secondary"
+                />
+              </div>
+
+              <Separator />
+
+              {/* Internship Title Keywords */}
+              <div>
+                <h4 className="font-medium mb-2">Internship Title Keywords</h4>
+                <p className="text-xs text-muted-foreground mb-2">Keywords in job title that indicate an internship position</p>
+                <EditableTagList
+                  tags={getSetting('internship_title_keywords') || ['internship', 'intern', 'stage', 'stagiair', 'werkstudent', 'traineeship']}
+                  onAdd={(item) => handleArrayAdd('internship_title_keywords', item)}
+                  onRemove={(item) => handleArrayRemove('internship_title_keywords', item)}
+                  placeholder="Add keyword..."
+                  variant="outline"
+                  className="border-purple-500/50 text-purple-700"
+                />
+              </div>
+
+              <Separator />
+
+              {/* Experience Level Keywords */}
+              <div>
+                <h4 className="font-medium mb-3">Experience Level Keywords</h4>
+                <p className="text-xs text-muted-foreground mb-4">Keywords that indicate different experience levels</p>
+                
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-purple-500/20 text-purple-700">Internship</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('experience_level_keywords') || {}).internship || ['intern', 'stage', 'trainee', 'werkstudent']}
+                      onAdd={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          internship: [...(current.internship || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          internship: (current.internship || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-500/20 text-green-700">Junior</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('experience_level_keywords') || {}).junior || ['junior', 'entry-level', 'starter', 'graduate']}
+                      onAdd={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          junior: [...(current.junior || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          junior: (current.junior || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-blue-500/20 text-blue-700">Medior</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('experience_level_keywords') || {}).medior || ['medior', 'mid-level', 'regular']}
+                      onAdd={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          medior: [...(current.medior || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          medior: (current.medior || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-orange-500/20 text-orange-700">Senior</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('experience_level_keywords') || {}).senior || ['senior', 'experienced', 'lead']}
+                      onAdd={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          senior: [...(current.senior || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          senior: (current.senior || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-red-500/20 text-red-700">Principal</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('experience_level_keywords') || {}).principal || ['principal', 'staff', 'architect', 'expert']}
+                      onAdd={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          principal: [...(current.principal || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('experience_level_keywords') || {};
+                        updateSetting('experience_level_keywords', {
+                          ...current,
+                          principal: (current.principal || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
                 </div>
               </div>
 
               <Separator />
 
+              {/* Employment Type Keywords */}
               <div>
-                <h4 className="font-medium mb-2">Experience Level Detection</h4>
-                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
-                  <pre className="whitespace-pre-wrap text-muted-foreground">
-{`// Explicit labels
-/(?:experience level|seniority|niveau|level)[:\\s]+([^\\n,|]+)/i
-/(?:experience|ervaring)[:\\s]+(\\d+[\\+]?\\s*(?:years?|jaar|yrs?))/i
+                <h4 className="font-medium mb-3">Employment Type Keywords</h4>
+                <p className="text-xs text-muted-foreground mb-4">Keywords that indicate different employment types</p>
+                
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-500/20 text-green-700">Full-time</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('employment_type_keywords') || {}).fulltime || ['full-time', 'full time', 'fulltime']}
+                      onAdd={(item) => {
+                        const current = getSetting('employment_type_keywords') || {};
+                        updateSetting('employment_type_keywords', {
+                          ...current,
+                          fulltime: [...(current.fulltime || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('employment_type_keywords') || {};
+                        updateSetting('employment_type_keywords', {
+                          ...current,
+                          fulltime: (current.fulltime || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
 
-// Keyword detection
-Internship: intern, stage, trainee, werkstudent
-Junior: junior, entry-level, starter, graduate
-Medior: medior, mid-level, regular
-Senior: senior, experienced, lead
-Principal: principal, staff, architect, expert
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-blue-500/20 text-blue-700">Part-time</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('employment_type_keywords') || {}).parttime || ['part-time', 'part time', 'parttime']}
+                      onAdd={(item) => {
+                        const current = getSetting('employment_type_keywords') || {};
+                        updateSetting('employment_type_keywords', {
+                          ...current,
+                          parttime: [...(current.parttime || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('employment_type_keywords') || {};
+                        updateSetting('employment_type_keywords', {
+                          ...current,
+                          parttime: (current.parttime || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
 
-// Years of experience mapping
-1 year → Junior
-2-3 years → Medior
-4-7 years → Senior
-8+ years → Principal`}
-                  </pre>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="font-medium mb-2">Salary Range Detection</h4>
-                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
-                  <pre className="whitespace-pre-wrap text-muted-foreground">
-{`// Labeled salary
-/(?:salary|salaris|compensation|loon|vergoeding)[:\\s]+([€$]?\\s*[\\d.,]+...)/i
-
-// Euro ranges
-/€\\s*([\\d.,]+)\\s*[kK]?\\s*[-–—to]+\\s*€?\\s*([\\d.,]+)\\s*[kK]?/i
-
-// Example matches:
-€50.000 - €70.000
-€50k-€70k  
-EUR 45,000 - 65,000
-Scale 10-12 / Schaal 10`}
-                  </pre>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="font-medium mb-2">Internship Detection</h4>
-                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
-                  <pre className="whitespace-pre-wrap text-muted-foreground">
-{`// Title keywords
-/\\b(?:internship|intern|stage|stagiair|werkstudent|traineeship)\\b/i
-
-// Content context patterns
-"this is an internship position"
-"internship duration"
-"as an intern you..."
-"student position"
-"seeking interns"
-
-// Safety override: If salary > €1000, not flagged as internship`}
-                  </pre>
+                  <div>
+                    <Label className="text-sm flex items-center gap-2 mb-2">
+                      <Badge className="bg-purple-500/20 text-purple-700">Contract</Badge>
+                    </Label>
+                    <EditableTagList
+                      tags={(getSetting('employment_type_keywords') || {}).contract || ['contract', 'freelance', 'interim', 'temporary']}
+                      onAdd={(item) => {
+                        const current = getSetting('employment_type_keywords') || {};
+                        updateSetting('employment_type_keywords', {
+                          ...current,
+                          contract: [...(current.contract || []), item]
+                        });
+                      }}
+                      onRemove={(item) => {
+                        const current = getSetting('employment_type_keywords') || {};
+                        updateSetting('employment_type_keywords', {
+                          ...current,
+                          contract: (current.contract || []).filter((i: string) => i !== item)
+                        });
+                      }}
+                      placeholder="Add keyword..."
+                      variant="secondary"
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>
