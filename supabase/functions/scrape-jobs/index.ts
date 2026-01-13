@@ -267,10 +267,26 @@ function isValidJobContent(content: string, requiredKeywords: string[]): boolean
   return hasRequiredKeyword && hasReasonableLength;
 }
 
+// Decode common HTML entities
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+}
+
 // Extract job data from a job page
 function extractJobData(url: string, content: string, metadata: any, settings: Record<string, any>): JobData {
   // Extract job title
   let jobTitle = metadata?.title || '';
+  
+  // Decode HTML entities first
+  jobTitle = decodeHtmlEntities(jobTitle);
   
   // Clean up title - remove company name suffixes
   jobTitle = jobTitle
@@ -283,7 +299,7 @@ function extractJobData(url: string, content: string, metadata: any, settings: R
   if (!jobTitle || jobTitle.length > 150 || jobTitle.length < 5) {
     const h1Match = content.match(/^#\s+(.+?)$/m);
     if (h1Match) {
-      jobTitle = h1Match[1].trim();
+      jobTitle = decodeHtmlEntities(h1Match[1].trim());
     }
   }
   
@@ -295,16 +311,26 @@ function extractJobData(url: string, content: string, metadata: any, settings: R
   let location = 'Netherlands';
   const locationLabelPatterns = settings.location_patterns || ['location', 'plaats', 'locatie', 'city', 'standort'];
   const locationLabelRegex = new RegExp(`(?:${locationLabelPatterns.join('|')})[:\\s]+([^\\n,|]+)`, 'i');
-  const locationKeywords = settings.location_keywords || ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'];
-  const locationCityRegex = new RegExp(`(?:${locationKeywords.join('|')})`, 'i');
+  const locationKeywords = settings.location_keywords || ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht', 'nijmegen', 'arnhem', 'breda', 'tilburg', 'almere', 'enschede', 'haarlem', 'haarlemmermeer', 'amersfoort', 'apeldoorn', 'zaanstad', 'zwolle', 'dordrecht', 'zoetermeer', 'deventer', 'hilversum', 'alkmaar', 'venlo', 'leeuwarden', 'heerlen', 'sittard', 'helmond', 'oss', 'amstelveen', 'schiphol', 'hoofddorp'];
+  const locationCityRegex = new RegExp(`\\b(?:${locationKeywords.join('|')})\\b`, 'i');
   
+  // First try to find location in content using label patterns
   const locLabelMatch = content.match(locationLabelRegex);
   if (locLabelMatch) {
     location = locLabelMatch[1].trim();
   } else {
+    // Try to find city keyword in content
     const locCityMatch = content.match(locationCityRegex);
     if (locCityMatch) {
       location = locCityMatch[0];
+    } else {
+      // Fallback: extract city from URL path (e.g., /vacancy/8803/job-title-nijmegen)
+      const urlPath = url.toLowerCase();
+      const urlCityMatch = urlPath.match(locationCityRegex);
+      if (urlCityMatch) {
+        // Capitalize first letter
+        location = urlCityMatch[0].charAt(0).toUpperCase() + urlCityMatch[0].slice(1);
+      }
     }
   }
 
