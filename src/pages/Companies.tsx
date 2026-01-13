@@ -31,8 +31,19 @@ import {
   ListChecks,
   X,
   Calendar,
-  CalendarRange
+  CalendarRange,
+  Plus
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 // Company logo component with fallback
@@ -74,6 +85,11 @@ const Companies = () => {
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [showBulkScrapeModal, setShowBulkScrapeModal] = useState(false);
+  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [newCompanyUrl, setNewCompanyUrl] = useState("");
+  const [newCompanyIndustry, setNewCompanyIndustry] = useState("");
+  const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const { data: companies, isLoading, refetch } = useCompanies();
@@ -183,6 +199,49 @@ const Companies = () => {
     refetch();
   };
 
+  const handleAddCompany = async () => {
+    if (!newCompanyName.trim() || !newCompanyUrl.trim()) {
+      toast({
+        title: "Missing fields",
+        description: "Company name and career URL are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAddingCompany(true);
+    try {
+      const { error } = await supabase
+        .from('company_career_sites')
+        .insert({
+          company_name: newCompanyName.trim(),
+          career_url: newCompanyUrl.trim(),
+          industry: newCompanyIndustry.trim() || null,
+          is_active: true,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Company added",
+        description: `${newCompanyName} has been added successfully`,
+      });
+      setShowAddCompanyModal(false);
+      setNewCompanyName("");
+      setNewCompanyUrl("");
+      setNewCompanyIndustry("");
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: "Error adding company",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingCompany(false);
+    }
+  };
+
   const getStatusIcon = (status: string | null) => {
     switch (status) {
       case "completed":
@@ -211,18 +270,27 @@ const Companies = () => {
               Browse career pages from top Dutch companies
             </p>
           </div>
-          <Button
-            variant={bulkSelectMode ? "default" : "outline"}
-            onClick={() => {
-              setBulkSelectMode(!bulkSelectMode);
-              if (bulkSelectMode) {
-                setSelectedCompanies(new Set());
-              }
-            }}
-          >
-            <ListChecks className="w-4 h-4 mr-2" />
-            {bulkSelectMode ? "Exit Bulk Mode" : "Bulk Scrape"}
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button
+              variant={bulkSelectMode ? "default" : "outline"}
+              onClick={() => {
+                setBulkSelectMode(!bulkSelectMode);
+                if (bulkSelectMode) {
+                  setSelectedCompanies(new Set());
+                }
+              }}
+            >
+              <ListChecks className="w-4 h-4 mr-2" />
+              {bulkSelectMode ? "Exit Bulk Mode" : "Bulk Scrape"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddCompanyModal(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Company
+            </Button>
+          </div>
         </div>
 
         {/* Bulk Actions Bar */}
@@ -639,6 +707,65 @@ const Companies = () => {
         lastScheduledAt={(scheduleCompany as any)?.last_scheduled_scrape_at || null}
         onSaved={refetch}
       />
+
+      {/* Add Company Modal */}
+      <Dialog open={showAddCompanyModal} onOpenChange={setShowAddCompanyModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Company</DialogTitle>
+            <DialogDescription>
+              Add a new company to track and scrape job listings from their career page.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="company-name">Company Name *</Label>
+              <Input
+                id="company-name"
+                placeholder="e.g., Adyen"
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="career-url">Career Page URL *</Label>
+              <Input
+                id="career-url"
+                placeholder="e.g., https://careers.adyen.com/vacancies"
+                value={newCompanyUrl}
+                onChange={(e) => setNewCompanyUrl(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="industry">Industry (optional)</Label>
+              <Input
+                id="industry"
+                placeholder="e.g., Fintech"
+                value={newCompanyIndustry}
+                onChange={(e) => setNewCompanyIndustry(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCompanyModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddCompany} disabled={isAddingCompany}>
+              {isAddingCompany ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Company
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

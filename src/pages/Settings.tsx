@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw } from "lucide-react";
+import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -374,6 +374,99 @@ const Settings = () => {
                 placeholder="Add keyword..."
                 variant="secondary"
               />
+            </CardContent>
+          </Card>
+
+          {/* Extraction Prompt / Logic */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Code className="w-5 h-5 text-cyan-500" />
+                <CardTitle>Job Data Extraction Logic</CardTitle>
+              </div>
+              <CardDescription>The extraction patterns used to parse job details from scraped pages</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <h4 className="font-medium mb-2">Location Detection</h4>
+                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
+                  <pre className="whitespace-pre-wrap text-muted-foreground">
+{`// Pattern 1: Labeled location
+/(?:location|plaats|locatie|city|standort)[:\\s]+([^\\n,|]+)/i
+
+// Pattern 2: Dutch city names
+/(?:amsterdam|rotterdam|utrecht|the hague|eindhoven|den haag|leiden|delft|groningen|maastricht)/i`}
+                  </pre>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="font-medium mb-2">Experience Level Detection</h4>
+                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
+                  <pre className="whitespace-pre-wrap text-muted-foreground">
+{`// Explicit labels
+/(?:experience level|seniority|niveau|level)[:\\s]+([^\\n,|]+)/i
+/(?:experience|ervaring)[:\\s]+(\\d+[\\+]?\\s*(?:years?|jaar|yrs?))/i
+
+// Keyword detection
+Internship: intern, stage, trainee, werkstudent
+Junior: junior, entry-level, starter, graduate
+Medior: medior, mid-level, regular
+Senior: senior, experienced, lead
+Principal: principal, staff, architect, expert
+
+// Years of experience mapping
+1 year → Junior
+2-3 years → Medior
+4-7 years → Senior
+8+ years → Principal`}
+                  </pre>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="font-medium mb-2">Salary Range Detection</h4>
+                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
+                  <pre className="whitespace-pre-wrap text-muted-foreground">
+{`// Labeled salary
+/(?:salary|salaris|compensation|loon|vergoeding)[:\\s]+([€$]?\\s*[\\d.,]+...)/i
+
+// Euro ranges
+/€\\s*([\\d.,]+)\\s*[kK]?\\s*[-–—to]+\\s*€?\\s*([\\d.,]+)\\s*[kK]?/i
+
+// Example matches:
+€50.000 - €70.000
+€50k-€70k  
+EUR 45,000 - 65,000
+Scale 10-12 / Schaal 10`}
+                  </pre>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="font-medium mb-2">Internship Detection</h4>
+                <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs">
+                  <pre className="whitespace-pre-wrap text-muted-foreground">
+{`// Title keywords
+/\\b(?:internship|intern|stage|stagiair|werkstudent|traineeship)\\b/i
+
+// Content context patterns
+"this is an internship position"
+"internship duration"
+"as an intern you..."
+"student position"
+"seeking interns"
+
+// Safety override: If salary > €1000, not flagged as internship`}
+                  </pre>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
