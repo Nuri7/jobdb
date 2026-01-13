@@ -38,7 +38,8 @@ import {
   ArrowDownAZ,
   ArrowUpAZ,
   ArrowDown01,
-  ArrowUp01
+  ArrowUp01,
+  Copy
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
@@ -561,15 +562,28 @@ const Companies = () => {
                         </h3>
                         {getStatusIcon(company.crawl_status)}
                       </div>
-                      <a 
-                        href={company.career_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-muted-foreground hover:text-primary truncate block max-w-md"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {company.career_url}
-                      </a>
+                      <div className="flex items-center gap-1 max-w-md">
+                        <a 
+                          href={company.career_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-muted-foreground hover:text-primary truncate"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {company.career_url}
+                        </a>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(company.career_url);
+                            toast({ title: "Copied", description: "Career URL copied to clipboard" });
+                          }}
+                          className="p-1 rounded hover:bg-muted transition-colors flex-shrink-0"
+                          title="Copy URL"
+                        >
+                          <Copy className="w-3 h-3 text-muted-foreground" />
+                        </button>
+                      </div>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
                         {company.industry && <span>{company.industry}</span>}
                         {company.headquarters_city && (
@@ -692,15 +706,28 @@ const Companies = () => {
                     </div>
 
                     {/* Career URL */}
-                    <a 
-                      href={company.career_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-xs text-muted-foreground hover:text-primary truncate block mb-3"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {company.career_url}
-                    </a>
+                    <div className="flex items-center gap-1 mb-3">
+                      <a 
+                        href={company.career_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground hover:text-primary truncate"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {company.career_url}
+                      </a>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(company.career_url);
+                          toast({ title: "Copied", description: "Career URL copied to clipboard" });
+                        }}
+                        className="p-1 rounded hover:bg-muted transition-colors flex-shrink-0"
+                        title="Copy URL"
+                      >
+                        <Copy className="w-3 h-3 text-muted-foreground" />
+                      </button>
+                    </div>
 
                     {/* Meta */}
                     <div className="space-y-2 mb-4">
