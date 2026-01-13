@@ -32,7 +32,8 @@ import {
   X,
   Calendar,
   CalendarRange,
-  Plus
+  Plus,
+  Sparkles
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
@@ -90,6 +91,7 @@ const Companies = () => {
   const [newCompanyUrl, setNewCompanyUrl] = useState("");
   const [newCompanyIndustry, setNewCompanyIndustry] = useState("");
   const [isAddingCompany, setIsAddingCompany] = useState(false);
+  const [isAddingRandomCompanies, setIsAddingRandomCompanies] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const { data: companies, isLoading, refetch } = useCompanies();
@@ -242,6 +244,41 @@ const Companies = () => {
     }
   };
 
+  const handleAddRandomCompanies = async () => {
+    setIsAddingRandomCompanies(true);
+    try {
+      const response = await supabase.functions.invoke('discover-companies', {
+        body: { count: 10 }
+      });
+
+      if (response.error) throw response.error;
+
+      const result = response.data;
+      if (result.success && result.companiesAdded > 0) {
+        toast({
+          title: "Companies discovered",
+          description: `Added ${result.companiesAdded} new companies via Firecrawl`,
+        });
+        refetch();
+      } else if (result.companiesAdded === 0) {
+        toast({
+          title: "No new companies",
+          description: "All discovered companies were already in the database",
+        });
+      } else {
+        throw new Error(result.error || "Failed to discover companies");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error discovering companies",
+        description: error.message || "Failed to discover companies",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingRandomCompanies(false);
+    }
+  };
+
   const getStatusIcon = (status: string | null) => {
     switch (status) {
       case "completed":
@@ -282,6 +319,23 @@ const Companies = () => {
             >
               <ListChecks className="w-4 h-4 mr-2" />
               {bulkSelectMode ? "Exit Bulk Mode" : "Bulk scrape company careers sites for job opportunities"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleAddRandomCompanies}
+              disabled={isAddingRandomCompanies}
+            >
+              {isAddingRandomCompanies ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Discovering...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Let Firecrawl add 10 more random companies
+                </>
+              )}
             </Button>
             <Button
               variant="outline"
