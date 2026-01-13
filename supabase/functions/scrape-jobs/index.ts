@@ -68,15 +68,29 @@ async function updateHistory(
 
 // Helper to fetch scraper settings from database
 async function getScraperSettings(supabase: any): Promise<Record<string, any>> {
+  const defaultExtractionPrompt = `Extract job details from this career page content. Look for:
+
+1. **Job Title**: The main position title, clean of company names and special characters
+2. **Location**: City name (especially Dutch cities like Amsterdam, Rotterdam, Utrecht, Nijmegen, etc.). Check the URL path for city names if not in content.
+3. **Employment Type**: Full-time, Part-time, or Contract
+4. **Remote/Hybrid**: Is remote or hybrid work mentioned?
+5. **Department**: Team or department name if mentioned
+6. **Experience Level**: Junior, Medior, Senior, Principal, or years of experience
+7. **Salary Range**: Any salary or compensation information (look for € amounts)
+8. **Internship**: Is this an internship, traineeship, or student position?
+
+Return structured data with these fields. For location, prioritize Dutch city names found in content or URL.`;
+
   const defaults: Record<string, any> = {
     max_pages: 20,
     max_jobs: 150,
     wait_time: 3000,
+    extraction_prompt: defaultExtractionPrompt,
     job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
     excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
     excluded_url_patterns: ['/locations', '/career-types', '/about', '/contact', '/teams', '/departments', '/benefits', '/culture', '/events', '/news', '/blog'],
     required_content_keywords: ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications', 'experience', 'skills'],
-    location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht'],
+    location_keywords: ['amsterdam', 'rotterdam', 'utrecht', 'the hague', 'eindhoven', 'den haag', 'leiden', 'delft', 'groningen', 'maastricht', 'nijmegen', 'arnhem', 'breda', 'tilburg', 'almere', 'enschede', 'haarlem', 'amersfoort', 'apeldoorn', 'zwolle', 'dordrecht', 'zoetermeer', 'deventer', 'hilversum', 'alkmaar', 'venlo', 'leeuwarden', 'heerlen', 'helmond', 'oss', 'amstelveen', 'schiphol', 'hoofddorp'],
     remote_keywords: ['remote', 'thuiswerk', 'hybrid', 'work from home', 'wfh'],
     location_patterns: ['location', 'plaats', 'locatie', 'city', 'standort'],
     salary_patterns: ['salary', 'salaris', 'compensation', 'loon', 'vergoeding'],
