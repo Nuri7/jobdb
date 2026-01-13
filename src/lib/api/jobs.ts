@@ -123,4 +123,26 @@ export const jobsApi = {
 
     return data;
   },
+
+  async deleteJobs(companyId?: string) {
+    let query = supabase
+      .from('job_opportunities')
+      .delete();
+
+    if (companyId) {
+      query = query.eq('company_career_site_id', companyId);
+    } else {
+      // Delete all jobs - need a condition, so use a truthy one
+      query = query.gte('id', '00000000-0000-0000-0000-000000000000');
+    }
+
+    const { error, count } = await query.select('id');
+
+    if (error) {
+      console.error('Error deleting jobs:', error);
+      throw error;
+    }
+
+    return { deletedCount: count || 0 };
+  },
 };
