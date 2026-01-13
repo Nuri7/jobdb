@@ -10,7 +10,7 @@ import JobDetailModal from "@/components/JobDetailModal";
 import ViewToggle from "@/components/ViewToggle";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
@@ -21,6 +21,7 @@ const Index = () => {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
   const [isScraping, setIsScraping] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [scrapingCompany, setScrapingCompany] = useState<string | null>(null);
   const [scrapeProgress, setScrapeProgress] = useState({ current: 0, total: 0 });
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -108,6 +109,36 @@ const Index = () => {
     return company?.company_name || "Selected Company";
   };
 
+  const handleDeleteJobs = async () => {
+    const companyName = getSelectedCompanyName();
+    const confirmMessage = source === "all" 
+      ? "Are you sure you want to delete ALL jobs? This cannot be undone."
+      : `Are you sure you want to delete all jobs from ${companyName}? This cannot be undone.`;
+    
+    if (!confirm(confirmMessage)) return;
+
+    setIsDeleting(true);
+    try {
+      await jobsApi.deleteJobs(source !== "all" ? source : undefined);
+      toast({
+        title: "Jobs deleted",
+        description: source === "all" 
+          ? "All jobs have been deleted." 
+          : `All jobs from ${companyName} have been deleted.`,
+      });
+      refetch();
+    } catch (error) {
+      console.error('Failed to delete jobs:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete jobs. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const jobs = jobsData?.jobs || [];
   const totalCount = jobsData?.totalCount || 0;
   const totalPages = Math.ceil(totalCount / 12);
@@ -116,27 +147,47 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container max-w-7xl py-8">
-        {/* Header with Scrape Button */}
+        {/* Header with Scrape & Delete Buttons */}
         <div className="flex flex-col items-end gap-2 mb-6">
           <div className="flex items-center justify-between w-full">
             <h1 className="text-2xl font-bold text-foreground">Jobs Directory</h1>
-            <Button 
-              onClick={handleScrape} 
-              disabled={isScraping}
-              variant="outline"
-            >
-              {isScraping ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Scraping...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Scrape {source === "all" ? "All Companies" : getSelectedCompanyName()}
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                onClick={handleDeleteJobs} 
+                disabled={isDeleting || isScraping || totalCount === 0}
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete {source === "all" ? "All Jobs" : `${getSelectedCompanyName()} Jobs`}
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={handleScrape} 
+                disabled={isScraping || isDeleting}
+                variant="outline"
+              >
+                {isScraping ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Scraping...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Scrape {source === "all" ? "All Companies" : getSelectedCompanyName()}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
           {isScraping && scrapingCompany && (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
