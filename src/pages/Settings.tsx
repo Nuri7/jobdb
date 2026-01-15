@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2 } from "lucide-react";
+import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2, Sliders } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -204,8 +204,12 @@ const Settings = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="job-scraping" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+        <Tabs defaultValue="general" className="space-y-6">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
+            <TabsTrigger value="general" className="flex items-center gap-2">
+              <Sliders className="w-4 h-4" />
+              General
+            </TabsTrigger>
             <TabsTrigger value="company-discovery" className="flex items-center gap-2">
               <Building2 className="w-4 h-4" />
               Company Discovery
@@ -215,6 +219,123 @@ const Settings = () => {
               Job Scraping
             </TabsTrigger>
           </TabsList>
+
+          {/* General Tab */}
+          <TabsContent value="general" className="space-y-6">
+            {/* Global Scraping Limits */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-500" />
+                  <CardTitle>Global Scraping Limits</CardTitle>
+                </div>
+                <CardDescription>Limits that apply to both company discovery and job scraping</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="wait_time">Wait Time (ms)</Label>
+                    <Input
+                      id="wait_time"
+                      type="number"
+                      value={getSetting('wait_time') || 3000}
+                      onChange={(e) => updateSetting('wait_time', parseInt(e.target.value) || 3000)}
+                      min={1000}
+                      max={10000}
+                      step={500}
+                    />
+                    <p className="text-xs text-muted-foreground">JavaScript rendering wait time</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max_pages">Max Listing Pages</Label>
+                    <Input
+                      id="max_pages"
+                      type="number"
+                      value={getSetting('max_pages') || 20}
+                      onChange={(e) => updateSetting('max_pages', parseInt(e.target.value) || 20)}
+                      min={1}
+                      max={100}
+                    />
+                    <p className="text-xs text-muted-foreground">Maximum pagination pages to follow</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max_jobs">Max Jobs per Scrape</Label>
+                    <Input
+                      id="max_jobs"
+                      type="number"
+                      value={getSetting('max_jobs') || 150}
+                      onChange={(e) => updateSetting('max_jobs', parseInt(e.target.value) || 150)}
+                      min={1}
+                      max={500}
+                    />
+                    <p className="text-xs text-muted-foreground">Maximum job detail pages to scrape</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Excluded Domains */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <FileSearch className="w-5 h-5 text-red-500" />
+                  <CardTitle>Excluded Domains</CardTitle>
+                </div>
+                <CardDescription>Domains to skip across all scraping operations (job boards, social media, etc.)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EditableTagList
+                  tags={getSetting('excluded_domains') || []}
+                  onAdd={(item) => handleArrayAdd('excluded_domains', item)}
+                  onRemove={(item) => handleArrayRemove('excluded_domains', item)}
+                  placeholder="Add domain..."
+                  variant="outline"
+                  className="border-red-500/50 text-red-700"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Firecrawl API Settings */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  <CardTitle>Firecrawl API Configuration</CardTitle>
+                </div>
+                <CardDescription>Request payloads sent to Firecrawl API</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h4 className="font-medium mb-2">Listing Page Scrape</h4>
+                  <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm">
+                    <pre className="whitespace-pre-wrap text-muted-foreground">
+{JSON.stringify({
+  url: '<career_page_url>',
+  formats: ['markdown', 'links', 'html'],
+  onlyMainContent: false,
+  waitFor: getSetting('wait_time') || 3000,
+}, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <h4 className="font-medium mb-2">Job Detail Page Scrape</h4>
+                  <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm">
+                    <pre className="whitespace-pre-wrap text-muted-foreground">
+{JSON.stringify({
+  url: '<job_detail_url>',
+  formats: ['markdown'],
+  onlyMainContent: true,
+}, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Company Discovery Tab */}
           <TabsContent value="company-discovery" className="space-y-6">
@@ -242,159 +363,45 @@ const Settings = () => {
 
           {/* Job Scraping Tab */}
           <TabsContent value="job-scraping" className="space-y-6">
-            {/* Scraping Limits */}
+            {/* Extraction Prompt Card */}
             <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-500" />
-                <CardTitle>Scraping Limits</CardTitle>
-              </div>
-              <CardDescription>Limits to prevent timeouts and excessive API usage</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="max_pages">Max Listing Pages</Label>
-                  <Input
-                    id="max_pages"
-                    type="number"
-                    value={getSetting('max_pages') || 20}
-                    onChange={(e) => updateSetting('max_pages', parseInt(e.target.value) || 20)}
-                    min={1}
-                    max={100}
-                  />
-                  <p className="text-xs text-muted-foreground">Maximum pagination pages to follow</p>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Code className="w-5 h-5 text-cyan-500" />
+                  <CardTitle>Extraction Prompt</CardTitle>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_jobs">Max Jobs per Scrape</Label>
-                  <Input
-                    id="max_jobs"
-                    type="number"
-                    value={getSetting('max_jobs') || 150}
-                    onChange={(e) => updateSetting('max_jobs', parseInt(e.target.value) || 150)}
-                    min={1}
-                    max={500}
-                  />
-                  <p className="text-xs text-muted-foreground">Maximum job detail pages to scrape</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wait_time">Wait Time (ms)</Label>
-                  <Input
-                    id="wait_time"
-                    type="number"
-                    value={getSetting('wait_time') || 3000}
-                    onChange={(e) => updateSetting('wait_time', parseInt(e.target.value) || 3000)}
-                    min={1000}
-                    max={10000}
-                    step={500}
-                  />
-                  <p className="text-xs text-muted-foreground">JavaScript rendering wait time</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Firecrawl API Settings */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Flame className="w-5 h-5 text-orange-500" />
-                <CardTitle>Firecrawl API Configuration</CardTitle>
-              </div>
-              <CardDescription>Request payloads sent to Firecrawl API</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h4 className="font-medium mb-2">Listing Page Scrape</h4>
-                <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm">
-                  <pre className="whitespace-pre-wrap text-muted-foreground">
-{JSON.stringify({
-  url: '<career_page_url>',
-  formats: ['markdown', 'links', 'html'],
-  onlyMainContent: false,
-  waitFor: getSetting('wait_time') || 3000,
-}, null, 2)}
-                  </pre>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="font-medium mb-2">Job Detail Page Scrape</h4>
-                <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm">
-                  <pre className="whitespace-pre-wrap text-muted-foreground">
-{JSON.stringify({
-  url: '<job_detail_url>',
-  formats: ['markdown'],
-  onlyMainContent: true,
-}, null, 2)}
-                  </pre>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="font-medium mb-2 flex items-center gap-2">
-                  <Code className="w-4 h-4 text-cyan-500" />
-                  Extraction Prompt
-                </h4>
-                <p className="text-xs text-muted-foreground mb-3">
-                  This prompt guides how job data is extracted from scraped content. Customize it to improve location detection, title parsing, and metadata extraction.
-                </p>
+                <CardDescription>This prompt guides how job data is extracted from scraped content</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Textarea
                   value={getSetting('extraction_prompt') || DEFAULT_EXTRACTION_PROMPT}
                   onChange={(e) => updateSetting('extraction_prompt', e.target.value)}
                   placeholder="Enter extraction instructions..."
                   className="font-mono text-sm min-h-[200px]"
                 />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-
-          {/* Job URL Patterns */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-purple-500" />
-                <CardTitle>Job URL Detection Patterns</CardTitle>
-              </div>
-              <CardDescription>Keywords used to identify job detail page URLs</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EditableTagList
-                tags={getSetting('job_url_patterns') || []}
-                onAdd={(item) => handleArrayAdd('job_url_patterns', item)}
-                onRemove={(item) => handleArrayRemove('job_url_patterns', item)}
-                placeholder="Add pattern..."
-                variant="outline"
-                className="border-green-500/50 text-green-700"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Excluded Domains */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <FileSearch className="w-5 h-5 text-red-500" />
-                <CardTitle>Excluded Domains</CardTitle>
-              </div>
-              <CardDescription>Domains to skip when scraping links</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EditableTagList
-                tags={getSetting('excluded_domains') || []}
-                onAdd={(item) => handleArrayAdd('excluded_domains', item)}
-                onRemove={(item) => handleArrayRemove('excluded_domains', item)}
-                placeholder="Add domain..."
-                variant="outline"
-                className="border-red-500/50 text-red-700"
-              />
-            </CardContent>
-          </Card>
+            {/* Job URL Patterns */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-purple-500" />
+                  <CardTitle>Job URL Detection Patterns</CardTitle>
+                </div>
+                <CardDescription>Keywords used to identify job detail page URLs</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EditableTagList
+                  tags={getSetting('job_url_patterns') || []}
+                  onAdd={(item) => handleArrayAdd('job_url_patterns', item)}
+                  onRemove={(item) => handleArrayRemove('job_url_patterns', item)}
+                  placeholder="Add pattern..."
+                  variant="outline"
+                  className="border-green-500/50 text-green-700"
+                />
+              </CardContent>
+            </Card>
 
           {/* Excluded URL Patterns */}
           <Card>
