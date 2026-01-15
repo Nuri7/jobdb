@@ -350,12 +350,7 @@ const Companies = () => {
       <div className="container max-w-7xl py-8">
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">Companies</h1>
-            <p className="text-muted-foreground">
-              Browse career pages from top Dutch companies
-            </p>
-          </div>
+          <div></div>
           <div className="flex flex-col gap-2">
             <Button
               variant={bulkSelectMode ? "default" : "outline"}
