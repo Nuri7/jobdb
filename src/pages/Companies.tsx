@@ -379,13 +379,22 @@ const Companies = () => {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Button
-              variant="outline"
-              onClick={() => setShowAddCompanyModal(true)}
-            >
-              <Plus className="w-4 h-4 mr-2 text-green-500" />
-              Add Company
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddCompanyModal(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2 text-green-500" />
+                    Add Company
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Manually add a company by entering its career page URL</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
 
