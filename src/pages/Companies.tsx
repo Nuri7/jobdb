@@ -353,18 +353,6 @@ const Companies = () => {
           <div></div>
           <div className="flex flex-row gap-2">
             <Button
-              variant={bulkSelectMode ? "default" : "outline"}
-              onClick={() => {
-                setBulkSelectMode(!bulkSelectMode);
-                if (bulkSelectMode) {
-                  setSelectedCompanies(new Set());
-                }
-              }}
-            >
-              <ListChecks className="w-4 h-4 mr-2 text-blue-500" />
-              {bulkSelectMode ? "Exit Bulk Mode" : "Bulk scrape company careers sites for job opportunities"}
-            </Button>
-            <Button
               variant="outline"
               onClick={handleAddRandomCompanies}
               disabled={isAddingRandomCompanies}
