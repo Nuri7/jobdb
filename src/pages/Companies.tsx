@@ -351,7 +351,7 @@ const Companies = () => {
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div></div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-row gap-2">
             <Button
               variant={bulkSelectMode ? "default" : "outline"}
               onClick={() => {
@@ -361,7 +361,7 @@ const Companies = () => {
                 }
               }}
             >
-              <ListChecks className="w-4 h-4 mr-2" />
+              <ListChecks className="w-4 h-4 mr-2 text-blue-500" />
               {bulkSelectMode ? "Exit Bulk Mode" : "Bulk scrape company careers sites for job opportunities"}
             </Button>
             <Button
@@ -371,12 +371,12 @@ const Companies = () => {
             >
               {isAddingRandomCompanies ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin text-orange-500" />
                   Discovering...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 mr-2" />
+                  <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
                   Let Firecrawl add 10 more random companies
                 </>
               )}
@@ -385,7 +385,7 @@ const Companies = () => {
               variant="outline"
               onClick={() => setShowAddCompanyModal(true)}
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-2 text-green-500" />
               Add Company
             </Button>
           </div>
