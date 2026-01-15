@@ -197,7 +197,7 @@ const Index = () => {
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  Scrape
+                  {source === "all" ? "Bulk Scrape" : `Scrape ${getSelectedCompanyName()}`}
                 </>
               )}
             </Button>
