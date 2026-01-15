@@ -199,6 +199,16 @@ Deno.serve(async (req) => {
 
     const targetIndustries: string[] = industrySetting?.setting_value || [];
     console.log('Target industries filter:', targetIndustries.length > 0 ? targetIndustries : 'All industries');
+
+    // Get target country from settings
+    const { data: countrySetting } = await supabase
+      .from('scraper_settings')
+      .select('setting_value')
+      .eq('setting_key', 'discovery_country')
+      .single();
+
+    const targetCountry: string = countrySetting?.setting_value || 'nl';
+    console.log('Target country:', targetCountry);
     
     // Pick a random search query
     const randomQuery = searchQueries[Math.floor(Math.random() * searchQueries.length)];
@@ -216,7 +226,7 @@ Deno.serve(async (req) => {
         query: randomQuery,
         limit: Math.min(resultsLimit, 100), // Cap at 100
         lang: 'en',
-        country: 'nl',
+        country: targetCountry,
       }),
     });
 

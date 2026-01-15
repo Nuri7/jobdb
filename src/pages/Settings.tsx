@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2, Sliders, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -54,6 +55,7 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   extraction_prompt: DEFAULT_EXTRACTION_PROMPT,
   discovery_search_queries: DEFAULT_DISCOVERY_QUERIES,
   discovery_results_limit: 30,
+  discovery_country: 'nl',
   discovery_target_industries: ['Technology', 'Fintech', 'E-commerce', 'Healthcare', 'Logistics', 'Energy', 'Travel', 'Food & Beverage'],
   job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
   excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
@@ -357,14 +359,14 @@ const Settings = () => {
               </AlertDescription>
             </Alert>
 
-            {/* Discovery Limits */}
+            {/* Discovery Limits & Region */}
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Sliders className="w-5 h-5 text-blue-500" />
-                  <CardTitle>Discovery Limits</CardTitle>
+                  <CardTitle>Discovery Settings</CardTitle>
                 </div>
-                <CardDescription>Control how many results Firecrawl returns per search</CardDescription>
+                <CardDescription>Control search limits and target region for company discovery</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -379,6 +381,21 @@ const Settings = () => {
                       max={100}
                     />
                     <p className="text-xs text-muted-foreground">Maximum results to fetch from Firecrawl (5-100)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="discovery_country">Target Country</Label>
+                    <Select
+                      value={getSetting('discovery_country') || 'nl'}
+                      onValueChange={(value) => updateSetting('discovery_country', value)}
+                    >
+                      <SelectTrigger id="discovery_country">
+                        <SelectValue placeholder="Select country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nl">🇳🇱 Netherlands</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Country to focus search results on</p>
                   </div>
                 </div>
               </CardContent>
