@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2, Sliders, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -52,6 +53,8 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   wait_time: 3000,
   extraction_prompt: DEFAULT_EXTRACTION_PROMPT,
   discovery_search_queries: DEFAULT_DISCOVERY_QUERIES,
+  discovery_results_limit: 30,
+  discovery_target_industries: ['Technology', 'Fintech', 'E-commerce', 'Healthcare', 'Logistics', 'Energy', 'Travel', 'Food & Beverage'],
   job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
   excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
   excluded_url_patterns: ['/locations', '/career-types', '/about', '/contact', '/teams', '/departments', '/benefits', '/culture', '/events', '/news', '/blog'],
@@ -350,9 +353,76 @@ const Settings = () => {
             <Alert className="bg-muted/50 border-muted-foreground/20">
               <Info className="h-4 w-4" />
               <AlertDescription>
-                Settings for the automated company discovery feature. Define search queries used to find new companies with career pages via Firecrawl's search API.
+                Settings for the automated company discovery feature. Define search queries, result limits, and industry filters used to find new companies with career pages via Firecrawl's search API.
               </AlertDescription>
             </Alert>
+
+            {/* Discovery Limits */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-blue-500" />
+                  <CardTitle>Discovery Limits</CardTitle>
+                </div>
+                <CardDescription>Control how many results Firecrawl returns per search</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="discovery_results_limit">Results per Search</Label>
+                    <Input
+                      id="discovery_results_limit"
+                      type="number"
+                      value={getSetting('discovery_results_limit') || 30}
+                      onChange={(e) => updateSetting('discovery_results_limit', parseInt(e.target.value) || 30)}
+                      min={5}
+                      max={100}
+                    />
+                    <p className="text-xs text-muted-foreground">Maximum results to fetch from Firecrawl (5-100)</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Industry Filters */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-purple-500" />
+                  <CardTitle>Target Industries</CardTitle>
+                </div>
+                <CardDescription>Only add companies from these industries (leave empty to include all)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {['Technology', 'Fintech', 'E-commerce', 'Healthcare', 'Logistics', 'Energy', 'Travel', 'Food & Beverage', 'Other'].map((industry) => {
+                    const currentIndustries = getSetting('discovery_target_industries') || [];
+                    const isChecked = currentIndustries.includes(industry);
+                    return (
+                      <div key={industry} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`industry-${industry}`}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              updateSetting('discovery_target_industries', [...currentIndustries, industry]);
+                            } else {
+                              updateSetting('discovery_target_industries', currentIndustries.filter((i: string) => i !== industry));
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`industry-${industry}`} className="text-sm font-normal cursor-pointer">
+                          {industry}
+                        </Label>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-4">
+                  Industries are auto-detected from company names and descriptions. Uncheck all to accept any industry.
+                </p>
+              </CardContent>
+            </Card>
 
             {/* Company Discovery Search Queries */}
             <Card>
