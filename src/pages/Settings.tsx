@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2, Sliders } from "lucide-react";
+import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2, Sliders, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -222,6 +223,13 @@ const Settings = () => {
 
           {/* General Tab */}
           <TabsContent value="general" className="space-y-6">
+            <Alert className="bg-muted/50 border-muted-foreground/20">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Global settings that apply to all scraping operations. Configure API limits, wait times, and domains to exclude across both company discovery and job scraping.
+              </AlertDescription>
+            </Alert>
+
             {/* Global Scraping Limits */}
             <Card>
               <CardHeader>
@@ -339,6 +347,13 @@ const Settings = () => {
 
           {/* Company Discovery Tab */}
           <TabsContent value="company-discovery" className="space-y-6">
+            <Alert className="bg-muted/50 border-muted-foreground/20">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Settings for the automated company discovery feature. Define search queries used to find new companies with career pages via Firecrawl's search API.
+              </AlertDescription>
+            </Alert>
+
             {/* Company Discovery Search Queries */}
             <Card>
               <CardHeader>
@@ -363,6 +378,13 @@ const Settings = () => {
 
           {/* Job Scraping Tab */}
           <TabsContent value="job-scraping" className="space-y-6">
+            <Alert className="bg-muted/50 border-muted-foreground/20">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Settings for extracting job postings from company career pages. Configure URL detection patterns, content validation rules, and the AI extraction prompt used to parse job details.
+              </AlertDescription>
+            </Alert>
+
             {/* Extraction Prompt Card */}
             <Card>
               <CardHeader>
