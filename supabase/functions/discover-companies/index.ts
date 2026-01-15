@@ -180,10 +180,30 @@ Deno.serve(async (req) => {
       .single();
 
     const searchQueries: string[] = querySetting?.setting_value || DEFAULT_SEARCH_QUERIES;
+
+    // Get results limit from settings
+    const { data: limitSetting } = await supabase
+      .from('scraper_settings')
+      .select('setting_value')
+      .eq('setting_key', 'discovery_results_limit')
+      .single();
+
+    const resultsLimit: number = limitSetting?.setting_value || 30;
+
+    // Get target industries from settings
+    const { data: industrySetting } = await supabase
+      .from('scraper_settings')
+      .select('setting_value')
+      .eq('setting_key', 'discovery_target_industries')
+      .single();
+
+    const targetIndustries: string[] = industrySetting?.setting_value || [];
+    console.log('Target industries filter:', targetIndustries.length > 0 ? targetIndustries : 'All industries');
     
     // Pick a random search query
     const randomQuery = searchQueries[Math.floor(Math.random() * searchQueries.length)];
     console.log('Searching with query:', randomQuery);
+    console.log('Results limit:', resultsLimit);
 
     // Use Firecrawl search API
     const searchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
@@ -194,7 +214,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         query: randomQuery,
-        limit: count * 3, // Request more to account for filtering
+        limit: Math.min(resultsLimit, 100), // Cap at 100
         lang: 'en',
         country: 'nl',
       }),
@@ -268,6 +288,12 @@ Deno.serve(async (req) => {
 
       // Classify industry
       const industry = classifyIndustry(`${title} ${description}`);
+
+      // Apply industry filter if specified
+      if (targetIndustries.length > 0 && !targetIndustries.includes(industry)) {
+        console.log(`Skipping company with industry "${industry}" (not in target list):`, companyName);
+        continue;
+      }
 
       newCompanies.push({
         name: companyName,
