@@ -115,9 +115,6 @@ const FilterBar = ({
           </SelectContent>
         </Select>
 
-        <Button variant="ghost" size="sm" onClick={onClearAll} className="text-muted-foreground">
-          Clear all
-        </Button>
       </div>
     </div>
   );
