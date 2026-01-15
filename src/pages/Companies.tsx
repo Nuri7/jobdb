@@ -365,7 +365,7 @@ const Companies = () => {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
-                  Let Firecrawl add 10 more random companies
+                  Add Companies
                 </>
               )}
             </Button>
