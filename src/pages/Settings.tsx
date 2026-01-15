@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -203,9 +204,46 @@ const Settings = () => {
           </div>
         </div>
 
-        <div className="space-y-6">
-          {/* Scraping Limits */}
-          <Card>
+        <Tabs defaultValue="job-scraping" className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="company-discovery" className="flex items-center gap-2">
+              <Building2 className="w-4 h-4" />
+              Company Discovery
+            </TabsTrigger>
+            <TabsTrigger value="job-scraping" className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4" />
+              Job Scraping
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Company Discovery Tab */}
+          <TabsContent value="company-discovery" className="space-y-6">
+            {/* Company Discovery Search Queries */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Search className="w-5 h-5 text-indigo-500" />
+                  <CardTitle>Discovery Search Queries</CardTitle>
+                </div>
+                <CardDescription>Search queries used by Firecrawl to discover new companies with career pages (one query is randomly selected per discovery run)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EditableTagList
+                  tags={getSetting('discovery_search_queries') || []}
+                  onAdd={(item) => handleArrayAdd('discovery_search_queries', item)}
+                  onRemove={(item) => handleArrayRemove('discovery_search_queries', item)}
+                  placeholder="Add search query..."
+                  variant="outline"
+                  className="border-indigo-500/50 text-indigo-700"
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Job Scraping Tab */}
+          <TabsContent value="job-scraping" className="space-y-6">
+            {/* Scraping Limits */}
+            <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-500" />
@@ -315,26 +353,6 @@ const Settings = () => {
             </CardContent>
           </Card>
 
-          {/* Company Discovery Search Queries */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Search className="w-5 h-5 text-indigo-500" />
-                <CardTitle>Company Discovery Search Queries</CardTitle>
-              </div>
-              <CardDescription>Search queries used by Firecrawl to discover new companies with career pages (one query is randomly selected per discovery run)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EditableTagList
-                tags={getSetting('discovery_search_queries') || []}
-                onAdd={(item) => handleArrayAdd('discovery_search_queries', item)}
-                onRemove={(item) => handleArrayRemove('discovery_search_queries', item)}
-                placeholder="Add search query..."
-                variant="outline"
-                className="border-indigo-500/50 text-indigo-700"
-              />
-            </CardContent>
-          </Card>
 
           {/* Job URL Patterns */}
           <Card>
@@ -791,7 +809,8 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
