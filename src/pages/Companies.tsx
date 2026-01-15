@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
 import { 
@@ -352,23 +353,32 @@ const Companies = () => {
         <div className="flex items-start justify-between mb-8">
           <div></div>
           <div className="flex flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={handleAddRandomCompanies}
-              disabled={isAddingRandomCompanies}
-            >
-              {isAddingRandomCompanies ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin text-orange-500" />
-                  Discovering...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
-                  Add Companies
-                </>
-              )}
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    onClick={handleAddRandomCompanies}
+                    disabled={isAddingRandomCompanies}
+                  >
+                    {isAddingRandomCompanies ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin text-orange-500" />
+                        Discovering...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
+                        Add Companies
+                      </>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Uses Firecrawl to discover new companies with career pages</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button
               variant="outline"
               onClick={() => setShowAddCompanyModal(true)}
