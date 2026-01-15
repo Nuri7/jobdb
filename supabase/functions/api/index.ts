@@ -2,9 +2,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
   'Content-Type': 'application/json',
 };
+
+// Hash function for API key validation
+async function hashApiKey(key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -21,6 +30,94 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const path = url.pathname.replace('/api', '');
     const params = url.searchParams;
+
+    // API documentation is public (no auth required)
+    if (path === '' || path === '/') {
+      return new Response(
+        JSON.stringify({
+          name: 'Jobs Directory API',
+          version: '1.0.0',
+          authentication: {
+            header: 'X-API-Key',
+            description: 'Include your API key in the X-API-Key header',
+          },
+          endpoints: {
+            'GET /api/jobs': {
+              description: 'List job opportunities',
+              parameters: {
+                limit: 'Number of results (max 100, default 50)',
+                offset: 'Pagination offset (default 0)',
+                search: 'Search in job titles',
+                location: 'Filter by location',
+                company: 'Filter by company name',
+                job_type: 'Filter by employment type (full-time, part-time, contract)',
+                experience_level: 'Filter by experience level',
+                remote: 'Filter remote jobs (true/false)',
+                internship: 'Filter internships (true/false)',
+              },
+            },
+            'GET /api/companies': {
+              description: 'List companies',
+              parameters: {
+                limit: 'Number of results (max 100, default 50)',
+                offset: 'Pagination offset (default 0)',
+                search: 'Search in company names',
+                industry: 'Filter by industry',
+              },
+            },
+            'GET /api/stats': {
+              description: 'Get aggregate statistics',
+            },
+          },
+        }),
+        { headers: corsHeaders }
+      );
+    }
+
+    // Validate API key for all other endpoints
+    const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key');
+    
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Unauthorized', 
+          message: 'Missing API key. Include your key in the X-API-Key header.',
+          docs: 'GET /api for documentation'
+        }),
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    // Hash and validate the API key
+    const keyHash = await hashApiKey(apiKey);
+    const { data: keyData, error: keyError } = await supabase
+      .from('api_keys')
+      .select('id, is_active')
+      .eq('key_hash', keyHash)
+      .maybeSingle();
+
+    if (keyError || !keyData) {
+      console.log('API key validation failed:', keyError?.message || 'Key not found');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', message: 'Invalid API key' }),
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    if (!keyData.is_active) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', message: 'API key is inactive' }),
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    // Update last_used_at (fire and forget)
+    supabase
+      .from('api_keys')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', keyData.id)
+      .then(() => {});
+
 
     // Route: GET /jobs
     if (path === '/jobs' || path === '/jobs/') {
@@ -210,45 +307,6 @@ Deno.serve(async (req) => {
           data: {
             total_jobs: jobsResult.count || 0,
             total_companies: companiesResult.count || 0,
-          },
-        }),
-        { headers: corsHeaders }
-      );
-    }
-
-    // API documentation for root path
-    if (path === '' || path === '/') {
-      return new Response(
-        JSON.stringify({
-          name: 'Jobs Directory API',
-          version: '1.0.0',
-          endpoints: {
-            'GET /api/jobs': {
-              description: 'List job opportunities',
-              parameters: {
-                limit: 'Number of results (max 100, default 50)',
-                offset: 'Pagination offset (default 0)',
-                search: 'Search in job titles',
-                location: 'Filter by location',
-                company: 'Filter by company name',
-                job_type: 'Filter by employment type (full-time, part-time, contract)',
-                experience_level: 'Filter by experience level',
-                remote: 'Filter remote jobs (true/false)',
-                internship: 'Filter internships (true/false)',
-              },
-            },
-            'GET /api/companies': {
-              description: 'List companies',
-              parameters: {
-                limit: 'Number of results (max 100, default 50)',
-                offset: 'Pagination offset (default 0)',
-                search: 'Search in company names',
-                industry: 'Filter by industry',
-              },
-            },
-            'GET /api/stats': {
-              description: 'Get aggregate statistics',
-            },
           },
         }),
         { headers: corsHeaders }
