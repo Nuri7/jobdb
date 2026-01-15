@@ -19,6 +19,41 @@ const DEFAULT_SEARCH_QUERIES = [
   'Eindhoven tech careers page',
 ];
 
+// Excluded domains (job boards, aggregators, social media)
+const EXCLUDED_DOMAINS = [
+  'linkedin.com',
+  'indeed.com',
+  'indeed.nl',
+  'glassdoor.com',
+  'glassdoor.nl',
+  'monster.com',
+  'monster.nl',
+  'werkzoeken.nl',
+  'nationalevacaturebank.nl',
+  'jobbird.com',
+  'intermediair.nl',
+  'stepstone.nl',
+  'randstad.nl',
+  'tempo-team.nl',
+  'facebook.com',
+  'twitter.com',
+  'x.com',
+  'instagram.com',
+  'youtube.com',
+  'werkenbij.com', // generic job board
+  'jobs.nl',
+  'vacatures.nl',
+];
+
+function isExcludedDomain(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return EXCLUDED_DOMAINS.some(domain => hostname.includes(domain));
+  } catch {
+    return false;
+  }
+}
+
 // Known industry patterns for classification
 const INDUSTRY_PATTERNS: Record<string, string[]> = {
   'Technology': ['tech', 'software', 'saas', 'cloud', 'ai', 'data', 'digital'],
@@ -194,6 +229,12 @@ Deno.serve(async (req) => {
       const url = result.url;
       const title = result.title || '';
       const description = result.description || '';
+
+      // Skip excluded domains (job boards, social media, etc.)
+      if (isExcludedDomain(url)) {
+        console.log('Skipping excluded domain:', url);
+        continue;
+      }
 
       // Skip if not a career-related URL
       if (!isCareerUrl(url) && !isCareerUrl(title)) {
