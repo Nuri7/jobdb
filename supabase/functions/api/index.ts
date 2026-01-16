@@ -6,6 +6,94 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
+// Job title synonym groups - terms that should match each other
+const SYNONYM_GROUPS: string[][] = [
+  ['product owner', 'product manager', 'po', 'pm'],
+  ['developer', 'engineer', 'programmer', 'coder', 'software developer', 'software engineer'],
+  ['frontend', 'front-end', 'front end', 'ui developer', 'ui engineer'],
+  ['backend', 'back-end', 'back end', 'server-side'],
+  ['fullstack', 'full-stack', 'full stack'],
+  ['devops', 'dev ops', 'sre', 'site reliability', 'platform engineer'],
+  ['data scientist', 'data analyst', 'ml engineer', 'machine learning engineer', 'ai engineer'],
+  ['scrum master', 'agile coach', 'agile master'],
+  ['ux designer', 'ui designer', 'ux/ui designer', 'product designer', 'visual designer'],
+  ['qa engineer', 'test engineer', 'quality assurance', 'tester', 'sdet'],
+  ['tech lead', 'technical lead', 'lead developer', 'lead engineer', 'engineering lead'],
+  ['cto', 'chief technology officer', 'vp engineering', 'head of engineering'],
+  ['hr', 'human resources', 'people operations', 'talent acquisition', 'recruiter'],
+  ['marketing manager', 'growth manager', 'digital marketing', 'marketing specialist'],
+  ['sales', 'account executive', 'account manager', 'business development', 'bdm'],
+  ['project manager', 'program manager', 'delivery manager'],
+  ['support', 'customer support', 'customer service', 'helpdesk', 'customer success'],
+  ['cloud engineer', 'cloud architect', 'aws engineer', 'azure engineer', 'gcp engineer'],
+  ['security engineer', 'cybersecurity', 'infosec', 'security analyst'],
+  ['mobile developer', 'ios developer', 'android developer', 'react native developer', 'flutter developer'],
+];
+
+// Get all related terms for a search query
+function getSynonyms(searchTerm: string): string[] {
+  const lowerSearch = searchTerm.toLowerCase();
+  const synonyms: Set<string> = new Set([searchTerm]);
+  
+  for (const group of SYNONYM_GROUPS) {
+    // Check if any term in the group matches the search
+    if (group.some(term => lowerSearch.includes(term) || term.includes(lowerSearch))) {
+      group.forEach(term => synonyms.add(term));
+    }
+  }
+  
+  return Array.from(synonyms);
+}
+
+// AI-powered semantic expansion for terms not covered by synonyms
+async function getAIExpandedTerms(searchTerm: string): Promise<string[]> {
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash-lite',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a job title synonym expert. Given a job title or search term, return 3-5 closely related alternative job titles that recruiters might use for similar roles. Return ONLY a JSON array of strings, nothing else. Be concise and practical.'
+          },
+          {
+            role: 'user',
+            content: `Related job titles for: "${searchTerm}"`
+          }
+        ],
+        max_tokens: 100,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('AI expansion failed:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Parse JSON array from response
+    const match = content.match(/\[.*\]/s);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(item => typeof item === 'string').slice(0, 5);
+      }
+    }
+    return [];
+  } catch (error) {
+    console.error('AI expansion error:', error);
+    return [];
+  }
+}
+
 // Hash function for API key validation
 async function hashApiKey(key: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -47,7 +135,7 @@ Deno.serve(async (req) => {
               parameters: {
                 limit: 'Number of results (max 100, default 50)',
                 offset: 'Pagination offset (default 0)',
-                search: 'Search in job titles',
+                search: 'Intelligent search in job titles (includes synonyms + AI expansion, e.g. "product owner" also finds "product manager")',
                 location: 'Filter by location',
                 company: 'Filter by company name',
                 job_type: 'Filter by employment type (full-time, part-time, contract)',
@@ -131,6 +219,22 @@ Deno.serve(async (req) => {
       const remote = params.get('remote');
       const internship = params.get('internship');
 
+      // Build search terms - combine synonyms + AI expansion
+      let searchTerms: string[] = [];
+      if (search) {
+        // First, get synonym-based terms (fast, predictable)
+        searchTerms = getSynonyms(search);
+        
+        // If synonyms only returned the original term, try AI expansion
+        if (searchTerms.length <= 1) {
+          const aiTerms = await getAIExpandedTerms(search);
+          searchTerms = [...new Set([search, ...aiTerms])];
+          console.log(`AI expanded "${search}" to:`, searchTerms);
+        } else {
+          console.log(`Synonym match for "${search}":`, searchTerms);
+        }
+      }
+
       let query = supabase
         .from('job_opportunities')
         .select(`
@@ -158,8 +262,10 @@ Deno.serve(async (req) => {
         .order('scraped_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
-      if (search) {
-        query = query.ilike('job_title', `%${search}%`);
+      // Apply intelligent search - OR across all related terms
+      if (searchTerms.length > 0) {
+        const searchFilters = searchTerms.map(term => `job_title.ilike.%${term}%`).join(',');
+        query = query.or(searchFilters);
       }
       if (location) {
         query = query.ilike('location', `%${location}%`);
@@ -241,6 +347,7 @@ Deno.serve(async (req) => {
             limit,
             offset,
             has_more: (offset + limit) < (count || 0),
+            search_terms: searchTerms.length > 0 ? searchTerms : undefined,
           },
         }),
         { headers: corsHeaders }
