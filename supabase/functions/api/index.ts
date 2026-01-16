@@ -117,8 +117,23 @@ Deno.serve(async (req) => {
     );
 
     const url = new URL(req.url);
-    const path = url.pathname.replace('/api', '');
-    const params = url.searchParams;
+    
+    // Check if this is an internal call from the frontend
+    const isInternalCall = req.headers.get('x-internal') === 'true';
+    const internalPath = req.headers.get('x-path');
+    
+    // Parse path - for internal calls, use the x-path header
+    let path: string;
+    let params: URLSearchParams;
+    
+    if (isInternalCall && internalPath) {
+      const [pathPart, queryPart] = internalPath.split('?');
+      path = pathPart;
+      params = new URLSearchParams(queryPart || '');
+    } else {
+      path = url.pathname.replace('/api', '');
+      params = url.searchParams;
+    }
 
     // API documentation is public (no auth required)
     if (path === '' || path === '/') {
@@ -167,49 +182,52 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate API key for all other endpoints
-    const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key');
-    
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Unauthorized', 
-          message: 'Missing API key. Include your key in the X-API-Key header.',
-          docs: 'GET /api for documentation'
-        }),
-        { status: 401, headers: corsHeaders }
-      );
+    // Skip API key validation for internal calls (from frontend via supabase.functions.invoke)
+    if (!isInternalCall) {
+      // Validate API key for external API calls
+      const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key');
+      
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Unauthorized', 
+            message: 'Missing API key. Include your key in the X-API-Key header.',
+            docs: 'GET /api for documentation'
+          }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      // Hash and validate the API key
+      const keyHash = await hashApiKey(apiKey);
+      const { data: keyData, error: keyError } = await supabase
+        .from('api_keys')
+        .select('id, is_active')
+        .eq('key_hash', keyHash)
+        .maybeSingle();
+
+      if (keyError || !keyData) {
+        console.log('API key validation failed:', keyError?.message || 'Key not found');
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized', message: 'Invalid API key' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      if (!keyData.is_active) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized', message: 'API key is inactive' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      // Update last_used_at (fire and forget)
+      supabase
+        .from('api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('id', keyData.id)
+        .then(() => {});
     }
-
-    // Hash and validate the API key
-    const keyHash = await hashApiKey(apiKey);
-    const { data: keyData, error: keyError } = await supabase
-      .from('api_keys')
-      .select('id, is_active')
-      .eq('key_hash', keyHash)
-      .maybeSingle();
-
-    if (keyError || !keyData) {
-      console.log('API key validation failed:', keyError?.message || 'Key not found');
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'Invalid API key' }),
-        { status: 401, headers: corsHeaders }
-      );
-    }
-
-    if (!keyData.is_active) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'API key is inactive' }),
-        { status: 401, headers: corsHeaders }
-      );
-    }
-
-    // Update last_used_at (fire and forget)
-    supabase
-      .from('api_keys')
-      .update({ last_used_at: new Date().toISOString() })
-      .eq('id', keyData.id)
-      .then(() => {});
 
 
     // Route: GET /jobs

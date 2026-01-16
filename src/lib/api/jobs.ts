@@ -41,6 +41,149 @@ export const jobsApi = {
     enabledCompanyIds?: string[];
   }) {
     const { search, location, source, jobType, experienceLevel, page = 1, limit = 12, enabledCompanyIds } = options || {};
+    
+    // If search is provided, use the API endpoint for intelligent search with synonyms
+    if (search && search.trim()) {
+      return this.getJobsWithIntelligentSearch(options);
+    }
+    
+    // Otherwise, use direct Supabase query for better performance
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('job_opportunities')
+      .select(`
+        *,
+        company_career_sites (
+          company_name,
+          industry,
+          career_url,
+          is_scrape_enabled
+        )
+      `, { count: 'exact' })
+      .order('scraped_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (location && location !== 'all') {
+      query = query.ilike('location', `%${location}%`);
+    }
+
+    if (source && source !== 'all') {
+      query = query.eq('company_career_site_id', source);
+    } else if (enabledCompanyIds && enabledCompanyIds.length > 0) {
+      // When viewing all sources, only show jobs from enabled companies
+      query = query.in('company_career_site_id', enabledCompanyIds);
+    }
+
+    if (jobType && jobType !== 'all') {
+      if (jobType === 'internship') {
+        query = query.eq('is_internship', true);
+      } else {
+        query = query.ilike('employment_type', `%${jobType}%`);
+      }
+    }
+
+    if (experienceLevel && experienceLevel !== 'all') {
+      query = query.ilike('experience_level', `%${experienceLevel}%`);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('Error fetching jobs:', error);
+      throw error;
+    }
+
+    return {
+      jobs: data?.map(job => ({
+        ...job,
+        company_name: job.company_career_sites?.company_name || 'Unknown Company',
+        company_career_url: job.company_career_sites?.career_url || null,
+      })) || [],
+      totalCount: count || 0,
+    };
+  },
+
+  async getJobsWithIntelligentSearch(options?: {
+    search?: string;
+    location?: string;
+    source?: string;
+    jobType?: string;
+    experienceLevel?: string;
+    page?: number;
+    limit?: number;
+    enabledCompanyIds?: string[];
+  }) {
+    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12 } = options || {};
+    
+    // Build query params
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (location && location !== 'all') params.set('location', location);
+    if (source && source !== 'all') params.set('company', source);
+    if (jobType && jobType !== 'all') params.set('job_type', jobType);
+    if (experienceLevel && experienceLevel !== 'all') params.set('experience_level', experienceLevel);
+    params.set('page', page.toString());
+    params.set('limit', limit.toString());
+
+    try {
+      // Use supabase.functions.invoke for internal calls (bypasses API key auth)
+      const { data: result, error } = await supabase.functions.invoke('api', {
+        method: 'GET',
+        body: null,
+        headers: {
+          'x-path': `/jobs?${params.toString()}`,
+          'x-internal': 'true',
+        },
+      });
+
+      if (error) {
+        console.error('API error:', error);
+        return this.getJobsSimpleSearch(options);
+      }
+      
+      // Log search terms used for debugging
+      if (result?.meta?.search_terms) {
+        console.log('Intelligent search terms used:', result.meta.search_terms);
+      }
+
+      return {
+        jobs: result.data?.map((job: any) => ({
+          id: job.id,
+          job_title: job.job_title,
+          job_url: job.job_url,
+          location: job.location,
+          employment_type: job.employment_type,
+          department: job.department,
+          salary_range: job.salary_range,
+          description: job.description,
+          is_remote: job.is_remote,
+          is_internship: job.is_internship,
+          experience_level: job.experience_level,
+          scraped_at: job.scraped_at,
+          company_name: job.company_name || 'Unknown Company',
+          company_career_url: job.company_career_url || null,
+        })) || [],
+        totalCount: result.meta?.total || 0,
+        searchTerms: result.meta?.search_terms || [],
+      };
+    } catch (error) {
+      console.error('Failed to use intelligent search:', error);
+      return this.getJobsSimpleSearch(options);
+    }
+  },
+
+  async getJobsSimpleSearch(options?: {
+    search?: string;
+    location?: string;
+    source?: string;
+    jobType?: string;
+    experienceLevel?: string;
+    page?: number;
+    limit?: number;
+    enabledCompanyIds?: string[];
+  }) {
+    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12, enabledCompanyIds } = options || {};
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -68,7 +211,6 @@ export const jobsApi = {
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
     } else if (enabledCompanyIds && enabledCompanyIds.length > 0) {
-      // When viewing all sources, only show jobs from enabled companies
       query = query.in('company_career_site_id', enabledCompanyIds);
     }
 
