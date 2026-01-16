@@ -155,8 +155,9 @@ export const jobsApi = {
       return {
         jobs: result.data?.map((job: any) => ({
           id: job.id,
-          job_title: job.job_title,
-          job_url: job.job_url,
+          // API returns 'title' and 'url' instead of 'job_title' and 'job_url'
+          job_title: job.title || job.job_title,
+          job_url: job.url || job.job_url,
           location: job.location,
           employment_type: job.employment_type,
           department: job.department,
