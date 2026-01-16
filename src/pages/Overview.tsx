@@ -96,7 +96,20 @@ const Overview = () => {
       <Header />
       <main className="container max-w-7xl py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Market Overview Netherlands</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2 flex items-center gap-3">
+            <svg
+              width="32"
+              height="24"
+              viewBox="0 0 32 24"
+              className="rounded shadow-sm flex-shrink-0"
+              aria-label="Netherlands flag"
+            >
+              <rect width="32" height="8" fill="#AE1C28" />
+              <rect y="8" width="32" height="8" fill="#FFFFFF" />
+              <rect y="16" width="32" height="8" fill="#21468B" />
+            </svg>
+            Market Overview Netherlands
+          </h1>
           <p className="text-muted-foreground">
             Breakdown of Companies with More Than 50 Employees in the Netherlands by Industry Sector
           </p>
