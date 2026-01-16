@@ -15,6 +15,7 @@ export interface Job {
   scraped_at: string;
   company_name?: string;
   company_career_url?: string | null;
+  industry?: string | null;
 }
 
 export interface CompanyCareerSite {
@@ -36,11 +37,12 @@ export const jobsApi = {
     source?: string;
     jobType?: string;
     experienceLevel?: string;
+    industry?: string;
     page?: number;
     limit?: number;
     enabledCompanyIds?: string[];
   }) {
-    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12, enabledCompanyIds } = options || {};
+    const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12, enabledCompanyIds } = options || {};
     
     // If search is provided, use the API endpoint for intelligent search with synonyms
     if (search && search.trim()) {
@@ -49,6 +51,16 @@ export const jobsApi = {
     
     // Otherwise, use direct Supabase query for better performance
     const offset = (page - 1) * limit;
+
+    // If industry filter is applied, first get matching company IDs
+    let industryCompanyIds: string[] | null = null;
+    if (industry && industry !== 'all') {
+      const { data: industryCompanies } = await supabase
+        .from('company_career_sites')
+        .select('id')
+        .ilike('industry', `%${industry}%`);
+      industryCompanyIds = industryCompanies?.map(c => c.id) || [];
+    }
 
     let query = supabase
       .from('job_opportunities')
@@ -70,6 +82,9 @@ export const jobsApi = {
 
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
+    } else if (industryCompanyIds !== null) {
+      // Filter by industry companies
+      query = query.in('company_career_site_id', industryCompanyIds);
     } else if (enabledCompanyIds && enabledCompanyIds.length > 0) {
       // When viewing all sources, only show jobs from enabled companies
       query = query.in('company_career_site_id', enabledCompanyIds);
@@ -99,6 +114,7 @@ export const jobsApi = {
         ...job,
         company_name: job.company_career_sites?.company_name || 'Unknown Company',
         company_career_url: job.company_career_sites?.career_url || null,
+        industry: job.company_career_sites?.industry || null,
       })) || [],
       totalCount: count || 0,
     };
@@ -110,11 +126,12 @@ export const jobsApi = {
     source?: string;
     jobType?: string;
     experienceLevel?: string;
+    industry?: string;
     page?: number;
     limit?: number;
     enabledCompanyIds?: string[];
   }) {
-    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12 } = options || {};
+    const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12 } = options || {};
     
     // Build query params
     const params = new URLSearchParams();
@@ -123,6 +140,7 @@ export const jobsApi = {
     if (source && source !== 'all') params.set('company', source);
     if (jobType && jobType !== 'all') params.set('job_type', jobType);
     if (experienceLevel && experienceLevel !== 'all') params.set('experience_level', experienceLevel);
+    if (industry && industry !== 'all') params.set('industry', industry);
     params.set('page', page.toString());
     params.set('limit', limit.toString());
 
@@ -186,12 +204,23 @@ export const jobsApi = {
     source?: string;
     jobType?: string;
     experienceLevel?: string;
+    industry?: string;
     page?: number;
     limit?: number;
     enabledCompanyIds?: string[];
   }) {
-    const { search, location, source, jobType, experienceLevel, page = 1, limit = 12, enabledCompanyIds } = options || {};
+    const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12, enabledCompanyIds } = options || {};
     const offset = (page - 1) * limit;
+
+    // If industry filter is applied, first get matching company IDs
+    let industryCompanyIds: string[] | null = null;
+    if (industry && industry !== 'all') {
+      const { data: industryCompanies } = await supabase
+        .from('company_career_sites')
+        .select('id')
+        .ilike('industry', `%${industry}%`);
+      industryCompanyIds = industryCompanies?.map(c => c.id) || [];
+    }
 
     let query = supabase
       .from('job_opportunities')
@@ -217,6 +246,8 @@ export const jobsApi = {
 
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
+    } else if (industryCompanyIds !== null) {
+      query = query.in('company_career_site_id', industryCompanyIds);
     } else if (enabledCompanyIds && enabledCompanyIds.length > 0) {
       query = query.in('company_career_site_id', enabledCompanyIds);
     }
@@ -245,9 +276,32 @@ export const jobsApi = {
         ...job,
         company_name: job.company_career_sites?.company_name || 'Unknown Company',
         company_career_url: job.company_career_sites?.career_url || null,
+        industry: job.company_career_sites?.industry || null,
       })) || [],
       totalCount: count || 0,
     };
+  },
+
+  async getDistinctIndustries() {
+    const { data, error } = await supabase
+      .from('company_career_sites')
+      .select('industry')
+      .not('industry', 'is', null);
+
+    if (error) {
+      console.error('Error fetching industries:', error);
+      throw error;
+    }
+
+    // Extract unique industries
+    const industries = new Set<string>();
+    data?.forEach(company => {
+      if (company.industry) {
+        industries.add(company.industry);
+      }
+    });
+
+    return Array.from(industries).sort();
   },
 
   async getCompanies() {

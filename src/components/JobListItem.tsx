@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapPin, Calendar, Copy, DollarSign, GraduationCap, Building2 } from "lucide-react";
+import { MapPin, Calendar, Copy, DollarSign, GraduationCap, Building2, Factory } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -16,10 +16,11 @@ interface JobListItemProps {
   salaryRange?: string;
   companyCareerUrl?: string | null;
   isInternship?: boolean;
+  industry?: string | null;
   onClick?: () => void;
 }
 
-const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, onClick }: JobListItemProps) => {
+const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, industry, onClick }: JobListItemProps) => {
   const { toast } = useToast();
   const [logoError, setLogoError] = useState(false);
 
@@ -97,6 +98,12 @@ const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, ex
             <div className="flex items-center gap-1">
               <GraduationCap className="w-3.5 h-3.5 flex-shrink-0" />
               <span>{experienceLevel}</span>
+            </div>
+          )}
+          {industry && (
+            <div className="flex items-center gap-1 text-blue-600">
+              <Factory className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate">{industry}</span>
             </div>
           )}
           {salaryRange && (

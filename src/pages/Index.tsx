@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useJobs, useCompanies, useLocations } from "@/hooks/useJobs";
+import { useJobs, useCompanies, useLocations, useIndustries } from "@/hooks/useJobs";
 import { jobsApi, Job } from "@/lib/api/jobs";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
@@ -19,6 +19,7 @@ const Index = () => {
   const [jobType, setJobType] = useState("all");
   const [experienceLevel, setExperienceLevel] = useState("all");
   const [source, setSource] = useState("all");
+  const [industry, setIndustry] = useState("all");
   const [view, setView] = useState<"grid" | "list">("list");
   const [currentPage, setCurrentPage] = useState(1);
   const [isScraping, setIsScraping] = useState(false);
@@ -39,17 +40,20 @@ const Index = () => {
     source: source !== "all" ? source : undefined,
     jobType: jobType !== "all" ? jobType : undefined,
     experienceLevel: experienceLevel !== "all" ? experienceLevel : undefined,
+    industry: industry !== "all" ? industry : undefined,
     page: currentPage,
     enabledCompanyIds: source === "all" ? enabledCompanyIds : undefined,
   });
 
   const { data: locations } = useLocations();
+  const { data: industries } = useIndustries();
 
   const handleClearAll = () => {
     setLocation("all");
     setJobType("all");
     setExperienceLevel("all");
     setSource("all");
+    setIndustry("all");
     setSearch("");
   };
 
@@ -178,9 +182,12 @@ const Index = () => {
             onExperienceLevelChange={setExperienceLevel}
             source={source}
             onSourceChange={setSource}
+            industry={industry}
+            onIndustryChange={setIndustry}
             onClearAll={handleClearAll}
             companies={companies || []}
             locations={locations || []}
+            industries={industries || []}
           />
           <div className="flex items-center gap-2">
             <Button 
@@ -281,6 +288,7 @@ const Index = () => {
                     salaryRange={job.salary_range || undefined}
                     companyCareerUrl={job.company_career_url}
                     isInternship={job.is_internship || false}
+                    industry={job.industry}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}
@@ -301,6 +309,7 @@ const Index = () => {
                     salaryRange={job.salary_range || undefined}
                     companyCareerUrl={job.company_career_url}
                     isInternship={job.is_internship || false}
+                    industry={job.industry}
                     onClick={() => setSelectedJob(job)}
                   />
                 ))}

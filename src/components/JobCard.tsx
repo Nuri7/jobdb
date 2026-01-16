@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapPin, Calendar, Copy, DollarSign, GraduationCap, Building2 } from "lucide-react";
+import { MapPin, Calendar, Copy, DollarSign, GraduationCap, Building2, Factory } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -17,10 +17,11 @@ interface JobCardProps {
   salaryRange?: string;
   companyCareerUrl?: string | null;
   isInternship?: boolean;
+  industry?: string | null;
   onClick?: () => void;
 }
 
-const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, onClick }: JobCardProps) => {
+const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, industry, onClick }: JobCardProps) => {
   const { toast } = useToast();
   const [logoError, setLogoError] = useState(false);
 
@@ -95,6 +96,12 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
           <div className="flex items-center gap-1.5">
             <GraduationCap className="w-3.5 h-3.5" />
             <span>{experienceLevel}</span>
+          </div>
+        )}
+        {industry && (
+          <div className="flex items-center gap-1.5 text-blue-600">
+            <Factory className="w-3.5 h-3.5" />
+            <span className="truncate">{industry}</span>
           </div>
         )}
       </div>
