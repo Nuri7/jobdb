@@ -104,30 +104,30 @@ const Overview = () => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card>
+          <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
-              <Building2 className="h-4 w-4 text-primary" />
+              <Building2 className="h-4 w-4 text-primary transition-transform duration-300 group-hover:scale-110" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{grandTotal.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">Companies with &gt;50 employees</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in [animation-delay:100ms]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Medium-Sized</CardTitle>
-              <Users className="h-4 w-4" style={{ color: "hsl(221, 83%, 53%)" }} />
+              <Users className="h-4 w-4 transition-transform duration-300" style={{ color: "hsl(221, 83%, 53%)" }} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">~{totalMedium.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">50-249 employees</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in [animation-delay:200ms]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Large</CardTitle>
-              <Factory className="h-4 w-4" style={{ color: "hsl(262, 83%, 58%)" }} />
+              <Factory className="h-4 w-4 transition-transform duration-300" style={{ color: "hsl(262, 83%, 58%)" }} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{totalLarge.toLocaleString()}</div>
