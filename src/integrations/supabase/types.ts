@@ -181,6 +181,33 @@ export type Database = {
           },
         ]
       }
+      job_synonyms: {
+        Row: {
+          created_at: string
+          group_name: string
+          id: string
+          is_active: boolean
+          terms: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          group_name: string
+          id?: string
+          is_active?: boolean
+          terms?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          group_name?: string
+          id?: string
+          is_active?: boolean
+          terms?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scrape_history: {
         Row: {
           career_url: string

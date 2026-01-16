@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Key, RefreshCw, Trash2, Eye, EyeOff, Code, ExternalLink } from 'lucide-react';
+import { Copy, Key, RefreshCw, Trash2, Eye, EyeOff, Code, ExternalLink, Settings, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 
 const API_BASE_URL = `https://khsaaiguqwtxtkvzqbrm.supabase.co/functions/v1/api`;
 
@@ -40,11 +41,24 @@ interface ApiKey {
   is_active: boolean;
 }
 
+interface SynonymGroup {
+  id: string;
+  group_name: string;
+  terms: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function Api() {
   const queryClient = useQueryClient();
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupTerms, setNewGroupTerms] = useState('');
+  const [editingGroup, setEditingGroup] = useState<SynonymGroup | null>(null);
+  const [editTerms, setEditTerms] = useState('');
 
   const { data: apiKeys = [], isLoading } = useQuery({
     queryKey: ['api-keys'],
@@ -55,6 +69,18 @@ export default function Api() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as ApiKey[];
+    },
+  });
+
+  const { data: synonymGroups = [], isLoading: loadingSynonyms } = useQuery({
+    queryKey: ['job-synonyms'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('job_synonyms')
+        .select('*')
+        .order('group_name');
+      if (error) throw error;
+      return data as SynonymGroup[];
     },
   });
 
@@ -94,20 +120,95 @@ export default function Api() {
     },
   });
 
+  const createSynonymMutation = useMutation({
+    mutationFn: async ({ groupName, terms }: { groupName: string; terms: string[] }) => {
+      const { error } = await supabase
+        .from('job_synonyms')
+        .insert({ group_name: groupName, terms });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setNewGroupName('');
+      setNewGroupTerms('');
+      queryClient.invalidateQueries({ queryKey: ['job-synonyms'] });
+      toast.success('Synonym group created');
+    },
+    onError: () => {
+      toast.error('Failed to create synonym group');
+    },
+  });
+
+  const updateSynonymMutation = useMutation({
+    mutationFn: async ({ id, terms, is_active }: { id: string; terms?: string[]; is_active?: boolean }) => {
+      const updateData: { terms?: string[]; is_active?: boolean } = {};
+      if (terms !== undefined) updateData.terms = terms;
+      if (is_active !== undefined) updateData.is_active = is_active;
+      
+      const { error } = await supabase
+        .from('job_synonyms')
+        .update(updateData)
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setEditingGroup(null);
+      setEditTerms('');
+      queryClient.invalidateQueries({ queryKey: ['job-synonyms'] });
+      toast.success('Synonym group updated');
+    },
+    onError: () => {
+      toast.error('Failed to update synonym group');
+    },
+  });
+
+  const deleteSynonymMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('job_synonyms').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-synonyms'] });
+      toast.success('Synonym group deleted');
+    },
+  });
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
+  };
+
+  const parseTerms = (input: string): string[] => {
+    return input.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
+  };
+
+  const handleAddSynonymGroup = () => {
+    const terms = parseTerms(newGroupTerms);
+    if (!newGroupName.trim() || terms.length < 2) {
+      toast.error('Enter a group name and at least 2 comma-separated terms');
+      return;
+    }
+    createSynonymMutation.mutate({ groupName: newGroupName.trim(), terms });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingGroup) return;
+    const terms = parseTerms(editTerms);
+    if (terms.length < 2) {
+      toast.error('Enter at least 2 comma-separated terms');
+      return;
+    }
+    updateSynonymMutation.mutate({ id: editingGroup.id, terms });
   };
 
   const endpoints = [
     {
       method: 'GET',
       path: '/jobs',
-      description: 'List job opportunities with filtering',
+      description: 'List job opportunities with intelligent search',
       params: [
         { name: 'limit', type: 'number', desc: 'Results per page (max 100, default 50)' },
         { name: 'offset', type: 'number', desc: 'Pagination offset' },
-        { name: 'search', type: 'string', desc: 'Search in job titles' },
+        { name: 'search', type: 'string', desc: 'Intelligent search (uses synonyms + AI expansion)' },
         { name: 'location', type: 'string', desc: 'Filter by location' },
         { name: 'company', type: 'string', desc: 'Filter by company name' },
         { name: 'job_type', type: 'string', desc: 'Filter by type (full-time, part-time, contract)' },
@@ -133,6 +234,12 @@ export default function Api() {
       description: 'Get aggregate statistics',
       params: [],
     },
+    {
+      method: 'GET',
+      path: '/synonyms',
+      description: 'List all search synonym groups',
+      params: [],
+    },
   ];
 
   return (
@@ -156,6 +263,10 @@ export default function Api() {
             <TabsTrigger value="docs" className="gap-2">
               <Code className="h-4 w-4" />
               Documentation
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -390,6 +501,153 @@ export default function Api() {
   }
 }`}
                 </pre>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            {/* Synonym Groups Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Search Synonyms</CardTitle>
+                <CardDescription>
+                  Configure synonym groups to improve search accuracy. When a user searches for one term, 
+                  the API will also match related terms from the same group. For example, searching "product owner" 
+                  will also find jobs with "product manager" in the title.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            {/* Add New Synonym Group */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Add Synonym Group</CardTitle>
+                <CardDescription>
+                  Create a new group of related job title terms.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="groupName">Group Name</Label>
+                    <Input
+                      id="groupName"
+                      placeholder="e.g., Product Management"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="groupTerms">Terms (comma-separated)</Label>
+                    <Input
+                      id="groupTerms"
+                      placeholder="e.g., product owner, product manager, po, pm"
+                      value={newGroupTerms}
+                      onChange={(e) => setNewGroupTerms(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleAddSynonymGroup}
+                  disabled={createSynonymMutation.isPending}
+                >
+                  {createSynonymMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  Add Group
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Existing Synonym Groups */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Synonym Groups</CardTitle>
+                <CardDescription>
+                  {synonymGroups.filter(s => s.is_active).length} active groups, {synonymGroups.length} total
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingSynonyms ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : synonymGroups.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No synonym groups yet. Create one above.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {synonymGroups.map((group) => (
+                      <div
+                        key={group.id}
+                        className="p-4 border rounded-lg space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium">{group.group_name}</span>
+                            <Badge variant={group.is_active ? 'default' : 'secondary'}>
+                              {group.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={group.is_active}
+                              onCheckedChange={(checked) => 
+                                updateSynonymMutation.mutate({ id: group.id, is_active: checked })
+                              }
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteSynonymMutation.mutate(group.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {editingGroup?.id === group.id ? (
+                          <div className="flex gap-2">
+                            <Input
+                              value={editTerms}
+                              onChange={(e) => setEditTerms(e.target.value)}
+                              placeholder="Enter comma-separated terms"
+                              className="flex-1"
+                            />
+                            <Button size="sm" onClick={handleSaveEdit}>
+                              Save
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              onClick={() => setEditingGroup(null)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div 
+                            className="flex flex-wrap gap-1 cursor-pointer hover:bg-muted/50 p-2 rounded -m-2"
+                            onClick={() => {
+                              setEditingGroup(group);
+                              setEditTerms(group.terms.join(', '));
+                            }}
+                          >
+                            {group.terms.map((term, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {term}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
