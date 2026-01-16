@@ -279,10 +279,24 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Helper to get company logo URL from career URL
+      const getLogoUrl = (careerUrl: string | null | undefined): string | null => {
+        if (!careerUrl) return null;
+        try {
+          const url = new URL(careerUrl);
+          let domain = url.hostname;
+          domain = domain.replace(/^(www\.|careers\.|jobs\.|werkenbij\.|career\.|job\.|werken\.)/, '');
+          return `https://logo.clearbit.com/${domain}`;
+        } catch {
+          return null;
+        }
+      };
+
       const companies = data?.map(company => ({
         id: company.id,
         name: company.company_name,
         career_url: company.career_url,
+        company_logo: getLogoUrl(company.career_url),
         industry: company.industry,
         company_size: company.company_size,
         headquarters_city: company.headquarters_city,
