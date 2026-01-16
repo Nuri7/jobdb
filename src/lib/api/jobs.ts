@@ -166,8 +166,9 @@ export const jobsApi = {
           is_internship: job.is_internship,
           experience_level: job.experience_level,
           scraped_at: job.scraped_at,
-          company_name: job.company_name || 'Unknown Company',
-          company_career_url: job.company_career_url || null,
+          // Map from API's nested company object
+          company_name: job.company?.name || job.company_name || 'Unknown Company',
+          company_career_url: job.company?.career_url || job.company_career_url || null,
         })) || [],
         totalCount: result.meta?.total || 0,
         searchTerms: result.meta?.search_terms || [],
