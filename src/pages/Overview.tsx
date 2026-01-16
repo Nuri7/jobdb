@@ -139,7 +139,7 @@ const Overview = () => {
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
           {/* Pie Chart - Clickable */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in">
             <CardHeader>
               <CardTitle>Industry Distribution</CardTitle>
               <CardDescription>Click a sector to filter the table</CardDescription>
@@ -187,7 +187,7 @@ const Overview = () => {
           </Card>
 
           {/* Donut Chart - Medium vs Large */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in [animation-delay:100ms]">
             <CardHeader>
               <CardTitle>Size Distribution</CardTitle>
               <CardDescription>Medium vs Large companies</CardDescription>
@@ -238,7 +238,7 @@ const Overview = () => {
           </Card>
 
           {/* Bar Chart */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in [animation-delay:200ms]">
             <CardHeader>
               <CardTitle>Size Comparison</CardTitle>
               <CardDescription>By sector</CardDescription>
@@ -272,7 +272,7 @@ const Overview = () => {
         </div>
 
         {/* Industry Breakdown Table */}
-        <Card className="mb-8">
+        <Card className="mb-8 transition-all duration-300 hover:shadow-lg hover:border-primary/50">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -331,7 +331,7 @@ const Overview = () => {
 
         {/* Key Notes */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
+          <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="h-4 w-4" style={{ color: "hsl(199, 89%, 48%)" }} />
@@ -348,7 +348,7 @@ const Overview = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in [animation-delay:100ms]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="h-4 w-4" style={{ color: "hsl(142, 71%, 45%)" }} />
@@ -365,7 +365,7 @@ const Overview = () => {
             </CardContent>
           </Card>
 
-          <Card className="md:col-span-2">
+          <Card className="md:col-span-2 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 animate-fade-in [animation-delay:200ms]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="h-4 w-4" style={{ color: "hsl(24, 95%, 53%)" }} />
