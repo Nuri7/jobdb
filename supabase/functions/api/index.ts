@@ -6,36 +6,37 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
-// Job title synonym groups - terms that should match each other
-const SYNONYM_GROUPS: string[][] = [
-  ['product owner', 'product manager', 'po', 'pm'],
-  ['developer', 'engineer', 'programmer', 'coder', 'software developer', 'software engineer'],
-  ['frontend', 'front-end', 'front end', 'ui developer', 'ui engineer'],
-  ['backend', 'back-end', 'back end', 'server-side'],
-  ['fullstack', 'full-stack', 'full stack'],
-  ['devops', 'dev ops', 'sre', 'site reliability', 'platform engineer'],
-  ['data scientist', 'data analyst', 'ml engineer', 'machine learning engineer', 'ai engineer'],
-  ['scrum master', 'agile coach', 'agile master'],
-  ['ux designer', 'ui designer', 'ux/ui designer', 'product designer', 'visual designer'],
-  ['qa engineer', 'test engineer', 'quality assurance', 'tester', 'sdet'],
-  ['tech lead', 'technical lead', 'lead developer', 'lead engineer', 'engineering lead'],
-  ['cto', 'chief technology officer', 'vp engineering', 'head of engineering'],
-  ['hr', 'human resources', 'people operations', 'talent acquisition', 'recruiter'],
-  ['marketing manager', 'growth manager', 'digital marketing', 'marketing specialist'],
-  ['sales', 'account executive', 'account manager', 'business development', 'bdm'],
-  ['project manager', 'program manager', 'delivery manager'],
-  ['support', 'customer support', 'customer service', 'helpdesk', 'customer success'],
-  ['cloud engineer', 'cloud architect', 'aws engineer', 'azure engineer', 'gcp engineer'],
-  ['security engineer', 'cybersecurity', 'infosec', 'security analyst'],
-  ['mobile developer', 'ios developer', 'android developer', 'react native developer', 'flutter developer'],
-];
+interface SynonymRow {
+  terms: string[];
+}
 
-// Get all related terms for a search query
-function getSynonyms(searchTerm: string): string[] {
+// Fetch synonym groups from database
+// deno-lint-ignore no-explicit-any
+async function fetchSynonymGroups(supabase: any): Promise<string[][]> {
+  try {
+    const { data, error } = await supabase
+      .from('job_synonyms')
+      .select('terms')
+      .eq('is_active', true);
+    
+    if (error) {
+      console.error('Error fetching synonyms:', error);
+      return [];
+    }
+    
+    return (data as SynonymRow[])?.map(row => row.terms) || [];
+  } catch (error) {
+    console.error('Synonym fetch error:', error);
+    return [];
+  }
+}
+
+// Get all related terms for a search query using database synonyms
+function getSynonymsFromGroups(searchTerm: string, synonymGroups: string[][]): string[] {
   const lowerSearch = searchTerm.toLowerCase();
   const synonyms: Set<string> = new Set([searchTerm]);
   
-  for (const group of SYNONYM_GROUPS) {
+  for (const group of synonymGroups) {
     // Check if any term in the group matches the search
     if (group.some(term => lowerSearch.includes(term) || term.includes(lowerSearch))) {
       group.forEach(term => synonyms.add(term));
@@ -156,6 +157,10 @@ Deno.serve(async (req) => {
             'GET /api/stats': {
               description: 'Get aggregate statistics',
             },
+            'GET /api/synonyms': {
+              description: 'List and manage search synonym groups',
+              note: 'Synonyms improve job search by matching related terms (e.g., "product owner" also finds "product manager")',
+            },
           },
         }),
         { headers: corsHeaders }
@@ -222,8 +227,11 @@ Deno.serve(async (req) => {
       // Build search terms - combine synonyms + AI expansion
       let searchTerms: string[] = [];
       if (search) {
+        // Fetch synonym groups from database
+        const synonymGroups = await fetchSynonymGroups(supabase);
+        
         // First, get synonym-based terms (fast, predictable)
-        searchTerms = getSynonyms(search);
+        searchTerms = getSynonymsFromGroups(search, synonymGroups);
         
         // If synonyms only returned the original term, try AI expansion
         if (searchTerms.length <= 1) {
@@ -446,8 +454,44 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Route: GET /synonyms
+    if (path === '/synonyms' || path === '/synonyms/') {
+      const { data, error } = await supabase
+        .from('job_synonyms')
+        .select('*')
+        .order('group_name');
+
+      if (error) {
+        console.error('Synonyms query error:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch synonyms', details: error.message }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      const synonyms = data?.map(syn => ({
+        id: syn.id,
+        group_name: syn.group_name,
+        terms: syn.terms,
+        is_active: syn.is_active,
+        created_at: syn.created_at,
+        updated_at: syn.updated_at,
+      })) || [];
+
+      return new Response(
+        JSON.stringify({
+          data: synonyms,
+          meta: {
+            total: synonyms.length,
+            active: synonyms.filter(s => s.is_active).length,
+          },
+        }),
+        { headers: corsHeaders }
+      );
+    }
+
     return new Response(
-      JSON.stringify({ error: 'Not found', available_endpoints: ['/api', '/api/jobs', '/api/companies', '/api/stats'] }),
+      JSON.stringify({ error: 'Not found', available_endpoints: ['/api', '/api/jobs', '/api/companies', '/api/stats', '/api/synonyms'] }),
       { status: 404, headers: corsHeaders }
     );
 
