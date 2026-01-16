@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Header from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -8,7 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Building2, Users, Factory, Info } from "lucide-react";
+import { Building2, Users, Factory, Info, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   PieChart,
   Pie,
@@ -54,9 +57,10 @@ const totalLarge = industryData.reduce((sum, item) => sum + item.large, 0);
 const grandTotal = industryData.reduce((sum, item) => sum + item.total, 0);
 
 // Prepare data for pie chart
-const pieData = industryData.map((item) => ({
+const pieData = industryData.map((item, index) => ({
   name: item.shortName,
   value: item.total,
+  index,
 }));
 
 // Prepare data for bar chart
@@ -66,7 +70,27 @@ const barData = industryData.map((item) => ({
   "Large (250+)": item.large,
 }));
 
+// Prepare data for donut chart (medium vs large)
+const sizeData = [
+  { name: "Medium (50-249)", value: totalMedium, color: "hsl(221, 83%, 53%)" },
+  { name: "Large (250+)", value: totalLarge, color: "hsl(262, 83%, 58%)" },
+];
+
 const Overview = () => {
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+
+  const filteredData = selectedSector
+    ? industryData.filter((item) => item.shortName === selectedSector)
+    : industryData;
+
+  const handlePieClick = (data: { name: string }) => {
+    if (selectedSector === data.name) {
+      setSelectedSector(null);
+    } else {
+      setSelectedSector(data.name);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -113,28 +137,35 @@ const Overview = () => {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-          {/* Pie Chart */}
-          <Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+          {/* Pie Chart - Clickable */}
+          <Card className="lg:col-span-1">
             <CardHeader>
               <CardTitle>Industry Distribution</CardTitle>
-              <CardDescription>Share of companies by industry sector</CardDescription>
+              <CardDescription>Click a sector to filter the table</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    outerRadius={100}
+                    outerRadius={90}
                     fill="#8884d8"
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    onClick={handlePieClick}
+                    style={{ cursor: "pointer" }}
                   >
-                    {pieData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {pieData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                        opacity={selectedSector && selectedSector !== entry.name ? 0.3 : 1}
+                        stroke={selectedSector === entry.name ? "hsl(var(--foreground))" : "none"}
+                        strokeWidth={selectedSector === entry.name ? 2 : 0}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
@@ -145,28 +176,84 @@ const Overview = () => {
                       borderRadius: "8px",
                     }}
                   />
+                  <Legend
+                    layout="horizontal"
+                    verticalAlign="bottom"
+                    wrapperStyle={{ fontSize: "10px" }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Bar Chart */}
-          <Card>
+          {/* Donut Chart - Medium vs Large */}
+          <Card className="lg:col-span-1">
             <CardHeader>
-              <CardTitle>Company Size Comparison</CardTitle>
-              <CardDescription>Medium vs Large companies by sector</CardDescription>
+              <CardTitle>Size Distribution</CardTitle>
+              <CardDescription>Medium vs Large companies</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={barData} layout="vertical" margin={{ left: 20 }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={sizeData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {sizeData.map((entry, index) => (
+                      <Cell key={`size-cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number, name: string) => [
+                      `~${value.toLocaleString()} (${((value / grandTotal) * 100).toFixed(1)}%)`,
+                      name,
+                    ]}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="text-center mt-2">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-semibold" style={{ color: "hsl(221, 83%, 53%)" }}>
+                    {((totalMedium / grandTotal) * 100).toFixed(1)}%
+                  </span>{" "}
+                  Medium |{" "}
+                  <span className="font-semibold" style={{ color: "hsl(262, 83%, 58%)" }}>
+                    {((totalLarge / grandTotal) * 100).toFixed(1)}%
+                  </span>{" "}
+                  Large
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bar Chart */}
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>Size Comparison</CardTitle>
+              <CardDescription>By sector</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={barData} layout="vertical" margin={{ left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} />
                   <YAxis
                     type="category"
                     dataKey="name"
                     stroke="hsl(var(--muted-foreground))"
-                    fontSize={11}
-                    width={80}
+                    fontSize={9}
+                    width={70}
                   />
                   <Tooltip
                     formatter={(value: number) => [`~${value.toLocaleString()}`, ""]}
@@ -176,7 +263,6 @@ const Overview = () => {
                       borderRadius: "8px",
                     }}
                   />
-                  <Legend />
                   <Bar dataKey="Medium (50-249)" fill="hsl(221, 83%, 53%)" radius={[0, 4, 4, 0]} />
                   <Bar dataKey="Large (250+)" fill="hsl(262, 83%, 58%)" radius={[0, 4, 4, 0]} />
                 </BarChart>
@@ -188,10 +274,28 @@ const Overview = () => {
         {/* Industry Breakdown Table */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Industry Breakdown</CardTitle>
-            <CardDescription>
-              Distribution of companies by NACE industry sector (2023 estimates)
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Industry Breakdown</CardTitle>
+                <CardDescription>
+                  Distribution of companies by NACE industry sector (2023 estimates)
+                </CardDescription>
+              </div>
+              {selectedSector && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedSector(null)}
+                  className="flex items-center gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  Clear filter
+                  <Badge variant="secondary" className="ml-1">
+                    {selectedSector}
+                  </Badge>
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -204,7 +308,7 @@ const Overview = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {industryData.map((row) => (
+                {filteredData.map((row) => (
                   <TableRow key={row.sector}>
                     <TableCell className="font-medium">{row.sector}</TableCell>
                     <TableCell className="text-right">~{row.medium.toLocaleString()}</TableCell>
@@ -212,12 +316,14 @@ const Overview = () => {
                     <TableCell className="text-right font-semibold">~{row.total.toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
-                <TableRow className="bg-muted/50 font-bold">
-                  <TableCell>Total</TableCell>
-                  <TableCell className="text-right">~{totalMedium.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">{totalLarge.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">{grandTotal.toLocaleString()}</TableCell>
-                </TableRow>
+                {!selectedSector && (
+                  <TableRow className="bg-muted/50 font-bold">
+                    <TableCell>Total</TableCell>
+                    <TableCell className="text-right">~{totalMedium.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{totalLarge.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{grandTotal.toLocaleString()}</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
