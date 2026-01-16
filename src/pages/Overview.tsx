@@ -9,23 +9,62 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Building2, Users, Factory, Info } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 const industryData = [
-  { sector: "Wholesale and Retail Trade", medium: 2500, large: 600, total: 3100 },
-  { sector: "Manufacturing", medium: 1800, large: 500, total: 2300 },
-  { sector: "Human Health and Social Work Activities", medium: 1500, large: 400, total: 1900 },
-  { sector: "Administrative and Support Service Activities", medium: 1200, large: 300, total: 1500 },
-  { sector: "Professional, Scientific, and Technical Activities", medium: 1000, large: 250, total: 1250 },
-  { sector: "Construction", medium: 800, large: 200, total: 1000 },
-  { sector: "Information and Communication", medium: 600, large: 150, total: 750 },
-  { sector: "Transportation and Storage", medium: 500, large: 100, total: 600 },
-  { sector: "Accommodation and Food Services", medium: 400, large: 80, total: 480 },
-  { sector: "Other Sectors (Education, Financial Services, Mining, Energy)", medium: 700, large: 48, total: 748 },
+  { sector: "Wholesale and Retail Trade", shortName: "Retail/Trade", medium: 2500, large: 600, total: 3100 },
+  { sector: "Manufacturing", shortName: "Manufacturing", medium: 1800, large: 500, total: 2300 },
+  { sector: "Human Health and Social Work Activities", shortName: "Healthcare", medium: 1500, large: 400, total: 1900 },
+  { sector: "Administrative and Support Service Activities", shortName: "Admin Services", medium: 1200, large: 300, total: 1500 },
+  { sector: "Professional, Scientific, and Technical Activities", shortName: "Professional", medium: 1000, large: 250, total: 1250 },
+  { sector: "Construction", shortName: "Construction", medium: 800, large: 200, total: 1000 },
+  { sector: "Information and Communication", shortName: "IT/Comms", medium: 600, large: 150, total: 750 },
+  { sector: "Transportation and Storage", shortName: "Transport", medium: 500, large: 100, total: 600 },
+  { sector: "Accommodation and Food Services", shortName: "Hospitality", medium: 400, large: 80, total: 480 },
+  { sector: "Other Sectors (Education, Financial Services, Mining, Energy)", shortName: "Other", medium: 700, large: 48, total: 748 },
+];
+
+const COLORS = [
+  "hsl(221, 83%, 53%)",  // blue
+  "hsl(142, 71%, 45%)",  // green
+  "hsl(262, 83%, 58%)",  // purple
+  "hsl(24, 95%, 53%)",   // orange
+  "hsl(340, 82%, 52%)",  // pink
+  "hsl(47, 96%, 53%)",   // yellow
+  "hsl(199, 89%, 48%)",  // cyan
+  "hsl(280, 65%, 60%)",  // violet
+  "hsl(160, 60%, 45%)",  // teal
+  "hsl(0, 0%, 45%)",     // gray
 ];
 
 const totalMedium = industryData.reduce((sum, item) => sum + item.medium, 0);
 const totalLarge = industryData.reduce((sum, item) => sum + item.large, 0);
 const grandTotal = industryData.reduce((sum, item) => sum + item.total, 0);
+
+// Prepare data for pie chart
+const pieData = industryData.map((item) => ({
+  name: item.shortName,
+  value: item.total,
+}));
+
+// Prepare data for bar chart
+const barData = industryData.map((item) => ({
+  name: item.shortName,
+  "Medium (50-249)": item.medium,
+  "Large (250+)": item.large,
+}));
 
 const Overview = () => {
   return (
@@ -69,6 +108,79 @@ const Overview = () => {
             <CardContent>
               <div className="text-2xl font-bold">{totalLarge.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">250+ employees</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+          {/* Pie Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Industry Distribution</CardTitle>
+              <CardDescription>Share of companies by industry sector</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {pieData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`~${value.toLocaleString()} companies`, "Total"]}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Bar Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Company Size Comparison</CardTitle>
+              <CardDescription>Medium vs Large companies by sector</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={barData} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={11}
+                    width={80}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [`~${value.toLocaleString()}`, ""]}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="Medium (50-249)" fill="hsl(221, 83%, 53%)" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="Large (250+)" fill="hsl(262, 83%, 58%)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
