@@ -8,6 +8,7 @@ import Companies from "./pages/Companies";
 import Dashboard from "./pages/Dashboard";
 import Api from "./pages/Api";
 import Settings from "./pages/Settings";
+import Overview from "./pages/Overview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/api" element={<Api />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/overview" element={<Overview />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

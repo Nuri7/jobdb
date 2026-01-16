@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Briefcase, Building2, BarChart3, Settings, Code } from "lucide-react";
+import { Briefcase, Building2, BarChart3, Settings, Code, PieChart } from "lucide-react";
 
 const Header = () => {
   const location = useLocation();
@@ -48,6 +48,15 @@ const Header = () => {
           >
             <Code className="w-4 h-4" />
             API
+          </Link>
+          <Link
+            to="/overview"
+            className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+              location.pathname === "/overview" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <PieChart className="w-4 h-4" />
+            Overview
           </Link>
           <Link
             to="/settings"
