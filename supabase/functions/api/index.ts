@@ -271,8 +271,21 @@ Deno.serve(async (req) => {
         .range(offset, offset + limit - 1);
 
       // Apply intelligent search - OR across all related terms
+      // Use word boundary matching for short terms (<=3 chars) to avoid false positives
       if (searchTerms.length > 0) {
-        const searchFilters = searchTerms.map(term => `job_title.ilike.%${term}%`).join(',');
+        const searchFilters = searchTerms.map(term => {
+          if (term.length <= 3) {
+            // For short terms, require word boundaries (start/end of string or surrounded by spaces)
+            // This prevents "po" matching "Corporate" or "pm" matching "Development"
+            return [
+              `job_title.ilike.${term} %`,      // starts with term + space
+              `job_title.ilike.% ${term}`,      // ends with space + term
+              `job_title.ilike.% ${term} %`,    // surrounded by spaces
+              `job_title.eq.${term}`            // exact match
+            ].join(',');
+          }
+          return `job_title.ilike.%${term}%`;
+        }).join(',');
         query = query.or(searchFilters);
       }
       if (location) {
