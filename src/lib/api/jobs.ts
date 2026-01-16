@@ -127,20 +127,25 @@ export const jobsApi = {
     params.set('limit', limit.toString());
 
     try {
-      // Use supabase.functions.invoke for internal calls (bypasses API key auth)
-      const { data: result, error } = await supabase.functions.invoke('api', {
+      // Use direct fetch for GET request with internal headers
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      const response = await fetch(`${baseUrl}/functions/v1/api/jobs?${params.toString()}`, {
         method: 'GET',
-        body: null,
         headers: {
-          'x-path': `/jobs?${params.toString()}`,
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey,
           'x-internal': 'true',
         },
       });
 
-      if (error) {
-        console.error('API error:', error);
+      if (!response.ok) {
+        console.error('API error:', response.status, response.statusText);
         return this.getJobsSimpleSearch(options);
       }
+
+      const result = await response.json();
       
       // Log search terms used for debugging
       if (result?.meta?.search_terms) {

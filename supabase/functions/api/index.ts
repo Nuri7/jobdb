@@ -120,20 +120,14 @@ Deno.serve(async (req) => {
     
     // Check if this is an internal call from the frontend
     const isInternalCall = req.headers.get('x-internal') === 'true';
-    const internalPath = req.headers.get('x-path');
     
-    // Parse path - for internal calls, use the x-path header
-    let path: string;
-    let params: URLSearchParams;
+    // Parse path from URL - remove /api prefix and any function name prefix
+    const fullPath = url.pathname;
+    // Handle both /api/jobs and /functions/v1/api/jobs formats
+    const path = fullPath.replace(/^\/functions\/v1\/api/, '').replace(/^\/api/, '') || '/';
+    const params = url.searchParams;
     
-    if (isInternalCall && internalPath) {
-      const [pathPart, queryPart] = internalPath.split('?');
-      path = pathPart;
-      params = new URLSearchParams(queryPart || '');
-    } else {
-      path = url.pathname.replace('/api', '');
-      params = url.searchParams;
-    }
+    console.log('Request path:', path, 'Internal:', isInternalCall);
 
     // API documentation is public (no auth required)
     if (path === '' || path === '/') {
