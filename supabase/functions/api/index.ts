@@ -190,6 +190,19 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Helper to get company logo URL from career URL
+      const getCompanyLogoUrl = (careerUrl: string | null | undefined): string | null => {
+        if (!careerUrl) return null;
+        try {
+          const url = new URL(careerUrl);
+          let domain = url.hostname;
+          domain = domain.replace(/^(www\.|careers\.|jobs\.|werkenbij\.|career\.|job\.|werken\.)/, '');
+          return `https://logo.clearbit.com/${domain}`;
+        } catch {
+          return null;
+        }
+      };
+
       // Transform data for cleaner API response
       const jobs = data?.map(job => {
         const company = job.company_career_sites as unknown as {
@@ -211,6 +224,7 @@ Deno.serve(async (req) => {
           is_internship: job.is_internship,
           experience_level: job.experience_level,
           scraped_at: job.scraped_at,
+          company_logo: getCompanyLogoUrl(company?.career_url),
           company: {
             id: company?.id,
             name: company?.company_name,
