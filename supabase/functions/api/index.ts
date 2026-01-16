@@ -190,14 +190,13 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Helper to get company logo URL from career URL
+      // Helper to get company logo URL from career URL (using Google Favicons - free and reliable)
       const getCompanyLogoUrl = (careerUrl: string | null | undefined): string | null => {
         if (!careerUrl) return null;
         try {
           const url = new URL(careerUrl);
-          let domain = url.hostname;
-          domain = domain.replace(/^(www\.|careers\.|jobs\.|werkenbij\.|career\.|job\.|werken\.)/, '');
-          return `https://logo.clearbit.com/${domain}`;
+          // Google Favicons service - free, no API key required
+          return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
         } catch {
           return null;
         }
@@ -279,14 +278,13 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Helper to get company logo URL from career URL
+      // Helper to get company logo URL from career URL (using Google Favicons - free and reliable)
       const getLogoUrl = (careerUrl: string | null | undefined): string | null => {
         if (!careerUrl) return null;
         try {
           const url = new URL(careerUrl);
-          let domain = url.hostname;
-          domain = domain.replace(/^(www\.|careers\.|jobs\.|werkenbij\.|career\.|job\.|werken\.)/, '');
-          return `https://logo.clearbit.com/${domain}`;
+          // Google Favicons service - free, no API key required
+          return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
         } catch {
           return null;
         }
