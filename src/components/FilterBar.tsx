@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Briefcase, GraduationCap, Building2 } from "lucide-react";
+import { MapPin, Briefcase, GraduationCap, Building2, Factory } from "lucide-react";
 
 interface Company {
   id: string;
@@ -25,9 +25,12 @@ interface FilterBarProps {
   onExperienceLevelChange: (value: string) => void;
   source: string;
   onSourceChange: (value: string) => void;
+  industry: string;
+  onIndustryChange: (value: string) => void;
   onClearAll: () => void;
   companies?: Company[];
   locations?: string[];
+  industries?: string[];
 }
 
 const FilterBar = ({
@@ -40,9 +43,12 @@ const FilterBar = ({
   onExperienceLevelChange,
   source,
   onSourceChange,
+  industry,
+  onIndustryChange,
   onClearAll,
   companies = [],
   locations = [],
+  industries = [],
 }: FilterBarProps) => {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4">
@@ -109,6 +115,23 @@ const FilterBar = ({
                 .map((company) => (
                 <SelectItem key={company.id} value={company.id}>
                   {company.company_name}
+                </SelectItem>
+              ))}
+            </ScrollArea>
+          </SelectContent>
+        </Select>
+
+        <Select value={industry} onValueChange={onIndustryChange}>
+          <SelectTrigger className="w-[180px] bg-card font-semibold">
+            <Factory className="w-4 h-4 mr-2 text-muted-foreground" />
+            <SelectValue placeholder="Industry" />
+          </SelectTrigger>
+          <SelectContent>
+            <ScrollArea className="h-[300px]">
+              <SelectItem value="all">All Industries</SelectItem>
+              {industries.map((ind) => (
+                <SelectItem key={ind} value={ind.toLowerCase()}>
+                  {ind}
                 </SelectItem>
               ))}
             </ScrollArea>

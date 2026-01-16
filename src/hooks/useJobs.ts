@@ -7,6 +7,7 @@ export function useJobs(options?: {
   source?: string;
   jobType?: string;
   experienceLevel?: string;
+  industry?: string;
   page?: number;
   enabledCompanyIds?: string[];
 }) {
@@ -27,5 +28,12 @@ export function useLocations() {
   return useQuery({
     queryKey: ['locations'],
     queryFn: () => jobsApi.getDistinctLocations(),
+  });
+}
+
+export function useIndustries() {
+  return useQuery({
+    queryKey: ['industries'],
+    queryFn: () => jobsApi.getDistinctIndustries(),
   });
 }
