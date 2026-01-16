@@ -489,8 +489,10 @@ export default function Api() {
               <CardHeader>
                 <CardTitle>Response Format</CardTitle>
               </CardHeader>
-              <CardContent>
-                <pre className="p-4 bg-muted rounded-lg overflow-x-auto text-sm">
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Standard Response (jobs, companies)</h4>
+                  <pre className="p-4 bg-muted rounded-lg overflow-x-auto text-sm">
 {`{
   "data": [...],
   "meta": {
@@ -500,7 +502,61 @@ export default function Api() {
     "has_more": true
   }
 }`}
-                </pre>
+                  </pre>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Synonyms Response</h4>
+                  <pre className="p-4 bg-muted rounded-lg overflow-x-auto text-sm">
+{`{
+  "data": [
+    {
+      "group_name": "Product Management",
+      "terms": ["product owner", "product manager", "po", "pm"],
+      "is_active": true
+    },
+    ...
+  ]
+}`}
+                  </pre>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Intelligent Search Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Intelligent Search</CardTitle>
+                <CardDescription>
+                  The /jobs endpoint features intelligent search powered by synonym mapping.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  When searching for jobs, the API automatically expands your query to include related terms 
+                  from configured synonym groups. For example, searching for "product owner" will also return 
+                  jobs with "product manager" in the title.
+                </p>
+                <div>
+                  <h4 className="font-medium mb-2">Currently Configured Groups ({synonymGroups.filter(s => s.is_active).length} active)</h4>
+                  <div className="space-y-2">
+                    {synonymGroups.filter(s => s.is_active).slice(0, 5).map((group) => (
+                      <div key={group.id} className="flex items-start gap-2 text-sm">
+                        <Badge variant="outline" className="shrink-0">{group.group_name}</Badge>
+                        <span className="text-muted-foreground">
+                          {group.terms.join(', ')}
+                        </span>
+                      </div>
+                    ))}
+                    {synonymGroups.filter(s => s.is_active).length > 5 && (
+                      <p className="text-xs text-muted-foreground">
+                        +{synonymGroups.filter(s => s.is_active).length - 5} more groups...
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Manage synonym groups in the <strong>Settings</strong> tab or fetch them via <code className="bg-muted px-1 rounded">GET /synonyms</code>.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -516,6 +572,23 @@ export default function Api() {
                   will also find jobs with "product manager" in the title.
                 </CardDescription>
               </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                  <Code className="h-4 w-4 shrink-0" />
+                  <span>
+                    These settings are also available via the API: <code className="bg-background px-1.5 py-0.5 rounded font-mono text-xs">GET /synonyms</code>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto shrink-0"
+                    onClick={() => window.open(`${API_BASE_URL}/synonyms`, '_blank')}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Try it
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
 
             {/* Add New Synonym Group */}
