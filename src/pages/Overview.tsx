@@ -107,7 +107,7 @@ const Overview = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Building2 className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{grandTotal.toLocaleString()}</div>
@@ -117,7 +117,7 @@ const Overview = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Medium-Sized</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4" style={{ color: "hsl(221, 83%, 53%)" }} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">~{totalMedium.toLocaleString()}</div>
@@ -127,7 +127,7 @@ const Overview = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Large</CardTitle>
-              <Factory className="h-4 w-4 text-muted-foreground" />
+              <Factory className="h-4 w-4" style={{ color: "hsl(262, 83%, 58%)" }} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{totalLarge.toLocaleString()}</div>
@@ -334,7 +334,7 @@ const Overview = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Info className="h-4 w-4" />
+                <Info className="h-4 w-4" style={{ color: "hsl(199, 89%, 48%)" }} />
                 Data Sources & Limitations
               </CardTitle>
             </CardHeader>
@@ -351,7 +351,7 @@ const Overview = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Info className="h-4 w-4" />
+                <Info className="h-4 w-4" style={{ color: "hsl(142, 71%, 45%)" }} />
                 Trends
               </CardTitle>
             </CardHeader>
@@ -368,7 +368,7 @@ const Overview = () => {
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Info className="h-4 w-4" />
+                <Info className="h-4 w-4" style={{ color: "hsl(24, 95%, 53%)" }} />
                 Context
               </CardTitle>
             </CardHeader>
