@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/useJobs";
 import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
 import { format, isAfter, isBefore, startOfDay, endOfDay, parseISO } from "date-fns";
@@ -107,6 +108,7 @@ const Companies = () => {
   const [sortBy, setSortBy] = useState<'name' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const { data: companies, isLoading, refetch } = useCompanies();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const filteredCompanies = (companies?.filter(company => {
@@ -415,12 +417,14 @@ const Companies = () => {
 
       if (deleteCompanyError) throw deleteCompanyError;
 
+      // Invalidate all related queries to force fresh data
+      await queryClient.invalidateQueries({ queryKey: ['companies'] });
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] });
+
       toast({
         title: "Company excluded",
         description: `${companyName} and its jobs have been removed. Domain "${domain}" added to excluded list.`,
       });
-
-      refetch();
     } catch (error: any) {
       toast({
         title: "Error excluding company",
