@@ -19,6 +19,15 @@ const Header = () => {
               location.pathname === "/" ? "text-primary" : "text-muted-foreground"
             }`}
           >
+            <PieChart className="w-4 h-4" />
+            Overview
+          </Link>
+          <Link
+            to="/jobs"
+            className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+              location.pathname === "/jobs" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
             <Briefcase className="w-4 h-4" />
             Jobs
           </Link>
@@ -48,15 +57,6 @@ const Header = () => {
           >
             <Code className="w-4 h-4" />
             API
-          </Link>
-          <Link
-            to="/overview"
-            className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
-              location.pathname === "/overview" ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <PieChart className="w-4 h-4" />
-            Overview
           </Link>
           <Link
             to="/settings"
