@@ -356,7 +356,7 @@ const Companies = () => {
     }
   };
 
-  const handleExcludeDomain = async (careerUrl: string, companyName: string) => {
+  const handleExcludeDomain = async (companyId: string, careerUrl: string, companyName: string) => {
     const domain = extractMainDomain(careerUrl);
     if (!domain) {
       toast({
@@ -379,31 +379,43 @@ const Companies = () => {
 
       const currentDomains: string[] = Array.isArray(settingData?.setting_value) ? (settingData.setting_value as string[]) : [];
       
-      if (currentDomains.includes(domain)) {
-        toast({
-          title: "Already excluded",
-          description: `${domain} is already in the excluded domains list`,
-        });
-        return;
+      // Add domain if not already in list
+      if (!currentDomains.includes(domain)) {
+        const updatedDomains = [...currentDomains, domain];
+
+        const { error: updateError } = await supabase
+          .from('scraper_settings')
+          .update({ setting_value: updatedDomains })
+          .eq('setting_key', 'excluded_domains');
+
+        if (updateError) throw updateError;
       }
 
-      // Add new domain to the list
-      const updatedDomains = [...currentDomains, domain];
+      // Delete all jobs associated with this company
+      const { error: deleteJobsError } = await supabase
+        .from('job_opportunities')
+        .delete()
+        .eq('company_career_site_id', companyId);
 
-      const { error: updateError } = await supabase
-        .from('scraper_settings')
-        .update({ setting_value: updatedDomains })
-        .eq('setting_key', 'excluded_domains');
+      if (deleteJobsError) throw deleteJobsError;
 
-      if (updateError) throw updateError;
+      // Delete the company from the database
+      const { error: deleteCompanyError } = await supabase
+        .from('company_career_sites')
+        .delete()
+        .eq('id', companyId);
+
+      if (deleteCompanyError) throw deleteCompanyError;
 
       toast({
-        title: "Domain excluded",
-        description: `${domain} has been added to excluded domains`,
+        title: "Company excluded",
+        description: `${companyName} and its jobs have been removed. Domain "${domain}" added to excluded list.`,
       });
+
+      refetch();
     } catch (error: any) {
       toast({
-        title: "Error excluding domain",
+        title: "Error excluding company",
         description: error.message,
         variant: "destructive",
       });
@@ -732,7 +744,7 @@ const Companies = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleExcludeDomain(company.career_url, company.company_name);
+                                  handleExcludeDomain(company.id, company.career_url, company.company_name);
                                 }}
                                 className="p-1.5 rounded-full hover:bg-red-100 transition-colors"
                                 title="Exclude domain"
@@ -827,7 +839,7 @@ const Companies = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleExcludeDomain(company.career_url, company.company_name);
+                                    handleExcludeDomain(company.id, company.career_url, company.company_name);
                                   }}
                                   className="p-1.5 rounded-full hover:bg-red-100 transition-colors"
                                   title="Exclude domain"
