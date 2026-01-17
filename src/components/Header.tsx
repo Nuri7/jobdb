@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Briefcase, Building2, BarChart3, Settings, Code, PieChart } from "lucide-react";
+import { Briefcase, Building2, BarChart3, Settings, Code, PieChart, TrendingUp } from "lucide-react";
 
 const Header = () => {
   const location = useLocation();
@@ -8,8 +8,8 @@ const Header = () => {
     <header className="border-b border-border bg-card">
       <div className="container max-w-7xl flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2">
-          <Briefcase className="w-6 h-6 text-primary" />
-          <span className="font-bold text-lg text-foreground">JobsNL</span>
+          <TrendingUp className="w-6 h-6 text-primary" />
+          <span className="font-bold text-lg text-foreground">MarketNL</span>
         </Link>
 
         <nav className="flex items-center gap-6">
