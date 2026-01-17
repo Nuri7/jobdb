@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Briefcase, Building2, BarChart3, Settings, Code, PieChart, TrendingUp } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 const Header = () => {
   const location = useLocation();
@@ -49,6 +50,9 @@ const Header = () => {
             <BarChart3 className="w-4 h-4" />
             Dashboard
           </Link>
+          
+          <Separator orientation="vertical" className="h-5" />
+          
           <Link
             to="/api"
             className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
