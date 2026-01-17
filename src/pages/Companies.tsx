@@ -391,6 +391,14 @@ const Companies = () => {
         if (updateError) throw updateError;
       }
 
+      // Delete scrape history associated with this company
+      const { error: deleteHistoryError } = await supabase
+        .from('scrape_history')
+        .delete()
+        .eq('company_career_site_id', companyId);
+
+      if (deleteHistoryError) throw deleteHistoryError;
+
       // Delete all jobs associated with this company
       const { error: deleteJobsError } = await supabase
         .from('job_opportunities')
