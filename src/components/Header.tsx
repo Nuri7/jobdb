@@ -23,15 +23,6 @@ const Header = () => {
             Overview
           </Link>
           <Link
-            to="/jobs"
-            className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
-              location.pathname === "/jobs" ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <Briefcase className="w-4 h-4" />
-            Jobs
-          </Link>
-          <Link
             to="/companies"
             className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
               location.pathname === "/companies" ? "text-primary" : "text-muted-foreground"
@@ -39,6 +30,15 @@ const Header = () => {
           >
             <Building2 className="w-4 h-4" />
             Companies
+          </Link>
+          <Link
+            to="/jobs"
+            className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+              location.pathname === "/jobs" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <Briefcase className="w-4 h-4" />
+            Jobs
           </Link>
           <Link
             to="/dashboard"
