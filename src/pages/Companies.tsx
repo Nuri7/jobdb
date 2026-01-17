@@ -41,7 +41,8 @@ import {
   ArrowDown01,
   ArrowUp01,
   Copy,
-  Power
+  Power,
+  Ban
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -339,6 +340,71 @@ const Companies = () => {
       toast({
         title: "Error",
         description: "Failed to update company status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Extract main domain from URL and add to excluded domains
+  const extractMainDomain = (url: string): string => {
+    try {
+      const hostname = new URL(url).hostname;
+      // Remove 'www.' prefix if present
+      return hostname.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  };
+
+  const handleExcludeDomain = async (careerUrl: string, companyName: string) => {
+    const domain = extractMainDomain(careerUrl);
+    if (!domain) {
+      toast({
+        title: "Invalid URL",
+        description: "Could not extract domain from career URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Fetch current excluded_domains setting
+      const { data: settingData, error: fetchError } = await supabase
+        .from('scraper_settings')
+        .select('setting_value')
+        .eq('setting_key', 'excluded_domains')
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentDomains: string[] = Array.isArray(settingData?.setting_value) ? (settingData.setting_value as string[]) : [];
+      
+      if (currentDomains.includes(domain)) {
+        toast({
+          title: "Already excluded",
+          description: `${domain} is already in the excluded domains list`,
+        });
+        return;
+      }
+
+      // Add new domain to the list
+      const updatedDomains = [...currentDomains, domain];
+
+      const { error: updateError } = await supabase
+        .from('scraper_settings')
+        .update({ setting_value: updatedDomains })
+        .eq('setting_key', 'excluded_domains');
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Domain excluded",
+        description: `${domain} has been added to excluded domains`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error excluding domain",
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -660,6 +726,25 @@ const Companies = () => {
                         >
                           <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                         </button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleExcludeDomain(company.career_url, company.company_name);
+                                }}
+                                className="p-1.5 rounded-full hover:bg-red-100 transition-colors"
+                                title="Exclude domain"
+                              >
+                                <Ban className="w-3.5 h-3.5 text-red-500" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Add domain to excluded list in Settings</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <Button
                           variant="outline"
                           size="sm"
@@ -736,6 +821,25 @@ const Companies = () => {
                           >
                             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                           </button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleExcludeDomain(company.career_url, company.company_name);
+                                  }}
+                                  className="p-1.5 rounded-full hover:bg-red-100 transition-colors"
+                                  title="Exclude domain"
+                                >
+                                  <Ban className="w-3.5 h-3.5 text-red-500" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Add domain to excluded list in Settings</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           {getStatusIcon(company.crawl_status)}
                         </div>
                       )}
