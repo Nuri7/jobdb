@@ -10,7 +10,6 @@ import {
   Globe,
   Smartphone,
   Monitor,
-  Tablet,
   Share2,
   MoreVertical,
   Plus,
@@ -22,6 +21,9 @@ import {
   Key,
   RefreshCw,
 } from "lucide-react";
+import pwaInstallIos from "@/assets/pwa-install-ios.mp4";
+import pwaInstallAndroid from "@/assets/pwa-install-android.mp4";
+import pwaInstallDesktop from "@/assets/pwa-install-desktop.mp4";
 
 const features = [
   {
@@ -144,168 +146,174 @@ const Features = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* iOS Instructions */}
-            <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50">
-              <CardHeader>
+            <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 overflow-hidden">
+              <div className="relative aspect-[9/16] max-h-[280px] overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
+                <video 
+                  src={pwaInstallIos} 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <CardHeader className="pb-2">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
-                    <Smartphone className="h-6 w-6 text-foreground" />
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
+                    <Smartphone className="h-5 w-5 text-foreground" />
                   </div>
                   <div>
-                    <CardTitle>iPhone & iPad</CardTitle>
-                    <CardDescription>Safari Browser</CardDescription>
+                    <CardTitle className="text-base">iPhone & iPad</CardTitle>
+                    <CardDescription className="text-xs">Safari Browser</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
                       1
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Open JobDB in <strong>Safari</strong> browser
+                    <p className="text-xs text-muted-foreground">
+                      Open in <strong>Safari</strong>
                     </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
                       2
                     </div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      Tap the <Share2 className="h-4 w-4 inline" /> <strong>Share</strong> button at the bottom
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      Tap <Share2 className="h-3 w-3 inline" /> <strong>Share</strong>
                     </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
                       3
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Scroll down and tap <strong>"Add to Home Screen"</strong>
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                      4
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Tap <strong>"Add"</strong> in the top right corner
+                    <p className="text-xs text-muted-foreground">
+                      <strong>"Add to Home Screen"</strong>
                     </p>
                   </div>
                 </div>
-                <div className="pt-3 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    💡 Must use Safari—Chrome/Firefox don't support PWA on iOS
+                <div className="pt-2 border-t">
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Must use Safari
                   </p>
                 </div>
               </CardContent>
             </Card>
 
             {/* Android Instructions */}
-            <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50">
-              <CardHeader>
+            <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 overflow-hidden">
+              <div className="relative aspect-[9/16] max-h-[280px] overflow-hidden bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-950">
+                <video 
+                  src={pwaInstallAndroid} 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <CardHeader className="pb-2">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-950">
-                    <Smartphone className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-950">
+                    <Smartphone className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
-                    <CardTitle>Android</CardTitle>
-                    <CardDescription>Chrome Browser</CardDescription>
+                    <CardTitle className="text-base">Android</CardTitle>
+                    <CardDescription className="text-xs">Chrome Browser</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center text-xs font-bold text-green-600">
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-[10px] font-bold text-green-600">
                       1
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Open JobDB in <strong>Chrome</strong> browser
+                    <p className="text-xs text-muted-foreground">
+                      Open in <strong>Chrome</strong>
                     </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center text-xs font-bold text-green-600">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-[10px] font-bold text-green-600">
                       2
                     </div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      Tap the <MoreVertical className="h-4 w-4 inline" /> <strong>menu</strong> (3 dots) in the top right
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      Tap <MoreVertical className="h-3 w-3 inline" /> menu
                     </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center text-xs font-bold text-green-600">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-[10px] font-bold text-green-600">
                       3
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center text-xs font-bold text-green-600">
-                      4
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Tap <strong>"Install"</strong> to confirm
+                    <p className="text-xs text-muted-foreground">
+                      <strong>"Install app"</strong>
                     </p>
                   </div>
                 </div>
-                <div className="pt-3 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    💡 An install banner may appear automatically at the bottom
+                <div className="pt-2 border-t">
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Banner may appear automatically
                   </p>
                 </div>
               </CardContent>
             </Card>
 
             {/* Desktop Instructions */}
-            <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50">
-              <CardHeader>
+            <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/50 overflow-hidden">
+              <div className="relative aspect-[16/9] max-h-[280px] overflow-hidden bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-950">
+                <video 
+                  src={pwaInstallDesktop} 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <CardHeader className="pb-2">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-950">
-                    <Monitor className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-950">
+                    <Monitor className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <CardTitle>Desktop</CardTitle>
-                    <CardDescription>Chrome, Edge, or Brave</CardDescription>
+                    <CardTitle className="text-base">Desktop</CardTitle>
+                    <CardDescription className="text-xs">Chrome, Edge, or Brave</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-600">
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-[10px] font-bold text-blue-600">
                       1
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Open JobDB in Chrome, Edge, or Brave
+                    <p className="text-xs text-muted-foreground">
+                      Open in Chrome, Edge, or Brave
                     </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-600">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-[10px] font-bold text-blue-600">
                       2
                     </div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      Look for the <Plus className="h-4 w-4 inline" /> <strong>install icon</strong> in the address bar
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      Click <Plus className="h-3 w-3 inline" /> in address bar
                     </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-600">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-[10px] font-bold text-blue-600">
                       3
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Click <strong>"Install"</strong> in the popup
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-600">
-                      4
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      The app will open in its own window
+                    <p className="text-xs text-muted-foreground">
+                      Click <strong>"Install"</strong>
                     </p>
                   </div>
                 </div>
-                <div className="pt-3 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    💡 Firefox doesn't support PWA installation on desktop
+                <div className="pt-2 border-t">
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Firefox doesn't support PWA
                   </p>
                 </div>
               </CardContent>
