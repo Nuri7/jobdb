@@ -208,6 +208,33 @@ export type Database = {
         }
         Relationships: []
       }
+      pwa_analytics: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          is_pwa: boolean
+          session_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          is_pwa?: boolean
+          session_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          is_pwa?: boolean
+          session_id?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       scrape_history: {
         Row: {
           career_url: string

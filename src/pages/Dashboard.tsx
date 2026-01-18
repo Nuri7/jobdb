@@ -18,6 +18,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  LineChart,
+  Line,
 } from "recharts";
 import {
   Briefcase,
@@ -29,6 +31,9 @@ import {
   Calendar,
   Activity,
   Loader2,
+  Smartphone,
+  Monitor,
+  Download,
 } from "lucide-react";
 import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
 
@@ -71,7 +76,22 @@ const Dashboard = () => {
     },
   });
 
-  const isLoading = historyLoading || companiesLoading || jobsLoading;
+  // Fetch PWA analytics
+  const { data: pwaAnalytics, isLoading: pwaLoading } = useQuery({
+    queryKey: ["pwa-analytics"],
+    queryFn: async () => {
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const { data, error } = await supabase
+        .from("pwa_analytics")
+        .select("*")
+        .gte("created_at", thirtyDaysAgo)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const isLoading = historyLoading || companiesLoading || jobsLoading || pwaLoading;
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -168,6 +188,66 @@ const Dashboard = () => {
   const recentScrapes = useMemo(() => {
     if (!scrapeHistory) return [];
     return scrapeHistory.slice(0, 10);
+  }, [scrapeHistory]);
+
+  // PWA vs Browser sessions
+  const pwaVsBrowser = useMemo(() => {
+    if (!pwaAnalytics) return [];
+    
+    const sessions = pwaAnalytics.filter((a) => a.event_type === "session_start");
+    const pwaCount = sessions.filter((s) => s.is_pwa).length;
+    const browserCount = sessions.filter((s) => !s.is_pwa).length;
+
+    return [
+      { name: "PWA", value: pwaCount, color: "hsl(var(--primary))" },
+      { name: "Browser", value: browserCount, color: "hsl(var(--chart-3))" },
+    ].filter((s) => s.value > 0);
+  }, [pwaAnalytics]);
+
+  // PWA installations over time
+  const pwaInstallsOverTime = useMemo(() => {
+    if (!pwaAnalytics) return [];
+
+    const last14Days = eachDayOfInterval({
+      start: subDays(new Date(), 13),
+      end: new Date(),
+    });
+
+    return last14Days.map((day) => {
+      const dayStart = startOfDay(day);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+
+      const dayInstalls = pwaAnalytics.filter((a) => {
+        const eventDate = new Date(a.created_at);
+        return eventDate >= dayStart && eventDate < dayEnd && a.event_type === "installed";
+      });
+
+      const daySessions = pwaAnalytics.filter((a) => {
+        const eventDate = new Date(a.created_at);
+        return eventDate >= dayStart && eventDate < dayEnd && a.event_type === "session_start";
+      });
+
+      return {
+        date: format(day, "MMM d"),
+        installs: dayInstalls.length,
+        sessions: daySessions.length,
+      };
+    });
+  }, [pwaAnalytics]);
+
+  // PWA stats
+  const pwaStats = useMemo(() => {
+    if (!pwaAnalytics) return { totalSessions: 0, pwaSessions: 0, totalInstalls: 0 };
+
+    const sessions = pwaAnalytics.filter((a) => a.event_type === "session_start");
+    const installs = pwaAnalytics.filter((a) => a.event_type === "installed");
+
+    return {
+      totalSessions: sessions.length,
+      pwaSessions: sessions.filter((s) => s.is_pwa).length,
+      totalInstalls: installs.length,
+    };
   }, [scrapeHistory]);
 
   return (
@@ -462,6 +542,171 @@ const Dashboard = () => {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* PWA Analytics Section */}
+            <div className="mt-8">
+              <h2 className="text-xl font-bold text-foreground mb-4">PWA Analytics</h2>
+              <p className="text-muted-foreground mb-6">Track how users access and install your app (Last 30 days)</p>
+              
+              {/* PWA Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <Smartphone className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{pwaStats.pwaSessions}</p>
+                        <p className="text-xs text-muted-foreground">PWA Sessions</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-chart-3/10">
+                        <Monitor className="w-5 h-5 text-chart-3" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{pwaStats.totalSessions - pwaStats.pwaSessions}</p>
+                        <p className="text-xs text-muted-foreground">Browser Sessions</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-chart-2/10">
+                        <Download className="w-5 h-5 text-chart-2" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{pwaStats.totalInstalls}</p>
+                        <p className="text-xs text-muted-foreground">Total Installs</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-chart-4/10">
+                        <TrendingUp className="w-5 h-5 text-chart-4" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">
+                          {pwaStats.totalSessions > 0 
+                            ? Math.round((pwaStats.pwaSessions / pwaStats.totalSessions) * 100)
+                            : 0}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">PWA Adoption</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* PWA Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Sessions Over Time */}
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-base font-medium">Sessions & Installs (Last 14 Days)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={pwaInstallsOverTime}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }} 
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }} 
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: "hsl(var(--card))", 
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px"
+                            }}
+                          />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="sessions"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2}
+                            dot={{ fill: "hsl(var(--primary))" }}
+                            name="Sessions"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="installs"
+                            stroke="hsl(var(--chart-2))"
+                            strokeWidth={2}
+                            dot={{ fill: "hsl(var(--chart-2))" }}
+                            name="Installs"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* PWA vs Browser */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base font-medium">PWA vs Browser</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[280px]">
+                      {pwaVsBrowser.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={pwaVsBrowser}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={90}
+                              paddingAngle={4}
+                              dataKey="value"
+                            >
+                              {pwaVsBrowser.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: "hsl(var(--card))", 
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px"
+                              }}
+                            />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                          No session data yet
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </>
         )}
