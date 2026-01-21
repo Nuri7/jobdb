@@ -92,7 +92,7 @@ const CompanyLogo = ({ careerUrl, companyName }: { careerUrl: string; companyNam
 const Companies = () => {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"grid" | "list">("list");
-  const [scrapingCompany, setScrapingCompany] = useState<{id: string; name: string} | null>(null);
+  const [discoveringCompany, setDiscoveringCompany] = useState<{id: string; name: string} | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
   const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
   const [scheduleCompany, setScheduleCompany] = useState<CompanyCareerSite | null>(null);
@@ -148,30 +148,57 @@ const Companies = () => {
     }
   };
 
-  const handleScrapeCompany = async (companyId: string, careerUrl: string, companyName: string) => {
-    setScrapingCompany({ id: companyId, name: companyName });
+  const handleFindCareerPage = async (companyId: string, companyName: string, website: string | null) => {
+    setDiscoveringCompany({ id: companyId, name: companyName });
     try {
-      await jobsApi.scrapeCompany(companyId, careerUrl);
-    } catch (error) {
+      const response = await supabase.functions.invoke('find-career-page', {
+        body: { 
+          companies: [{ company_name: companyName, website: website }] 
+        }
+      });
+
+      if (response.error) throw response.error;
+
+      const result = response.data;
+      if (result.success && result.results?.length > 0) {
+        const careerUrl = result.results[0].career_url;
+        if (careerUrl && careerUrl !== website) {
+          // Update the company with the found career URL
+          const { error: updateError } = await supabase
+            .from('company_career_sites')
+            .update({ career_url: careerUrl })
+            .eq('id', companyId);
+
+          if (updateError) throw updateError;
+
+          toast({
+            title: "Career page found",
+            description: `Updated ${companyName} with career URL: ${careerUrl}`,
+          });
+          refetch();
+        } else {
+          toast({
+            title: "No career page found",
+            description: `Could not find a dedicated career page for ${companyName}`,
+          });
+        }
+      } else {
+        toast({
+          title: "Discovery failed",
+          description: result.results?.[0]?.error || `No career page found for ${companyName}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
       toast({
-        title: "Scraping failed",
-        description: `Failed to scrape ${companyName}`,
+        title: "Discovery failed",
+        description: error.message || `Failed to find career page for ${companyName}`,
         variant: "destructive",
       });
-      setScrapingCompany(null);
+    } finally {
+      setDiscoveringCompany(null);
     }
   };
-
-  const handleScrapeComplete = useCallback(() => {
-    if (scrapingCompany) {
-      toast({
-        title: "Scraping complete",
-        description: `Successfully scraped jobs from ${scrapingCompany.name}`,
-      });
-    }
-    setScrapingCompany(null);
-    refetch();
-  }, [scrapingCompany, toast, refetch]);
 
   const handleSaveCareerUrl = async (companyId: string, careerUrl: string) => {
     setIsSaving(true);
@@ -863,13 +890,13 @@ const Companies = () => {
                         <Button
                           variant="default"
                           size="sm"
-                          disabled={scrapingCompany?.id === company.id}
-                          onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
+                          disabled={discoveringCompany?.id === company.id}
+                          onClick={() => handleFindCareerPage(company.id, company.company_name, company.website)}
                         >
-                          {scrapingCompany?.id === company.id ? (
+                          {discoveringCompany?.id === company.id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <Search className="w-3.5 h-3.5" />
                           )}
                         </Button>
                       </div>
@@ -1029,18 +1056,18 @@ const Companies = () => {
                           variant="default"
                           size="sm"
                           className="flex-1"
-                          disabled={scrapingCompany?.id === company.id}
-                          onClick={() => handleScrapeCompany(company.id, company.career_url, company.company_name)}
+                          disabled={discoveringCompany?.id === company.id}
+                          onClick={() => handleFindCareerPage(company.id, company.company_name, company.website)}
                         >
-                          {scrapingCompany?.id === company.id ? (
+                          {discoveringCompany?.id === company.id ? (
                             <>
                               <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                              Scraping...
+                              Finding...
                             </>
                           ) : (
                             <>
-                              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                              Scrape
+                              <Search className="w-3.5 h-3.5 mr-1.5" />
+                              Find Career Page
                             </>
                           )}
                         </Button>
@@ -1071,13 +1098,7 @@ const Companies = () => {
         isSaving={isSaving}
       />
 
-      {/* Scrape Progress Modal */}
-      <ScrapeProgressModal
-        isOpen={!!scrapingCompany}
-        companyId={scrapingCompany?.id || null}
-        companyName={scrapingCompany?.name || ""}
-        onComplete={handleScrapeComplete}
-      />
+      {/* Scrape Progress Modal - Not used for individual company discovery */}
 
       {/* Scrape History Modal */}
       <ScrapeHistoryModal
