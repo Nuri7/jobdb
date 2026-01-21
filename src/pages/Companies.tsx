@@ -9,6 +9,7 @@ import ScrapeProgressModal from "@/components/ScrapeProgressModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import BulkScrapeModal from "@/components/BulkScrapeModal";
 import ScheduleSettingsModal from "@/components/ScheduleSettingsModal";
+import ImportCompaniesModal from "@/components/ImportCompaniesModal";
 import ViewToggle from "@/components/ViewToggle";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,8 @@ import {
   ArrowUp01,
   Copy,
   Power,
-  Ban
+  Ban,
+  Upload
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -103,6 +105,7 @@ const Companies = () => {
   const [newCompanyIndustry, setNewCompanyIndustry] = useState("");
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [isAddingRandomCompanies, setIsAddingRandomCompanies] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'name' | 'date'>('name');
@@ -443,6 +446,22 @@ const Companies = () => {
         <div className="flex items-start justify-between mb-8">
           <div></div>
           <div className="flex flex-row gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowImportModal(true)}
+                  >
+                    <Upload className="w-4 h-4 mr-2 text-blue-500" />
+                    Import
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Import companies from an Excel file</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1085,6 +1104,13 @@ const Companies = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Import Companies Modal */}
+      <ImportCompaniesModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onComplete={() => refetch()}
+      />
     </div>
   );
 };

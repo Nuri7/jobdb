@@ -46,11 +46,20 @@ export type Database = {
       }
       company_career_sites: {
         Row: {
+          address: string | null
+          business_legal_type: string | null
           career_url: string
+          ceo_name: string | null
           company_name: string
+          company_registration_number: string | null
           company_size: string | null
+          country: string | null
           crawl_status: string | null
           created_at: string
+          email: string | null
+          employees_on_site: number | null
+          employees_total: number | null
+          founding_year: number | null
           headquarters_city: string | null
           id: string
           industry: string | null
@@ -59,19 +68,34 @@ export type Database = {
           jobs_found_count: number | null
           last_crawled_at: string | null
           last_scheduled_scrape_at: string | null
+          phone_number: string | null
+          postal_code: string | null
           scrape_progress_current_page: string | null
           scrape_progress_jobs_found: number | null
           scrape_progress_pages_scraped: number | null
           scrape_progress_phase: string | null
           scrape_schedule: string | null
+          state_province: string | null
+          trade_name: string | null
           updated_at: string
+          website: string | null
+          yearly_revenue_usd: number | null
         }
         Insert: {
+          address?: string | null
+          business_legal_type?: string | null
           career_url: string
+          ceo_name?: string | null
           company_name: string
+          company_registration_number?: string | null
           company_size?: string | null
+          country?: string | null
           crawl_status?: string | null
           created_at?: string
+          email?: string | null
+          employees_on_site?: number | null
+          employees_total?: number | null
+          founding_year?: number | null
           headquarters_city?: string | null
           id?: string
           industry?: string | null
@@ -80,19 +104,34 @@ export type Database = {
           jobs_found_count?: number | null
           last_crawled_at?: string | null
           last_scheduled_scrape_at?: string | null
+          phone_number?: string | null
+          postal_code?: string | null
           scrape_progress_current_page?: string | null
           scrape_progress_jobs_found?: number | null
           scrape_progress_pages_scraped?: number | null
           scrape_progress_phase?: string | null
           scrape_schedule?: string | null
+          state_province?: string | null
+          trade_name?: string | null
           updated_at?: string
+          website?: string | null
+          yearly_revenue_usd?: number | null
         }
         Update: {
+          address?: string | null
+          business_legal_type?: string | null
           career_url?: string
+          ceo_name?: string | null
           company_name?: string
+          company_registration_number?: string | null
           company_size?: string | null
+          country?: string | null
           crawl_status?: string | null
           created_at?: string
+          email?: string | null
+          employees_on_site?: number | null
+          employees_total?: number | null
+          founding_year?: number | null
           headquarters_city?: string | null
           id?: string
           industry?: string | null
@@ -101,12 +140,18 @@ export type Database = {
           jobs_found_count?: number | null
           last_crawled_at?: string | null
           last_scheduled_scrape_at?: string | null
+          phone_number?: string | null
+          postal_code?: string | null
           scrape_progress_current_page?: string | null
           scrape_progress_jobs_found?: number | null
           scrape_progress_pages_scraped?: number | null
           scrape_progress_phase?: string | null
           scrape_schedule?: string | null
+          state_province?: string | null
+          trade_name?: string | null
           updated_at?: string
+          website?: string | null
+          yearly_revenue_usd?: number | null
         }
         Relationships: []
       }
