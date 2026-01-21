@@ -350,6 +350,30 @@ const Companies = () => {
     }
   };
 
+  const enableAllCompanies = async () => {
+    try {
+      const { error } = await supabase
+        .from('company_career_sites')
+        .update({ is_scrape_enabled: true })
+        .eq('is_scrape_enabled', false);
+
+      if (error) throw error;
+      
+      toast({
+        title: "All companies enabled",
+        description: "All companies have been enabled for scraping",
+      });
+      refetch();
+    } catch (error) {
+      console.error('Error enabling all companies:', error);
+      toast({
+        title: "Error",
+        description: "Failed to enable all companies",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Extract main domain from URL and add to excluded domains
   const extractMainDomain = (url: string): string => {
     try {
@@ -501,6 +525,22 @@ const Companies = () => {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Manually add a company by entering its career page URL</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    onClick={enableAllCompanies}
+                  >
+                    <Power className="w-4 h-4 mr-2 text-emerald-500" />
+                    Enable All
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Turn on scraping for all companies</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
