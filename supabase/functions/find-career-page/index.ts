@@ -71,11 +71,11 @@ Deno.serve(async (req) => {
                 /career/i,
                 /jobs?/i,
                 /vacatur/i,
-                /werkenbij/i,
+                /werken.?bij/i,  // Matches werkenbij, werken-bij, werken bij
                 /hiring/i,
                 /openings/i,
-                /join-us/i,
-                /work-with-us/i,
+                /join.?us/i,
+                /work.?with.?us/i,
               ];
 
               const careerUrl = mapData.links.find((link: string) => 
@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
                 /career/i,
                 /jobs?/i,
                 /vacatur/i,
-                /werkenbij/i,
+                /werken.?bij/i,
               ];
 
               const careerResult = searchData.data.find((result: { url: string }) =>
