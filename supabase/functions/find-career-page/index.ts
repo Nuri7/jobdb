@@ -1,3 +1,5 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -6,6 +8,56 @@ const corsHeaders = {
 interface CompanyData {
   company_name: string;
   website?: string;
+}
+
+// Default patterns if settings not found
+const DEFAULT_CAREER_PATTERNS = [
+  'career', 'careers', 'jobs', 'job', 'vacatures', 'vacature',
+  'werken-bij', 'werkenbij', 'werken bij', 'hiring', 'openings',
+  'join-us', 'join us', 'work-with-us', 'solliciteren', 'banen'
+];
+const DEFAULT_MAP_KEYWORDS = 'careers jobs vacatures werkenbij werken-bij solliciteren banen';
+
+async function getCareerPageSettings(supabase: any): Promise<{ patterns: string[]; mapKeywords: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('scraper_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['career_page_url_patterns', 'career_page_map_keywords']);
+
+    if (error) {
+      console.error('Error fetching career page settings:', error);
+      return { patterns: DEFAULT_CAREER_PATTERNS, mapKeywords: DEFAULT_MAP_KEYWORDS };
+    }
+
+    let patterns = DEFAULT_CAREER_PATTERNS;
+    let mapKeywords = DEFAULT_MAP_KEYWORDS;
+
+    for (const setting of data || []) {
+      if (setting.setting_key === 'career_page_url_patterns' && Array.isArray(setting.setting_value)) {
+        patterns = setting.setting_value;
+      }
+      if (setting.setting_key === 'career_page_map_keywords' && typeof setting.setting_value === 'string') {
+        mapKeywords = setting.setting_value;
+      }
+    }
+
+    console.log('Loaded career page settings:', { patternsCount: patterns.length, mapKeywords });
+    return { patterns, mapKeywords };
+  } catch (error) {
+    console.error('Error in getCareerPageSettings:', error);
+    return { patterns: DEFAULT_CAREER_PATTERNS, mapKeywords: DEFAULT_MAP_KEYWORDS };
+  }
+}
+
+function createPatternRegexes(patterns: string[]): RegExp[] {
+  return patterns.map(pattern => {
+    // Escape special regex characters except for common variations
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Replace spaces and hyphens with flexible matcher
+    const flexible = escaped.replace(/[\s-]/g, '.?');
+    return new RegExp(flexible, 'i');
+  });
 }
 
 Deno.serve(async (req) => {
@@ -32,7 +84,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Finding career pages for ${companies.length} companies`);
+    // Initialize Supabase client to fetch settings
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch configurable settings
+    const { patterns, mapKeywords } = await getCareerPageSettings(supabase);
+    const careerPatterns = createPatternRegexes(patterns);
+
+    console.log(`Finding career pages for ${companies.length} companies with ${careerPatterns.length} patterns`);
 
     const results: { company_name: string; career_url: string | null; error?: string }[] = [];
 
@@ -56,7 +117,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               url: websiteUrl,
-              search: 'careers jobs vacatures werkenbij',
+              search: mapKeywords,
               limit: 20,
               includeSubdomains: true,
             }),
@@ -66,18 +127,7 @@ Deno.serve(async (req) => {
             const mapData = await mapResponse.json();
             
             if (mapData.success && mapData.links?.length > 0) {
-              // Find the best career URL from the results
-              const careerPatterns = [
-                /career/i,
-                /jobs?/i,
-                /vacatur/i,
-                /werken.?bij/i,  // Matches werkenbij, werken-bij, werken bij
-                /hiring/i,
-                /openings/i,
-                /join.?us/i,
-                /work.?with.?us/i,
-              ];
-
+              // Find the best career URL from the results using configurable patterns
               const careerUrl = mapData.links.find((link: string) => 
                 careerPatterns.some(pattern => pattern.test(link))
               );
@@ -115,14 +165,7 @@ Deno.serve(async (req) => {
             const searchData = await searchResponse.json();
 
             if (searchData.success && searchData.data?.length > 0) {
-              // Find the most relevant career URL
-              const careerPatterns = [
-                /career/i,
-                /jobs?/i,
-                /vacatur/i,
-                /werken.?bij/i,
-              ];
-
+              // Find the most relevant career URL using configurable patterns
               const careerResult = searchData.data.find((result: { url: string }) =>
                 careerPatterns.some(pattern => pattern.test(result.url))
               );
