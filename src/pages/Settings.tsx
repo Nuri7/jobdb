@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2, Sliders, Info } from "lucide-react";
+import { Settings as SettingsIcon, Flame, Clock, FileSearch, Filter, MapPin, Briefcase, Save, Loader2, Plus, X, RotateCcw, Code, Search, Building2, Sliders, Info, Link } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -48,6 +48,27 @@ const DEFAULT_DISCOVERY_QUERIES = [
   'Eindhoven tech careers page',
 ];
 
+const DEFAULT_CAREER_PAGE_URL_PATTERNS = [
+  'career',
+  'careers',
+  'jobs',
+  'job',
+  'vacatures',
+  'vacature',
+  'werken-bij',
+  'werkenbij',
+  'werken bij',
+  'hiring',
+  'openings',
+  'join-us',
+  'join us',
+  'work-with-us',
+  'solliciteren',
+  'banen',
+];
+
+const DEFAULT_CAREER_PAGE_MAP_KEYWORDS = 'careers jobs vacatures werkenbij werken-bij solliciteren banen';
+
 const DEFAULT_SETTINGS: Record<string, any> = {
   max_pages: 20,
   max_jobs: 150,
@@ -57,6 +78,8 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   discovery_results_limit: 30,
   discovery_country: 'nl',
   discovery_target_industries: ['Technology', 'Fintech', 'E-commerce', 'Healthcare', 'Logistics', 'Energy', 'Travel', 'Food & Beverage'],
+  career_page_url_patterns: DEFAULT_CAREER_PAGE_URL_PATTERNS,
+  career_page_map_keywords: DEFAULT_CAREER_PAGE_MAP_KEYWORDS,
   job_url_patterns: ['job', 'vacanc', 'position', 'opening', 'vacature', 'werk'],
   excluded_domains: ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'],
   excluded_url_patterns: ['/locations', '/career-types', '/about', '/contact', '/teams', '/departments', '/benefits', '/culture', '/events', '/news', '/blog'],
@@ -459,6 +482,48 @@ const Settings = () => {
                   variant="outline"
                   className="border-indigo-500/50 text-indigo-700"
                 />
+              </CardContent>
+            </Card>
+
+            {/* Career Page Discovery Settings */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Link className="w-5 h-5 text-teal-500" />
+                  <CardTitle>Career Page Discovery</CardTitle>
+                </div>
+                <CardDescription>Settings for the "Find Career Page" feature that detects career URLs from company websites</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="career_page_map_keywords">Firecrawl Map Search Keywords</Label>
+                  <Input
+                    id="career_page_map_keywords"
+                    value={getSetting('career_page_map_keywords') || ''}
+                    onChange={(e) => updateSetting('career_page_map_keywords', e.target.value)}
+                    placeholder="careers jobs vacatures werkenbij..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Keywords sent to Firecrawl's map API to find career-related pages on a company's website
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Career URL Detection Patterns</Label>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    URL patterns used to identify career pages from map results. URLs containing any of these patterns will be prioritized.
+                  </p>
+                  <EditableTagList
+                    tags={getSetting('career_page_url_patterns') || []}
+                    onAdd={(item) => handleArrayAdd('career_page_url_patterns', item)}
+                    onRemove={(item) => handleArrayRemove('career_page_url_patterns', item)}
+                    placeholder="Add pattern (e.g., werken-bij)..."
+                    variant="outline"
+                    className="border-teal-500/50 text-teal-700"
+                  />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
