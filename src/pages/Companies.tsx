@@ -552,7 +552,13 @@ const Companies = () => {
                   <Button
                     variant="outline"
                     onClick={() => setShowFindCareerPagesModal(true)}
-                    disabled={!companies?.some(c => c.career_url === 'pending' || !c.career_url)}
+                    disabled={!companies?.some(c => {
+                      if (!c.career_url || c.career_url === 'pending') return true;
+                      if (!c.website) return false;
+                      const normalizedCareerUrl = c.career_url.replace(/^https?:\/\//, '').replace(/^www\./, '').toLowerCase();
+                      const normalizedWebsite = c.website.replace(/^https?:\/\//, '').replace(/^www\./, '').toLowerCase();
+                      return normalizedCareerUrl === normalizedWebsite;
+                    })}
                   >
                     <Search className="w-4 h-4 mr-2 text-blue-500" />
                     Find Career Pages
@@ -1177,7 +1183,17 @@ const Companies = () => {
         onClose={() => setShowFindCareerPagesModal(false)}
         companies={
           companies
-            ?.filter(c => c.career_url === 'pending' || !c.career_url)
+            ?.filter(c => {
+              // Companies need career page discovery if:
+              // 1. No career_url or it's 'pending'
+              // 2. career_url matches their website (used as placeholder during import)
+              if (!c.career_url || c.career_url === 'pending') return true;
+              if (!c.website) return false;
+              // Check if career_url is just the website (not a real career page)
+              const normalizedCareerUrl = c.career_url.replace(/^https?:\/\//, '').replace(/^www\./, '').toLowerCase();
+              const normalizedWebsite = c.website.replace(/^https?:\/\//, '').replace(/^www\./, '').toLowerCase();
+              return normalizedCareerUrl === normalizedWebsite;
+            })
             .map(c => ({ id: c.id, company_name: c.company_name, website: c.website })) || []
         }
         onComplete={() => refetch()}
