@@ -10,6 +10,7 @@ import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import BulkScrapeModal from "@/components/BulkScrapeModal";
 import ScheduleSettingsModal from "@/components/ScheduleSettingsModal";
 import ImportCompaniesModal from "@/components/ImportCompaniesModal";
+import FindCareerPagesModal from "@/components/FindCareerPagesModal";
 import ViewToggle from "@/components/ViewToggle";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,7 @@ const Companies = () => {
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [isAddingRandomCompanies, setIsAddingRandomCompanies] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showFindCareerPagesModal, setShowFindCareerPagesModal] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'name' | 'date'>('name');
@@ -541,6 +543,23 @@ const Companies = () => {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Turn on scraping for all companies</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowFindCareerPagesModal(true)}
+                    disabled={!companies?.some(c => c.career_url === 'pending' || !c.career_url)}
+                  >
+                    <Search className="w-4 h-4 mr-2 text-blue-500" />
+                    Find Career Pages
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Discover career pages for companies without one</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -1149,6 +1168,18 @@ const Companies = () => {
       <ImportCompaniesModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
+        onComplete={() => refetch()}
+      />
+
+      {/* Find Career Pages Modal */}
+      <FindCareerPagesModal
+        isOpen={showFindCareerPagesModal}
+        onClose={() => setShowFindCareerPagesModal(false)}
+        companies={
+          companies
+            ?.filter(c => c.career_url === 'pending' || !c.career_url)
+            .map(c => ({ id: c.id, company_name: c.company_name, website: c.website })) || []
+        }
         onComplete={() => refetch()}
       />
     </div>
