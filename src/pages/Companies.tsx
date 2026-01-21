@@ -887,18 +887,27 @@ const Companies = () => {
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          disabled={discoveringCompany?.id === company.id}
-                          onClick={() => handleFindCareerPage(company.id, company.company_name, company.website)}
-                        >
-                          {discoveringCompany?.id === company.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Search className="w-3.5 h-3.5" />
-                          )}
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                disabled={discoveringCompany?.id === company.id}
+                                onClick={() => handleFindCareerPage(company.id, company.company_name, company.website)}
+                              >
+                                {discoveringCompany?.id === company.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Search className="w-3.5 h-3.5" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Find and update the career page URL using Firecrawl</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     )}
                   </>
@@ -1052,25 +1061,34 @@ const Companies = () => {
                           <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
                           Careers Page
                         </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="flex-1"
-                          disabled={discoveringCompany?.id === company.id}
-                          onClick={() => handleFindCareerPage(company.id, company.company_name, company.website)}
-                        >
-                          {discoveringCompany?.id === company.id ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                              Finding...
-                            </>
-                          ) : (
-                            <>
-                              <Search className="w-3.5 h-3.5 mr-1.5" />
-                              Find Career Page
-                            </>
-                          )}
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="flex-1"
+                                disabled={discoveringCompany?.id === company.id}
+                                onClick={() => handleFindCareerPage(company.id, company.company_name, company.website)}
+                              >
+                                {discoveringCompany?.id === company.id ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                    Finding...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Search className="w-3.5 h-3.5 mr-1.5" />
+                                    Find Career Page
+                                  </>
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Find and update the career page URL using Firecrawl</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     )}
                   </>
