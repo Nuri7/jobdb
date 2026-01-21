@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, Search } from "lucide-react";
+import { Upload, FileSpreadsheet, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 interface ImportCompaniesModalProps {
   isOpen: boolean;
@@ -41,7 +41,7 @@ interface ParsedCompany {
   industry?: string;
 }
 
-type ImportStep = 'upload' | 'parsing' | 'finding-careers' | 'importing' | 'complete' | 'error';
+type ImportStep = 'upload' | 'parsing' | 'importing' | 'complete' | 'error';
 
 export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: ImportCompaniesModalProps) {
   const [step, setStep] = useState<ImportStep>('upload');
@@ -137,45 +137,6 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
     return 'Other';
   };
 
-  const findCareerPages = async (companies: ParsedCompany[]): Promise<Map<string, string>> => {
-    const careerUrls = new Map<string, string>();
-    const batchSize = 5;
-    
-    for (let i = 0; i < companies.length; i += batchSize) {
-      const batch = companies.slice(i, i + batchSize);
-      setProgress(Math.round((i / companies.length) * 100));
-      setStatusMessage(`Finding career pages... (${i}/${companies.length})`);
-
-      try {
-        const { data, error } = await supabase.functions.invoke('find-career-page', {
-          body: { 
-            companies: batch.map(c => ({ 
-              company_name: c.company_name, 
-              website: c.website 
-            })) 
-          }
-        });
-
-        if (error) {
-          console.error('Error finding career pages:', error);
-          continue;
-        }
-
-        if (data?.success && data.results) {
-          for (const result of data.results) {
-            if (result.career_url) {
-              careerUrls.set(result.company_name, result.career_url);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error in batch career page finding:', error);
-      }
-    }
-
-    return careerUrls;
-  };
-
   const importCompanies = async () => {
     if (!file) return;
 
@@ -195,14 +156,7 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
       setStatusMessage(`Found ${companies.length} companies`);
       setProgress(100);
 
-      // Step 2: Find career pages using Firecrawl
-      setStep('finding-careers');
-      setProgress(0);
-      
-      const careerUrls = await findCareerPages(companies);
-      setStatusMessage(`Found career pages for ${careerUrls.size} companies`);
-
-      // Step 3: Import to database
+      // Step 2: Import to database (skip career page finding)
       setStep('importing');
       setProgress(0);
 
@@ -229,14 +183,8 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
           continue;
         }
 
-        // Get career URL from found URLs, or use website
-        const careerUrl = careerUrls.get(company.company_name) || company.website || '';
-        
-        // Skip if no career URL
-        if (!careerUrl) {
-          skipped++;
-          continue;
-        }
+        // Use website as placeholder career URL, or empty placeholder
+        const careerUrl = company.website || 'pending';
 
         try {
           const { error } = await supabase.from('company_career_sites').insert({
@@ -305,7 +253,7 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
             Import Companies
           </DialogTitle>
           <DialogDescription>
-            Upload an Excel file with company data. Career pages will be automatically discovered.
+            Upload an Excel file with company data. Use "Find Career Pages" button after import to discover career URLs.
           </DialogDescription>
         </DialogHeader>
 
@@ -341,22 +289,13 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
             </div>
           )}
 
-          {(step === 'parsing' || step === 'finding-careers' || step === 'importing') && (
+          {(step === 'parsing' || step === 'importing') && (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                {step === 'finding-careers' ? (
-                  <Search className="w-5 h-5 text-blue-500 animate-pulse" />
-                ) : (
-                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                )}
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 <span className="text-sm">{statusMessage}</span>
               </div>
               <Progress value={progress} className="h-2" />
-              {step === 'finding-careers' && (
-                <p className="text-xs text-muted-foreground">
-                  Using Firecrawl to discover career pages...
-                </p>
-              )}
             </div>
           )}
 
@@ -403,7 +342,7 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
             </>
           )}
 
-          {(step === 'parsing' || step === 'finding-careers' || step === 'importing') && (
+          {(step === 'parsing' || step === 'importing') && (
             <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
