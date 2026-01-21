@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -49,6 +49,7 @@ export default function FindCareerPagesModal({
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const processingRef = useRef(false);
   const { toast } = useToast();
 
   // Initialize queue when modal opens
@@ -65,27 +66,33 @@ export default function FindCareerPagesModal({
       setCurrentIndex(0);
       setIsRunning(false);
       setIsPaused(false);
+      processingRef.current = false;
     }
   }, [isOpen, companies]);
 
   // Process queue in batches
   useEffect(() => {
     if (!isRunning || isPaused || currentIndex >= queue.length) return;
+    if (processingRef.current) return; // Prevent double processing
 
     const processNext = async () => {
+      processingRef.current = true;
+      
       // Process in batches of 5
       const batchSize = 5;
-      const batch = queue.slice(currentIndex, Math.min(currentIndex + batchSize, queue.length));
+      const batchStart = currentIndex;
+      const batchEnd = Math.min(currentIndex + batchSize, queue.length);
+      const batch = queue.slice(batchStart, batchEnd);
       
       if (batch.length === 0) {
-        setCurrentIndex((prev) => prev + batchSize);
+        processingRef.current = false;
         return;
       }
 
       // Update status to running for batch
       setQueue((prev) =>
         prev.map((q, i) =>
-          i >= currentIndex && i < currentIndex + batchSize
+          i >= batchStart && i < batchEnd
             ? { ...q, status: 'running' as const }
             : q
         )
@@ -106,7 +113,7 @@ export default function FindCareerPagesModal({
         // Update queue with results
         if (data?.success && data.results) {
           const resultsMap = new Map<string, string>();
-          for (const r of data.results as Array<{ company_name: string; career_url: string }>) {
+          for (const r of data.results as Array<{ company_name: string; career_url: string | null }>) {
             if (r.career_url) {
               resultsMap.set(r.company_name, r.career_url);
             }
@@ -125,7 +132,8 @@ export default function FindCareerPagesModal({
 
           setQueue((prev) =>
             prev.map((q) => {
-              if (batch.find((b) => b.id === q.id)) {
+              const batchItem = batch.find((b) => b.id === q.id);
+              if (batchItem) {
                 const careerUrl = resultsMap.get(q.company_name);
                 return {
                   ...q,
@@ -162,15 +170,16 @@ export default function FindCareerPagesModal({
         );
       }
 
-      setCurrentIndex((prev) => prev + batchSize);
+      setCurrentIndex(batchEnd);
+      processingRef.current = false;
     };
 
     processNext();
-  }, [isRunning, isPaused, currentIndex, queue]);
+  }, [isRunning, isPaused, currentIndex, queue.length]);
 
   // Check if all done
   useEffect(() => {
-    if (isRunning && currentIndex >= queue.length && queue.length > 0) {
+    if (isRunning && currentIndex >= queue.length && queue.length > 0 && !processingRef.current) {
       setIsRunning(false);
       const completedCount = queue.filter((q) => q.status === 'completed').length;
       toast({
@@ -197,6 +206,7 @@ export default function FindCareerPagesModal({
   const handleCancel = () => {
     setIsRunning(false);
     setIsPaused(false);
+    processingRef.current = false;
     onClose();
   };
 
@@ -295,7 +305,7 @@ export default function FindCareerPagesModal({
           </ScrollArea>
 
           {/* Actions */}
-          <div className="flex items-center gap-2 pt-2">
+          <DialogFooter className="flex items-center gap-2 pt-2">
             {!isRunning ? (
               <>
                 <Button onClick={handleStart} className="flex-1">
@@ -325,7 +335,7 @@ export default function FindCareerPagesModal({
                 </Button>
               </>
             )}
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
