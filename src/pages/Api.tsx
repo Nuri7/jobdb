@@ -229,6 +229,16 @@ export default function Api() {
       ],
     },
     {
+      method: 'POST',
+      path: '/companies',
+      description: 'Add a new company (auto-enabled for scraping)',
+      params: [
+        { name: 'name', type: 'string', desc: 'Company name (required, in body)' },
+        { name: 'career_url', type: 'string', desc: 'Career page URL (required, in body)' },
+        { name: 'industry', type: 'string', desc: 'Industry category (optional, in body)' },
+      ],
+    },
+    {
       method: 'GET',
       path: '/stats',
       description: 'Get aggregate statistics',

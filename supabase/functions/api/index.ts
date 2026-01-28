@@ -163,6 +163,18 @@ Deno.serve(async (req) => {
                 industry: 'Filter by industry',
               },
             },
+            'POST /api/companies': {
+              description: 'Add a new company (auto-enabled for scraping, triggers immediate scrape)',
+              body: {
+                name: 'Company name (required)',
+                career_url: 'Career page URL (required)',
+                industry: 'Industry category (optional)',
+              },
+              response: {
+                data: 'Created company object with id, name, career_url, company_logo, industry, is_scrape_enabled, scrape_triggered',
+                message: 'Success message',
+              },
+            },
             'GET /api/stats': {
               description: 'Get aggregate statistics',
             },
@@ -389,6 +401,131 @@ Deno.serve(async (req) => {
 
     // Route: GET /companies
     if (path === '/companies' || path === '/companies/') {
+      // Handle POST for creating companies
+      if (req.method === 'POST') {
+        try {
+          const body = await req.json();
+          const { name, career_url, industry } = body;
+
+          // Validate required fields
+          if (!name || typeof name !== 'string' || !name.trim()) {
+            return new Response(
+              JSON.stringify({ error: 'Bad Request', message: 'name is required' }),
+              { status: 400, headers: corsHeaders }
+            );
+          }
+
+          if (!career_url || typeof career_url !== 'string' || !career_url.trim()) {
+            return new Response(
+              JSON.stringify({ error: 'Bad Request', message: 'career_url is required' }),
+              { status: 400, headers: corsHeaders }
+            );
+          }
+
+          // Validate URL format
+          let formattedUrl = career_url.trim();
+          if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+            formattedUrl = `https://${formattedUrl}`;
+          }
+
+          try {
+            new URL(formattedUrl);
+          } catch {
+            return new Response(
+              JSON.stringify({ error: 'Bad Request', message: 'Invalid career_url format' }),
+              { status: 400, headers: corsHeaders }
+            );
+          }
+
+          // Check for duplicate career URL
+          const { data: existing } = await supabase
+            .from('company_career_sites')
+            .select('id')
+            .eq('career_url', formattedUrl)
+            .maybeSingle();
+
+          if (existing) {
+            return new Response(
+              JSON.stringify({ error: 'Conflict', message: 'A company with this career URL already exists' }),
+              { status: 409, headers: corsHeaders }
+            );
+          }
+
+          // Insert the company with scraping enabled
+          const { data: newCompany, error: insertError } = await supabase
+            .from('company_career_sites')
+            .insert({
+              company_name: name.trim(),
+              career_url: formattedUrl,
+              industry: industry?.trim() || null,
+              is_scrape_enabled: true,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Company insert error:', insertError);
+            return new Response(
+              JSON.stringify({ error: 'Failed to create company', details: insertError.message }),
+              { status: 500, headers: corsHeaders }
+            );
+          }
+
+          // Trigger scrape asynchronously (fire and forget)
+          let scrapeTriggered = false;
+          try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+            const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+            
+            fetch(`${supabaseUrl}/functions/v1/scrape-jobs`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ companyId: newCompany.id }),
+            }).catch(err => console.error('Scrape trigger error:', err));
+            
+            scrapeTriggered = true;
+          } catch (err) {
+            console.error('Failed to trigger scrape:', err);
+          }
+
+          // Get logo URL
+          const getLogoUrl = (careerUrl: string): string | null => {
+            try {
+              const url = new URL(careerUrl);
+              return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
+            } catch {
+              return null;
+            }
+          };
+
+          return new Response(
+            JSON.stringify({
+              data: {
+                id: newCompany.id,
+                name: newCompany.company_name,
+                career_url: newCompany.career_url,
+                company_logo: getLogoUrl(newCompany.career_url),
+                industry: newCompany.industry,
+                is_scrape_enabled: newCompany.is_scrape_enabled,
+                scrape_triggered: scrapeTriggered,
+              },
+              message: 'Company created and scrape initiated',
+            }),
+            { status: 201, headers: corsHeaders }
+          );
+        } catch (err) {
+          console.error('POST /companies error:', err);
+          return new Response(
+            JSON.stringify({ error: 'Bad Request', message: 'Invalid JSON body' }),
+            { status: 400, headers: corsHeaders }
+          );
+        }
+      }
+
+      // GET request - list companies
       const limit = Math.min(parseInt(params.get('limit') || '50'), 100);
       const offset = parseInt(params.get('offset') || '0');
       const search = params.get('search');
@@ -516,7 +653,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: 'Not found', available_endpoints: ['/api', '/api/jobs', '/api/companies', '/api/stats', '/api/synonyms'] }),
+      JSON.stringify({ error: 'Not found', available_endpoints: ['/api', '/api/jobs', 'GET /api/companies', 'POST /api/companies', '/api/stats', '/api/synonyms'] }),
       { status: 404, headers: corsHeaders }
     );
 
