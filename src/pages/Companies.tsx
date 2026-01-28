@@ -284,7 +284,7 @@ const Companies = () => {
           career_url: newCompanyUrl.trim(),
           industry: newCompanyIndustry.trim() || null,
           is_active: true,
-          is_scrape_enabled: false, // Default to off
+          is_scrape_enabled: true,
         });
 
       if (error) throw error;
