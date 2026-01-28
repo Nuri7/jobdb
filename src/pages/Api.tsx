@@ -7,10 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Key, RefreshCw, Trash2, Eye, EyeOff, Code, ExternalLink, Settings, Plus, X } from 'lucide-react';
+import { Copy, Key, RefreshCw, Trash2, Eye, EyeOff, Code, ExternalLink, Settings, Plus, X, PlayCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import ApiDemoTab from '@/components/ApiDemoTab';
 
 const API_BASE_URL = `https://khsaaiguqwtxtkvzqbrm.supabase.co/functions/v1/api`;
 
@@ -277,6 +278,10 @@ export default function Api() {
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="h-4 w-4" />
               Settings
+            </TabsTrigger>
+            <TabsTrigger value="demo" className="gap-2">
+              <PlayCircle className="h-4 w-4" />
+              Demo
             </TabsTrigger>
           </TabsList>
 
@@ -733,6 +738,10 @@ export default function Api() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="demo">
+            <ApiDemoTab />
           </TabsContent>
         </Tabs>
       </main>
