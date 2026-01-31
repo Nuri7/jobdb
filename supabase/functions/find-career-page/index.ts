@@ -196,10 +196,13 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
 
 /**
  * Validate that a page actually contains job listings by scraping and checking content.
+ * @param url - URL to validate
+ * @param apiKey - Firecrawl API key
+ * @param isDedicatedCareerDomain - If true, use more lenient validation
  */
-async function validateCareerPage(url: string, apiKey: string): Promise<boolean> {
+async function validateCareerPage(url: string, apiKey: string, isDedicatedCareerDomain: boolean = false): Promise<boolean> {
   try {
-    console.log(`Validating career page content: ${url}`);
+    console.log(`Validating career page content: ${url} (dedicated: ${isDedicatedCareerDomain})`);
     
     const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
@@ -211,13 +214,14 @@ async function validateCareerPage(url: string, apiKey: string): Promise<boolean>
         url,
         formats: ['markdown'],
         onlyMainContent: true,
-        waitFor: 2000,
+        waitFor: 5000, // Increased wait for JS-heavy sites
       }),
     });
 
     if (!scrapeResponse.ok) {
       console.log(`Scrape failed for validation: ${scrapeResponse.status}`);
-      return true; // Don't block if scrape fails, assume it's valid
+      // For dedicated career domains, assume valid if scrape fails
+      return isDedicatedCareerDomain;
     }
 
     const scrapeData = await scrapeResponse.json();
@@ -225,6 +229,11 @@ async function validateCareerPage(url: string, apiKey: string): Promise<boolean>
 
     if (!content || content.length < 100) {
       console.log('Page has very little content, might not be a job page');
+      // For dedicated career domains with /vacatures path, assume valid
+      if (isDedicatedCareerDomain && url.includes('vacatures')) {
+        console.log('Assuming valid due to dedicated domain + vacatures path');
+        return true;
+      }
       return false;
     }
 
@@ -251,19 +260,24 @@ async function validateCareerPage(url: string, apiKey: string): Promise<boolean>
       content.includes('apply now') ||
       /\d+\s*(vacatures|jobs|positions)/i.test(content);
 
+    // Check if URL itself suggests job listings
+    const urlSuggestsJobs = /vacatures|jobs|positions|openings|careers/i.test(url);
+
     // If many non-job indicators and few job indicators, this is likely an advice page
     if (nonJobIndicatorCount >= 2 && indicatorCount < 3 && !hasJobListStructure) {
       console.log(`Page appears to be advice/tips content (${nonJobIndicatorCount} non-job indicators, ${indicatorCount} job indicators)`);
       return false;
     }
 
-    const isValid = indicatorCount >= 3 || hasJobListStructure;
-    console.log(`Page validation: ${indicatorCount} indicators found, hasStructure: ${hasJobListStructure}, nonJobIndicators: ${nonJobIndicatorCount}, valid: ${isValid}`);
+    // More lenient for dedicated career domains
+    const requiredIndicators = isDedicatedCareerDomain ? 1 : 3;
+    const isValid = indicatorCount >= requiredIndicators || hasJobListStructure || (isDedicatedCareerDomain && urlSuggestsJobs);
+    console.log(`Page validation: ${indicatorCount} indicators found, hasStructure: ${hasJobListStructure}, nonJobIndicators: ${nonJobIndicatorCount}, urlSuggestsJobs: ${urlSuggestsJobs}, valid: ${isValid}`);
     
     return isValid;
   } catch (error) {
     console.error('Error validating career page:', error);
-    return true; // Don't block on validation errors
+    return isDedicatedCareerDomain; // For dedicated domains, assume valid on error
   }
 }
 
@@ -326,6 +340,7 @@ async function findBestCareerUrl(
 
 /**
  * Search for dedicated career domains using "werkenbij" pattern
+ * Returns the best career URL, trying /vacatures path on career domains first
  */
 async function searchDedicatedCareerDomain(
   companyName: string,
@@ -369,15 +384,63 @@ async function searchDedicatedCareerDomain(
       return null;
     }
 
-    // Score results and find best match
+    // Extract unique career domains from results
     const urls = searchData.data.map((r: { url: string }) => r.url);
+    const careerDomains = new Set<string>();
+    
+    for (const url of urls) {
+      try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.toLowerCase();
+        // Check if this is a dedicated career domain
+        if (CAREER_DOMAIN_PATTERNS.some(p => p.test(hostname))) {
+          careerDomains.add(hostname);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    console.log('Found career domains:', Array.from(careerDomains));
+
+    // For each career domain, try to find the /vacatures page directly
+    for (const domain of careerDomains) {
+      const vacaturesUrl = `https://${domain}/vacatures`;
+      console.log(`Trying direct vacatures URL: ${vacaturesUrl}`);
+      
+      // Check if this URL works and has job listings (use lenient validation for dedicated domains)
+      const isValid = await validateCareerPage(vacaturesUrl, apiKey, true);
+      if (isValid) {
+        const score = scoreCareerUrl(vacaturesUrl, careerPatterns);
+        console.log(`Found valid vacatures page: ${vacaturesUrl} (score: ${score})`);
+        return { url: vacaturesUrl, score };
+      }
+
+      // Also try common variations
+      const variations = [
+        `https://${domain}/vacatures/`,
+        `https://${domain}/jobs`,
+        `https://${domain}/alle-vacatures`,
+        `https://${domain}/`,
+      ];
+
+      for (const variation of variations) {
+        const varIsValid = await validateCareerPage(variation, apiKey, true);
+        if (varIsValid) {
+          const score = scoreCareerUrl(variation, careerPatterns);
+          console.log(`Found valid career page variation: ${variation} (score: ${score})`);
+          return { url: variation, score };
+        }
+      }
+    }
+
+    // Fallback: score original results and return best
     const scoredUrls = urls
       .map((url: string) => ({ url, score: scoreCareerUrl(url, careerPatterns) }))
       .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
 
-    console.log('Dedicated domain search results:', scoredUrls.slice(0, 3));
+    console.log('Dedicated domain search results (fallback):', scoredUrls.slice(0, 3));
 
-    // Return best if it has a high score (indicating a career domain match)
     if (scoredUrls.length > 0 && scoredUrls[0].score >= 50) {
       return scoredUrls[0];
     }
@@ -438,18 +501,14 @@ Deno.serve(async (req) => {
         );
 
         if (dedicatedDomain) {
-          // Validate the dedicated domain
-          const isValid = await validateCareerPage(dedicatedDomain.url, apiKey);
-          if (isValid) {
-            console.log(`Found valid dedicated career domain for ${company.company_name}: ${dedicatedDomain.url} (score: ${dedicatedDomain.score})`);
-            results.push({ 
-              company_name: company.company_name, 
-              career_url: dedicatedDomain.url, 
-              score: dedicatedDomain.score 
-            });
-            continue;
-          }
-          console.log(`Dedicated domain failed validation: ${dedicatedDomain.url}`);
+          // searchDedicatedCareerDomain already validates, so we can use the result directly
+          console.log(`Found valid dedicated career domain for ${company.company_name}: ${dedicatedDomain.url} (score: ${dedicatedDomain.score})`);
+          results.push({ 
+            company_name: company.company_name, 
+            career_url: dedicatedDomain.url, 
+            score: dedicatedDomain.score 
+          });
+          continue;
         }
 
         // STEP 2: If company has a website, try to find career page via map API
