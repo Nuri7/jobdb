@@ -809,6 +809,16 @@ const Companies = () => {
                         >
                           <Copy className="w-3 h-3 text-muted-foreground" />
                         </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(company.career_url, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="p-1 rounded hover:bg-muted transition-colors flex-shrink-0"
+                          title="Open URL"
+                        >
+                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                        </button>
                       </div>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
                         {company.industry && <span>{company.industry}</span>}
