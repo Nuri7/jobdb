@@ -1,111 +1,124 @@
 
 
-## Plan: Improve Career Page Discovery Accuracy
+## Plan: Improve Career Page Discovery for Edge Cases
 
 ### Problem Analysis
 
-The current discovery found `https://www.abnamro.nl/en/personal/specially-for/international-students/tips/how-to-find-a-job.html` instead of `https://www.werkenbijabnamro.nl/vacatures` for ABN AMRO.
+The current discovery found `https://blog.aiesec.org/wp-content/uploads/2023/12/AIESEC-International-Annual-Report-20192020.pdf` instead of `https://aiesec.org/search` for AIESEC.
 
 **Root Causes:**
-1. Generic advice/tips pages match career keywords ("job", "find-a-job") but aren't actual job listings
-2. Dedicated career domains like `werkenbij[company].nl` aren't prioritized over corporate site subpages
-3. URL path segments indicating non-job content (tips, advice, blog, articles) aren't being penalized
+1. PDF files are not being filtered out - they can never be valid career pages
+2. Blog subdomains (`blog.*`) aren't being penalized
+3. The word "search" in paths isn't recognized as a potential career/job search page indicator
+4. Annual reports and PDFs often mention jobs/positions, causing false matches
 
 ### Solution Overview
 
-Enhance the URL scoring algorithm to:
-- **Heavily prioritize dedicated career domains** (werkenbij*.nl, careers.*, jobs.*)
-- **Penalize generic content indicators** in URLs (tips, advice, blog, how-to, articles)
-- **Add domain-matching bonus** when the domain contains career-related keywords
-- **Improve search query specificity** to find dedicated career portals
+Add targeted filters and scoring adjustments that specifically address these issues without affecting the existing Dutch company detection:
 
 ### Technical Changes
 
-#### 1. Add Domain-Level Career Detection
+#### 1. Add File Extension Filter
 
-Create a list of career domain patterns and add significant bonus points:
+Immediately reject URLs that point to non-HTML files:
 
 ```typescript
-const CAREER_DOMAIN_PATTERNS = [
-  /werkenbij/i,
-  /careers?\./i,
-  /jobs?\./i,
-  /werken\./i,
-  /vacatures?\./i,
-  /hiring\./i,
+const NON_PAGE_EXTENSIONS = [
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.zip', '.rar', '.tar', '.gz', '.jpg', '.jpeg', '.png',
+  '.gif', '.mp4', '.mp3', '.wav', '.avi', '.mov'
 ];
 ```
 
-If the domain matches these patterns, add +50 points.
+Any URL ending with these extensions should receive a **-100 penalty** to ensure they're never selected.
 
-#### 2. Add URL Path Penalties
+#### 2. Add Subdomain Penalties
 
-Create negative modifiers for generic content paths:
+Penalize known non-career subdomains:
 
 ```typescript
-const GENERIC_CONTENT_PENALTIES = [
-  'tips', 'advice', 'blog', 'articles', 'news', 'magazine',
-  'how-to', 'guide', 'specially-for', 'students', 'faq',
-  'about-us', 'over-ons', 'contact', 'privacy', 'terms'
+const NON_CAREER_SUBDOMAINS = [
+  'blog', 'news', 'support', 'help', 'docs', 'wiki',
+  'shop', 'store', 'mail', 'api', 'cdn', 'media',
+  'static', 'assets', 'images', 'files'
 ];
 ```
 
-For each penalty keyword found, subtract 30 points.
+If the subdomain matches, apply **-40 points**.
 
-#### 3. Improve Search Strategy
+#### 3. Add "search" as a Career Pattern Indicator
 
-Add an additional search query specifically targeting dedicated career domains:
-
-```
-"werkenbij[company]" OR "werken bij [company]" site:.nl vacatures
-```
-
-This helps find `werkenbijabnamro.nl` directly.
-
-#### 4. Scoring Formula Update
-
-Current flow:
-- Base: 10 points per career pattern match
-- Bonus: 25 points per specificity booster
-- Bonus: Up to 20 points for path depth
-- Penalty: -5 for generic landing pages
-
-New flow:
-- **+50 points**: Domain contains career keywords (werkenbij, careers., jobs.)
-- **+30 points**: URL is on a `.nl` TLD with Dutch career terms
-- **-30 points**: Per generic content indicator (tips, blog, advice)
-- **-50 points**: If URL path contains "how-to" or "guide" 
-- Keep existing bonuses for specificity boosters
-
-#### 5. Validation Enhancement
-
-Add negative content checks during page validation:
+For organizations that use `/search` for job listings (like AIESEC), add recognition:
 
 ```typescript
-const NON_JOB_INDICATORS = [
-  'career tips', 'job hunting advice', 'how to find', 
-  'internship guide', 'career advice', 'interview tips'
+// Add to SPECIFICITY_BOOSTERS or as special case
+const SEARCH_PAGE_PATTERNS = [
+  /\/search$/i,
+  /\/search\?/i,
+  /\/find-opportunities/i,
+  /\/explore/i
 ];
 ```
 
-If these are found and no actual job listings exist, fail validation.
+Give a modest boost (**+10 points**) but require validation to confirm it's a job search.
+
+#### 4. Add wp-content/uploads Detection
+
+WordPress uploads folders typically contain files, not pages:
+
+```typescript
+const HEAVY_PENALTY_PATTERNS = [
+  // ... existing patterns
+  /wp-content\/uploads/i,
+  /\/uploads\//i,
+  /\/files\//i,
+  /\/documents\//i,
+];
+```
+
+Apply **-50 points** for these patterns.
+
+#### 5. Enhanced English Search for Non-Dutch Companies
+
+For companies without a `.nl` website or Dutch-specific domains, add an international career search:
+
+```typescript
+// For international orgs, try English search terms
+const query = `${company.company_name} careers opportunities apply`;
+```
+
+This helps find `aiesec.org/search` over blog content.
+
+### Scoring Impact
+
+| URL | Current | After Changes |
+|-----|---------|---------------|
+| `blog.aiesec.org/.../Annual-Report.pdf` | ~0-10 | **-150** (PDF + blog + uploads) |
+| `aiesec.org/search` | ~10 | **+20** (search pattern + validation) |
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/find-career-page/index.ts` | Update scoring function, add domain detection, add penalty keywords, enhance validation |
+| `supabase/functions/find-career-page/index.ts` | Add file extension filter, subdomain penalties, wp-content detection, search pattern recognition |
 
-### Expected Results
+### Implementation Details
 
-For ABN AMRO:
-- `werkenbijabnamro.nl/vacatures`: Score ~85 (domain bonus + vacatures booster)
-- `abnamro.nl/.../tips/how-to-find-a-job.html`: Score -10 (tips penalty cancels job match)
+1. **In `scoreCareerUrl` function:**
+   - Check for file extensions early and apply -100 penalty
+   - Check subdomain against NON_CAREER_SUBDOMAINS list
+   - Add wp-content/uploads to HEAVY_PENALTY_PATTERNS
+
+2. **In `findBestCareerUrl` function:**
+   - Pre-filter URLs with non-page extensions before scoring
+
+3. **In search logic:**
+   - For companies without `.nl` domains, try an English international search
 
 ### Testing Plan
 
 1. Deploy updated edge function
-2. Test "Find Career Page" on ABN AMRO
-3. Verify `werkenbijabnamro.nl/vacatures` is returned
-4. Test on other companies to ensure no regressions
+2. Test "Find Career Page" on AIESEC - expect `aiesec.org/search`
+3. Re-test ABN AMRO - ensure still finds `werkenbijabnamro.nl/vacatures`
+4. Re-test a.s.r. - ensure still finds `werkenbijasr.nl/vacatures`
 
