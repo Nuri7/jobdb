@@ -1,119 +1,111 @@
 
-# Add Company via API
 
-This plan adds a new `POST /companies` endpoint to the API that mirrors the "Add Company" functionality in the UI. When a company is added via the API, it will be automatically enabled for scraping and trigger an immediate scrape.
+## Plan: Improve Career Page Discovery Accuracy
 
-## Overview
+### Problem Analysis
 
-The new endpoint will:
-1. Accept company details (name, career_url, industry) via POST request
-2. Validate required fields (name and career_url)
-3. Insert the company with `is_scrape_enabled: true` by default
-4. Trigger an automatic scrape via the existing `scrape-jobs` function
-5. Return the created company data
+The current discovery found `https://www.abnamro.nl/en/personal/specially-for/international-students/tips/how-to-find-a-job.html` instead of `https://www.werkenbijabnamro.nl/vacatures` for ABN AMRO.
 
----
+**Root Causes:**
+1. Generic advice/tips pages match career keywords ("job", "find-a-job") but aren't actual job listings
+2. Dedicated career domains like `werkenbij[company].nl` aren't prioritized over corporate site subpages
+3. URL path segments indicating non-job content (tips, advice, blog, articles) aren't being penalized
 
-## Changes
+### Solution Overview
 
-### 1. Update API Edge Function
+Enhance the URL scoring algorithm to:
+- **Heavily prioritize dedicated career domains** (werkenbij*.nl, careers.*, jobs.*)
+- **Penalize generic content indicators** in URLs (tips, advice, blog, how-to, articles)
+- **Add domain-matching bonus** when the domain contains career-related keywords
+- **Improve search query specificity** to find dedicated career portals
 
-**File:** `supabase/functions/api/index.ts`
+### Technical Changes
 
-Add a new `POST /companies` route that:
-- Validates required fields (`name`, `career_url`)
-- Checks for duplicate career URLs
-- Inserts the company with scraping enabled
-- Triggers the `scrape-jobs` function automatically
-- Returns the created company with a logo URL
+#### 1. Add Domain-Level Career Detection
 
-**New endpoint documentation:**
-```
-POST /api/companies
-{
-  "name": "Company Name",        // required
-  "career_url": "https://...",   // required
-  "industry": "Technology"       // optional
-}
-```
+Create a list of career domain patterns and add significant bonus points:
 
-### 2. Update API Documentation
-
-**File:** `supabase/functions/api/index.ts`
-
-Update the root `/` documentation endpoint to include the new `POST /companies` endpoint with its parameters.
-
-### 3. Update Frontend Documentation
-
-**File:** `src/pages/Api.tsx`
-
-Add the new `POST /companies` endpoint to the documentation display on the API page.
-
----
-
-## Technical Details
-
-### Request Body Schema
 ```typescript
-{
-  name: string;        // Required - Company name
-  career_url: string;  // Required - Career page URL
-  industry?: string;   // Optional - Industry category
-}
+const CAREER_DOMAIN_PATTERNS = [
+  /werkenbij/i,
+  /careers?\./i,
+  /jobs?\./i,
+  /werken\./i,
+  /vacatures?\./i,
+  /hiring\./i,
+];
 ```
 
-### Response Format (201 Created)
-```json
-{
-  "data": {
-    "id": "uuid",
-    "name": "Company Name",
-    "career_url": "https://...",
-    "company_logo": "https://www.google.com/s2/favicons?domain=...",
-    "industry": "Technology",
-    "is_scrape_enabled": true,
-    "scrape_triggered": true
-  },
-  "message": "Company created and scrape initiated"
-}
+If the domain matches these patterns, add +50 points.
+
+#### 2. Add URL Path Penalties
+
+Create negative modifiers for generic content paths:
+
+```typescript
+const GENERIC_CONTENT_PENALTIES = [
+  'tips', 'advice', 'blog', 'articles', 'news', 'magazine',
+  'how-to', 'guide', 'specially-for', 'students', 'faq',
+  'about-us', 'over-ons', 'contact', 'privacy', 'terms'
+];
 ```
 
-### Error Responses
-- `400 Bad Request` - Missing required fields or invalid URL
-- `409 Conflict` - Company with same career URL already exists
-- `401 Unauthorized` - Missing or invalid API key
-- `500 Internal Server Error` - Database or scrape error
+For each penalty keyword found, subtract 30 points.
 
-### Auto-Scrape Implementation
-The endpoint will call the existing `scrape-jobs` edge function using the Supabase client's `functions.invoke` method. This runs asynchronously so the API response returns quickly while scraping happens in the background.
+#### 3. Improve Search Strategy
 
----
+Add an additional search query specifically targeting dedicated career domains:
 
-## Sequence Diagram
-
-```text
-Client                   API Function              Database           scrape-jobs
-  |                          |                        |                    |
-  |-- POST /companies ------>|                        |                    |
-  |                          |-- Validate input       |                    |
-  |                          |                        |                    |
-  |                          |-- Check duplicates --->|                    |
-  |                          |<-- No conflict --------|                    |
-  |                          |                        |                    |
-  |                          |-- INSERT company ----->|                    |
-  |                          |<-- Company data -------|                    |
-  |                          |                        |                    |
-  |                          |-- Invoke (async) ------|----------------->  |
-  |                          |                        |                    |
-  |<-- 201 Created ----------|                        |                    |
-  |                          |                        |    (scraping...)   |
+```
+"werkenbij[company]" OR "werken bij [company]" site:.nl vacatures
 ```
 
----
+This helps find `werkenbijabnamro.nl` directly.
 
-## Files to Modify
+#### 4. Scoring Formula Update
 
-| File | Change |
-|------|--------|
-| `supabase/functions/api/index.ts` | Add POST /companies route with validation, insert, and auto-scrape |
-| `src/pages/Api.tsx` | Add POST /companies to documentation endpoints list |
+Current flow:
+- Base: 10 points per career pattern match
+- Bonus: 25 points per specificity booster
+- Bonus: Up to 20 points for path depth
+- Penalty: -5 for generic landing pages
+
+New flow:
+- **+50 points**: Domain contains career keywords (werkenbij, careers., jobs.)
+- **+30 points**: URL is on a `.nl` TLD with Dutch career terms
+- **-30 points**: Per generic content indicator (tips, blog, advice)
+- **-50 points**: If URL path contains "how-to" or "guide" 
+- Keep existing bonuses for specificity boosters
+
+#### 5. Validation Enhancement
+
+Add negative content checks during page validation:
+
+```typescript
+const NON_JOB_INDICATORS = [
+  'career tips', 'job hunting advice', 'how to find', 
+  'internship guide', 'career advice', 'interview tips'
+];
+```
+
+If these are found and no actual job listings exist, fail validation.
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/find-career-page/index.ts` | Update scoring function, add domain detection, add penalty keywords, enhance validation |
+
+### Expected Results
+
+For ABN AMRO:
+- `werkenbijabnamro.nl/vacatures`: Score ~85 (domain bonus + vacatures booster)
+- `abnamro.nl/.../tips/how-to-find-a-job.html`: Score -10 (tips penalty cancels job match)
+
+### Testing Plan
+
+1. Deploy updated edge function
+2. Test "Find Career Page" on ABN AMRO
+3. Verify `werkenbijabnamro.nl/vacatures` is returned
+4. Test on other companies to ensure no regressions
+
