@@ -300,13 +300,88 @@ Deno.serve(async (req) => {
             console.error(`Map API failed for ${company.company_name}:`, await mapResponse.text());
           }
 
-          // Fallback: just use the website URL
+          // Fallback: Try "werken bij + company name" search before giving up
+          console.log(`Trying "werken bij" search for ${company.company_name}`);
+          
+          const werkenBijSearchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: `werken bij ${company.company_name} vacatures`,
+              limit: 10,
+              lang: 'nl',
+              country: 'nl',
+            }),
+          });
+
+          if (werkenBijSearchResponse.ok) {
+            const searchData = await werkenBijSearchResponse.json();
+
+            if (searchData.success && searchData.data?.length > 0) {
+              const urls = searchData.data.map((result: { url: string }) => result.url);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name);
+
+              if (bestUrl) {
+                const score = scoreCareerUrl(bestUrl, careerPatterns);
+                console.log(`Found career page via "werken bij" search for ${company.company_name}: ${bestUrl} (score: ${score})`);
+                results.push({ company_name: company.company_name, career_url: bestUrl, score });
+                continue;
+              }
+
+              // Use first search result if no pattern match
+              console.log(`Using first "werken bij" result for ${company.company_name}: ${searchData.data[0].url}`);
+              results.push({ company_name: company.company_name, career_url: searchData.data[0].url, score: 5 });
+              continue;
+            }
+          }
+
+          // Final fallback: just use the website URL
           console.log(`Using website as career URL for ${company.company_name}: ${websiteUrl}`);
           results.push({ company_name: company.company_name, career_url: websiteUrl, score: 0 });
         } else {
           // No website, try searching for career page
           console.log(`Searching for ${company.company_name} career page`);
 
+          // Try "werken bij" search first for Dutch companies
+          const werkenBijResponse = await fetch('https://api.firecrawl.dev/v1/search', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: `werken bij ${company.company_name} vacatures`,
+              limit: 10,
+              lang: 'nl',
+              country: 'nl',
+            }),
+          });
+
+          if (werkenBijResponse.ok) {
+            const searchData = await werkenBijResponse.json();
+
+            if (searchData.success && searchData.data?.length > 0) {
+              const urls = searchData.data.map((result: { url: string }) => result.url);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name);
+
+              if (bestUrl) {
+                const score = scoreCareerUrl(bestUrl, careerPatterns);
+                console.log(`Found career page via "werken bij" search for ${company.company_name}: ${bestUrl} (score: ${score})`);
+                results.push({ company_name: company.company_name, career_url: bestUrl, score });
+                continue;
+              }
+
+              // Use first result if no pattern match
+              console.log(`Using first "werken bij" result for ${company.company_name}: ${searchData.data[0].url}`);
+              results.push({ company_name: company.company_name, career_url: searchData.data[0].url, score: 5 });
+              continue;
+            }
+          }
+
+          // Fallback: English search
           const searchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
             method: 'POST',
             headers: {
@@ -314,8 +389,8 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              query: `${company.company_name} careers jobs vacatures Netherlands`,
-              limit: 10, // Increased for better selection
+              query: `${company.company_name} careers jobs Netherlands`,
+              limit: 10,
               lang: 'en',
               country: 'nl',
             }),
