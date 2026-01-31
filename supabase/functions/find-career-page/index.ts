@@ -18,11 +18,39 @@ const DEFAULT_CAREER_PATTERNS = [
 ];
 const DEFAULT_MAP_KEYWORDS = 'careers jobs vacatures werkenbij werken-bij solliciteren banen';
 
+// === FILE EXTENSION FILTER (-100 points) ===
+// These can never be valid career pages
+const NON_PAGE_EXTENSIONS = [
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.zip', '.rar', '.tar', '.gz', '.7z',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico',
+  '.mp4', '.mp3', '.wav', '.avi', '.mov', '.webm'
+];
+
+// === SUBDOMAIN PENALTIES (-40 points) ===
+// These subdomains rarely contain actual career pages
+const NON_CAREER_SUBDOMAINS = [
+  'blog', 'news', 'support', 'help', 'docs', 'wiki',
+  'shop', 'store', 'mail', 'api', 'cdn', 'media',
+  'static', 'assets', 'images', 'files', 'download'
+];
+
 // High-value path segments that indicate a more specific career page
 const SPECIFICITY_BOOSTERS = [
   'vacatures', 'openings', 'positions', 'opportunities', 'listings',
   'open-positions', 'current-openings', 'job-listings', 'alle-vacatures',
   'all-jobs', 'beschikbare-vacatures', 'available-positions'
+];
+
+// === SEARCH PAGE PATTERNS (+10 points) ===
+// Some orgs use /search for job listings (e.g., AIESEC)
+const SEARCH_PAGE_PATTERNS = [
+  /\/search$/i,
+  /\/search\?/i,
+  /\/search\//i,
+  /\/find-opportunities/i,
+  /\/explore/i,
+  /\/opportunity\//i,
 ];
 
 // Domain patterns that indicate a dedicated career site (+50 points)
@@ -54,6 +82,11 @@ const HEAVY_PENALTY_PATTERNS = [
   /job-hunting/i,
   /job-search-tips/i,
   /interview-tips/i,
+  /wp-content\/uploads/i,
+  /\/uploads\//i,
+  /\/files\//i,
+  /\/documents\//i,
+  /annual-report/i,
 ];
 
 // Content validation keywords - if found on page, confirms it's a job listings page
@@ -126,6 +159,27 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
     const hostname = urlObj.hostname.toLowerCase();
     const pathname = urlObj.pathname.toLowerCase();
 
+    // === FILE EXTENSION FILTER (-100 points) ===
+    // Check if URL ends with a non-page extension
+    for (const ext of NON_PAGE_EXTENSIONS) {
+      if (urlLower.endsWith(ext)) {
+        score -= 100;
+        console.log(`  -100 points for non-page extension: ${ext}`);
+        // Don't return early - let other penalties stack too
+        break;
+      }
+    }
+
+    // === SUBDOMAIN PENALTIES (-40 points) ===
+    const hostParts = hostname.split('.');
+    if (hostParts.length >= 2) {
+      const subdomain = hostParts[0];
+      if (NON_CAREER_SUBDOMAINS.includes(subdomain)) {
+        score -= 40;
+        console.log(`  -40 points for non-career subdomain: ${subdomain}`);
+      }
+    }
+
     // === DOMAIN-LEVEL CAREER DETECTION (+50 points) ===
     for (const pattern of CAREER_DOMAIN_PATTERNS) {
       if (pattern.test(hostname)) {
@@ -143,9 +197,9 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
 
     // === HEAVY PENALTIES (-50 points each) ===
     for (const pattern of HEAVY_PENALTY_PATTERNS) {
-      if (pattern.test(pathname)) {
+      if (pattern.test(pathname) || pattern.test(urlLower)) {
         score -= 50;
-        console.log(`  -50 points for heavy penalty pattern in path: ${pathname}`);
+        console.log(`  -50 points for heavy penalty pattern: ${pattern}`);
       }
     }
 
@@ -157,6 +211,15 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
           score -= 30;
           console.log(`  -30 points for generic content: ${penalty} in ${segment}`);
         }
+      }
+    }
+
+    // === SEARCH PAGE PATTERNS (+10 points) ===
+    for (const pattern of SEARCH_PAGE_PATTERNS) {
+      if (pattern.test(pathname)) {
+        score += 10;
+        console.log(`  +10 points for search/opportunity page pattern: ${pathname}`);
+        break;
       }
     }
 
@@ -188,7 +251,7 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
 
   } catch (error) {
     console.error(`Error parsing URL ${url}:`, error);
-    return 0;
+    return -999; // Return very low score for unparseable URLs
   }
 
   return score;
@@ -290,27 +353,34 @@ async function findBestCareerUrl(
   apiKey: string,
   companyName: string
 ): Promise<string | null> {
+  // Pre-filter: remove URLs with non-page extensions before scoring
+  const filteredUrls = urls.filter(url => {
+    const urlLower = url.toLowerCase();
+    return !NON_PAGE_EXTENSIONS.some(ext => urlLower.endsWith(ext));
+  });
+
+  console.log(`Pre-filtered ${urls.length - filteredUrls.length} non-page URLs, scoring ${filteredUrls.length} URLs for ${companyName}...`);
+
   // Score all URLs
-  console.log(`Scoring ${urls.length} URLs for ${companyName}...`);
-  const scoredUrls = urls
+  const scoredUrls = filteredUrls
     .map(url => {
       const score = scoreCareerUrl(url, careerPatterns);
       return { url, score };
     })
-    .filter(item => item.score > 0) // Only keep positive scores
+    .filter(item => item.score > -50) // Filter out heavily penalized URLs
     .sort((a, b) => b.score - a.score);
 
   console.log(`Scored ${scoredUrls.length} career URLs for ${companyName}:`, 
     scoredUrls.slice(0, 5).map(s => `${s.url} (${s.score})`));
 
   if (scoredUrls.length === 0) {
-    // If all scores are negative or zero, still consider the best one
-    const allScored = urls
+    // If all scores are very negative, check original list
+    const allScored = filteredUrls
       .map(url => ({ url, score: scoreCareerUrl(url, careerPatterns) }))
       .sort((a, b) => b.score - a.score);
     
-    if (allScored.length > 0 && allScored[0].score > -50) {
-      console.log(`No positive scores, using best negative: ${allScored[0].url} (${allScored[0].score})`);
+    if (allScored.length > 0 && allScored[0].score > -100) {
+      console.log(`No good scores, using best available: ${allScored[0].url} (${allScored[0].score})`);
       return allScored[0].url;
     }
     return null;
@@ -639,23 +709,23 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Fallback: English search
-          const searchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
+          // Fallback: International English search (for non-Dutch orgs)
+          console.log(`Trying international search for ${company.company_name}`);
+          const intlSearchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              query: `${company.company_name} careers jobs Netherlands`,
-              limit: 10,
+              query: `${company.company_name} careers opportunities apply jobs`,
+              limit: 15,
               lang: 'en',
-              country: 'nl',
             }),
           });
 
-          if (searchResponse.ok) {
-            const searchData = await searchResponse.json();
+          if (intlSearchResponse.ok) {
+            const searchData = await intlSearchResponse.json();
 
             if (searchData.success && searchData.data?.length > 0) {
               // Find the best career URL from search results
@@ -664,13 +734,13 @@ Deno.serve(async (req) => {
 
               if (bestUrl) {
                 const score = scoreCareerUrl(bestUrl, careerPatterns);
-                console.log(`Found career page via search for ${company.company_name}: ${bestUrl} (score: ${score})`);
+                console.log(`Found career page via international search for ${company.company_name}: ${bestUrl} (score: ${score})`);
                 results.push({ company_name: company.company_name, career_url: bestUrl, score });
                 continue;
               }
 
-              // Just use first result
-              console.log(`Using first search result for ${company.company_name}: ${searchData.data[0].url}`);
+              // Just use first result if no good match
+              console.log(`Using first international search result for ${company.company_name}: ${searchData.data[0].url}`);
               results.push({ company_name: company.company_name, career_url: searchData.data[0].url, score: 0 });
               continue;
             }
