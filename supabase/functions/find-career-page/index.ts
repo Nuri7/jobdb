@@ -25,11 +25,50 @@ const SPECIFICITY_BOOSTERS = [
   'all-jobs', 'beschikbare-vacatures', 'available-positions'
 ];
 
+// Domain patterns that indicate a dedicated career site (+50 points)
+const CAREER_DOMAIN_PATTERNS = [
+  /werkenbij/i,
+  /werken\./i,
+  /careers?\./i,
+  /jobs?\./i,
+  /vacatures?\./i,
+  /hiring\./i,
+  /carriere/i,
+  /join\./i,
+];
+
+// URL path penalties - these indicate non-job content (-30 points each)
+const GENERIC_CONTENT_PENALTIES = [
+  'tips', 'advice', 'blog', 'articles', 'news', 'magazine',
+  'how-to', 'guide', 'specially-for', 'students', 'faq',
+  'about-us', 'over-ons', 'contact', 'privacy', 'terms',
+  'international-students', 'nieuws', 'artikel', 'verhalen'
+];
+
+// Heavy penalties for these patterns (-50 points)
+const HEAVY_PENALTY_PATTERNS = [
+  /how-to-find/i,
+  /find-a-job/i,
+  /career-tips/i,
+  /career-advice/i,
+  /job-hunting/i,
+  /job-search-tips/i,
+  /interview-tips/i,
+];
+
 // Content validation keywords - if found on page, confirms it's a job listings page
 const JOB_PAGE_INDICATORS = [
   'apply', 'solliciteer', 'solliciteren', 'vacancy', 'vacature',
   'position', 'functie', 'location', 'locatie', 'department',
   'afdeling', 'full-time', 'part-time', 'fulltime', 'parttime'
+];
+
+// Non-job page indicators - if found AND no job listings, fail validation
+const NON_JOB_INDICATORS = [
+  'career tips', 'job hunting advice', 'how to find a job',
+  'internship guide', 'career advice', 'interview tips',
+  'cv tips', 'resume tips', 'sollicitatietips', 'tips voor',
+  'how to apply', 'advice for', 'guide to finding'
 ];
 
 async function getCareerPageSettings(supabase: any): Promise<{ patterns: string[]; mapKeywords: string }> {
@@ -82,32 +121,74 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
   const urlLower = url.toLowerCase();
   let score = 0;
 
-  // Base score: does it match any career pattern?
-  const matchedPatterns = careerPatterns.filter(pattern => pattern.test(url));
-  if (matchedPatterns.length === 0) return 0;
-  
-  score += matchedPatterns.length * 10; // 10 points per pattern match
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    const pathname = urlObj.pathname.toLowerCase();
 
-  // Bonus for specificity boosters (e.g., /vacatures, /openings)
-  for (const booster of SPECIFICITY_BOOSTERS) {
-    if (urlLower.includes(booster)) {
-      score += 25;
+    // === DOMAIN-LEVEL CAREER DETECTION (+50 points) ===
+    for (const pattern of CAREER_DOMAIN_PATTERNS) {
+      if (pattern.test(hostname)) {
+        score += 50;
+        console.log(`  +50 points for career domain pattern: ${hostname}`);
+        break; // Only count once
+      }
     }
-  }
 
-  // Bonus for deeper paths (more specific pages)
-  const pathSegments = new URL(url).pathname.split('/').filter(s => s.length > 0);
-  score += Math.min(pathSegments.length * 5, 20); // Up to 20 points for depth
+    // === DUTCH CAREER DOMAIN BONUS (+30 points) ===
+    if (hostname.endsWith('.nl') && (/werkenbij|werken|vacature|carriere/i.test(hostname))) {
+      score += 30;
+      console.log(`  +30 points for Dutch career domain: ${hostname}`);
+    }
 
-  // Penalty for very generic pages
-  if (urlLower.endsWith('/werken-bij') || urlLower.endsWith('/careers') || urlLower.endsWith('/jobs')) {
-    // These are good but might just be landing pages, slight reduction
-    score -= 5;
-  }
+    // === HEAVY PENALTIES (-50 points each) ===
+    for (const pattern of HEAVY_PENALTY_PATTERNS) {
+      if (pattern.test(pathname)) {
+        score -= 50;
+        console.log(`  -50 points for heavy penalty pattern in path: ${pathname}`);
+      }
+    }
 
-  // Bonus if URL contains "all" or "alle" suggesting a comprehensive list
-  if (/\b(all|alle|overview|overzicht)\b/i.test(urlLower)) {
-    score += 15;
+    // === GENERIC CONTENT PENALTIES (-30 points each) ===
+    const pathSegments = pathname.split('/').filter(s => s.length > 0);
+    for (const segment of pathSegments) {
+      for (const penalty of GENERIC_CONTENT_PENALTIES) {
+        if (segment.includes(penalty)) {
+          score -= 30;
+          console.log(`  -30 points for generic content: ${penalty} in ${segment}`);
+        }
+      }
+    }
+
+    // === BASE CAREER PATTERN MATCHING ===
+    const matchedPatterns = careerPatterns.filter(pattern => pattern.test(url));
+    if (matchedPatterns.length > 0) {
+      score += matchedPatterns.length * 10; // 10 points per pattern match
+    }
+
+    // === SPECIFICITY BOOSTERS (+25 points each) ===
+    for (const booster of SPECIFICITY_BOOSTERS) {
+      if (urlLower.includes(booster)) {
+        score += 25;
+      }
+    }
+
+    // === PATH DEPTH BONUS (up to 20 points) ===
+    score += Math.min(pathSegments.length * 5, 20);
+
+    // === GENERIC LANDING PAGE PENALTY ===
+    if (urlLower.endsWith('/werken-bij') || urlLower.endsWith('/careers') || urlLower.endsWith('/jobs')) {
+      score -= 5;
+    }
+
+    // === COMPREHENSIVE LIST BONUS (+15 points) ===
+    if (/\b(all|alle|overview|overzicht)\b/i.test(urlLower)) {
+      score += 15;
+    }
+
+  } catch (error) {
+    console.error(`Error parsing URL ${url}:`, error);
+    return 0;
   }
 
   return score;
@@ -147,6 +228,14 @@ async function validateCareerPage(url: string, apiKey: string): Promise<boolean>
       return false;
     }
 
+    // === CHECK FOR NON-JOB INDICATORS (advice/tips pages) ===
+    let nonJobIndicatorCount = 0;
+    for (const indicator of NON_JOB_INDICATORS) {
+      if (content.includes(indicator.toLowerCase())) {
+        nonJobIndicatorCount++;
+      }
+    }
+
     // Count job-related indicators
     let indicatorCount = 0;
     for (const indicator of JOB_PAGE_INDICATORS) {
@@ -162,8 +251,14 @@ async function validateCareerPage(url: string, apiKey: string): Promise<boolean>
       content.includes('apply now') ||
       /\d+\s*(vacatures|jobs|positions)/i.test(content);
 
+    // If many non-job indicators and few job indicators, this is likely an advice page
+    if (nonJobIndicatorCount >= 2 && indicatorCount < 3 && !hasJobListStructure) {
+      console.log(`Page appears to be advice/tips content (${nonJobIndicatorCount} non-job indicators, ${indicatorCount} job indicators)`);
+      return false;
+    }
+
     const isValid = indicatorCount >= 3 || hasJobListStructure;
-    console.log(`Page validation: ${indicatorCount} indicators found, hasStructure: ${hasJobListStructure}, valid: ${isValid}`);
+    console.log(`Page validation: ${indicatorCount} indicators found, hasStructure: ${hasJobListStructure}, nonJobIndicators: ${nonJobIndicatorCount}, valid: ${isValid}`);
     
     return isValid;
   } catch (error) {
@@ -182,15 +277,30 @@ async function findBestCareerUrl(
   companyName: string
 ): Promise<string | null> {
   // Score all URLs
+  console.log(`Scoring ${urls.length} URLs for ${companyName}...`);
   const scoredUrls = urls
-    .map(url => ({ url, score: scoreCareerUrl(url, careerPatterns) }))
-    .filter(item => item.score > 0)
+    .map(url => {
+      const score = scoreCareerUrl(url, careerPatterns);
+      return { url, score };
+    })
+    .filter(item => item.score > 0) // Only keep positive scores
     .sort((a, b) => b.score - a.score);
 
   console.log(`Scored ${scoredUrls.length} career URLs for ${companyName}:`, 
     scoredUrls.slice(0, 5).map(s => `${s.url} (${s.score})`));
 
-  if (scoredUrls.length === 0) return null;
+  if (scoredUrls.length === 0) {
+    // If all scores are negative or zero, still consider the best one
+    const allScored = urls
+      .map(url => ({ url, score: scoreCareerUrl(url, careerPatterns) }))
+      .sort((a, b) => b.score - a.score);
+    
+    if (allScored.length > 0 && allScored[0].score > -50) {
+      console.log(`No positive scores, using best negative: ${allScored[0].url} (${allScored[0].score})`);
+      return allScored[0].url;
+    }
+    return null;
+  }
 
   // Try top candidates with validation
   for (const { url, score } of scoredUrls.slice(0, 3)) {
@@ -212,6 +322,71 @@ async function findBestCareerUrl(
 
   // If all top candidates failed validation, return the highest scored one anyway
   return scoredUrls[0].url;
+}
+
+/**
+ * Search for dedicated career domains using "werkenbij" pattern
+ */
+async function searchDedicatedCareerDomain(
+  companyName: string,
+  apiKey: string,
+  careerPatterns: RegExp[]
+): Promise<{ url: string; score: number } | null> {
+  // Clean company name for search - remove common suffixes
+  const cleanName = companyName
+    .replace(/\s*(b\.?v\.?|n\.?v\.?|holding|group|nederland)$/i, '')
+    .trim();
+
+  // Search specifically for dedicated career domains
+  const searchQuery = `"werkenbij${cleanName.replace(/\s+/g, '')}" OR "werken bij ${cleanName}" site:.nl vacatures`;
+  
+  console.log(`Searching for dedicated career domain: ${searchQuery}`);
+
+  try {
+    const searchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: searchQuery,
+        limit: 10,
+        lang: 'nl',
+        country: 'nl',
+      }),
+    });
+
+    if (!searchResponse.ok) {
+      console.log(`Dedicated domain search failed: ${searchResponse.status}`);
+      return null;
+    }
+
+    const searchData = await searchResponse.json();
+
+    if (!searchData.success || !searchData.data?.length) {
+      console.log('No results from dedicated domain search');
+      return null;
+    }
+
+    // Score results and find best match
+    const urls = searchData.data.map((r: { url: string }) => r.url);
+    const scoredUrls = urls
+      .map((url: string) => ({ url, score: scoreCareerUrl(url, careerPatterns) }))
+      .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
+
+    console.log('Dedicated domain search results:', scoredUrls.slice(0, 3));
+
+    // Return best if it has a high score (indicating a career domain match)
+    if (scoredUrls.length > 0 && scoredUrls[0].score >= 50) {
+      return scoredUrls[0];
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in dedicated domain search:', error);
+    return null;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -253,7 +428,31 @@ Deno.serve(async (req) => {
 
     for (const company of companies) {
       try {
-        // If company has a website, try to find career page via map API first
+        console.log(`\n=== Processing ${company.company_name} ===`);
+
+        // STEP 1: Try to find a dedicated career domain first (werkenbij*.nl, careers.*, etc.)
+        const dedicatedDomain = await searchDedicatedCareerDomain(
+          company.company_name,
+          apiKey,
+          careerPatterns
+        );
+
+        if (dedicatedDomain) {
+          // Validate the dedicated domain
+          const isValid = await validateCareerPage(dedicatedDomain.url, apiKey);
+          if (isValid) {
+            console.log(`Found valid dedicated career domain for ${company.company_name}: ${dedicatedDomain.url} (score: ${dedicatedDomain.score})`);
+            results.push({ 
+              company_name: company.company_name, 
+              career_url: dedicatedDomain.url, 
+              score: dedicatedDomain.score 
+            });
+            continue;
+          }
+          console.log(`Dedicated domain failed validation: ${dedicatedDomain.url}`);
+        }
+
+        // STEP 2: If company has a website, try to find career page via map API
         if (company.website) {
           let websiteUrl = company.website.trim();
           if (!websiteUrl.startsWith('http://') && !websiteUrl.startsWith('https://')) {
@@ -272,7 +471,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               url: websiteUrl,
               search: mapKeywords,
-              limit: 50, // Increased for better candidate selection
+              limit: 50,
               includeSubdomains: true,
             }),
           });
@@ -300,7 +499,7 @@ Deno.serve(async (req) => {
             console.error(`Map API failed for ${company.company_name}:`, await mapResponse.text());
           }
 
-          // Fallback: Try "werken bij + company name" search before giving up
+          // STEP 3: Fallback - Try "werken bij + company name" search
           console.log(`Trying "werken bij" search for ${company.company_name}`);
           
           const werkenBijSearchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
