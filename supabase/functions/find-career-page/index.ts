@@ -215,6 +215,56 @@ function domainMatchesCompany(domain: string, companyName: string): boolean {
   return false;
 }
 
+/**
+ * Check if a URL is on the company's own domain.
+ * This gives high priority to official company career pages over third-party sites.
+ */
+function urlMatchesCompanyDomain(url: string, companyName: string, companyWebsite?: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    const identifiers = extractCompanyIdentifiers(companyName);
+    
+    // If company has a website, check if URL is on same root domain
+    if (companyWebsite) {
+      try {
+        const websiteHost = new URL(
+          companyWebsite.startsWith('http') ? companyWebsite : `https://${companyWebsite}`
+        ).hostname.toLowerCase();
+        const websiteRoot = websiteHost.split('.').slice(-2).join('.');
+        const urlRoot = hostname.split('.').slice(-2).join('.');
+        
+        if (urlRoot === websiteRoot || hostname.endsWith(`.${websiteRoot}`)) {
+          console.log(`URL "${url}" is on company's website domain: ${websiteRoot}`);
+          return true;
+        }
+      } catch {
+        // Invalid website URL, continue with identifier check
+      }
+    }
+    
+    // Check if the root domain contains the company identifier
+    // e.g., careers.ing.com → ing.com contains "ing"
+    const rootDomain = hostname.split('.').slice(-2).join('.');
+    for (const identifier of identifiers) {
+      // Check if root domain starts with identifier (e.g., ing.com)
+      // or contains identifier as a word boundary (e.g., ing-group.com)
+      if (rootDomain.startsWith(identifier + '.') || 
+          rootDomain === identifier + '.' + rootDomain.split('.').pop() ||
+          rootDomain.split('.')[0] === identifier ||
+          rootDomain.includes(`-${identifier}`) ||
+          rootDomain.includes(`${identifier}-`)) {
+        console.log(`URL "${url}" matches company domain via identifier "${identifier}"`);
+        return true;
+      }
+    }
+    
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 // Content validation keywords - if found on page, confirms it's a job listings page
 const JOB_PAGE_INDICATORS = [
   'apply', 'solliciteer', 'solliciteren', 'vacancy', 'vacature',
@@ -276,8 +326,9 @@ function createPatternRegexes(patterns: string[]): RegExp[] {
  * Score a URL based on how likely it is to be a specific job listings page.
  * Higher score = more specific career page.
  * @param companyName - Optional company name for domain validation scoring
+ * @param companyWebsite - Optional company website for own domain detection
  */
-function scoreCareerUrl(url: string, careerPatterns: RegExp[], companyName?: string): number {
+function scoreCareerUrl(url: string, careerPatterns: RegExp[], companyName?: string, companyWebsite?: string): number {
   const urlLower = url.toLowerCase();
   let score = 0;
 
@@ -340,6 +391,20 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[], companyName?: str
     if (hostname.endsWith('.nl') && (/werkenbij|werken|vacature|carriere/i.test(hostname))) {
       score += 30;
       console.log(`  +30 points for Dutch career domain: ${hostname}`);
+    }
+
+    // === OWN DOMAIN BONUS (+100 points) ===
+    // Heavily prioritize the company's own domain over third-party sites
+    if (companyName && urlMatchesCompanyDomain(url, companyName, companyWebsite)) {
+      score += 100;
+      console.log(`  +100 points for company's own domain`);
+    }
+
+    // === INTERNATIONAL CAREER SUBDOMAIN BONUS (+80 points) ===
+    // careers.company.com, jobs.company.com patterns that match the company
+    if (/^(careers?|jobs)\./i.test(hostname) && companyName && domainMatchesCompany(hostname, companyName)) {
+      score += 80;
+      console.log(`  +80 points for international career subdomain: ${hostname}`);
     }
 
     // === HEAVY PENALTIES (-50 points each) ===
@@ -523,7 +588,8 @@ async function findBestCareerUrl(
   urls: string[], 
   careerPatterns: RegExp[], 
   apiKey: string,
-  companyName: string
+  companyName: string,
+  companyWebsite?: string
 ): Promise<string | null> {
   // Pre-filter: remove URLs with non-page extensions before scoring
   const filteredUrls = urls.filter(url => {
@@ -533,10 +599,10 @@ async function findBestCareerUrl(
 
   console.log(`Pre-filtered ${urls.length - filteredUrls.length} non-page URLs, scoring ${filteredUrls.length} URLs for ${companyName}...`);
 
-  // Score all URLs with company name for domain validation
+  // Score all URLs with company name and website for domain validation
   const scoredUrls = filteredUrls
     .map(url => {
-      const score = scoreCareerUrl(url, careerPatterns, companyName);
+      const score = scoreCareerUrl(url, careerPatterns, companyName, companyWebsite);
       return { url, score };
     })
     .filter(item => item.score > -50) // Filter out heavily penalized URLs
@@ -548,7 +614,7 @@ async function findBestCareerUrl(
   if (scoredUrls.length === 0) {
     // If all scores are very negative, check original list
     const allScored = filteredUrls
-      .map(url => ({ url, score: scoreCareerUrl(url, careerPatterns, companyName) }))
+      .map(url => ({ url, score: scoreCareerUrl(url, careerPatterns, companyName, companyWebsite) }))
       .sort((a, b) => b.score - a.score);
     
     if (allScored.length > 0 && allScored[0].score > -100) {
@@ -790,11 +856,12 @@ Deno.serve(async (req) => {
                 mapData.links, 
                 careerPatterns, 
                 apiKey, 
-                company.company_name
+                company.company_name,
+                company.website
               );
 
               if (bestUrl) {
-                const score = scoreCareerUrl(bestUrl, careerPatterns);
+                const score = scoreCareerUrl(bestUrl, careerPatterns, company.company_name, company.website);
                 console.log(`Found best career page for ${company.company_name}: ${bestUrl} (score: ${score})`);
                 results.push({ company_name: company.company_name, career_url: bestUrl, score });
                 continue;
@@ -826,10 +893,10 @@ Deno.serve(async (req) => {
 
             if (searchData.success && searchData.data?.length > 0) {
               const urls = searchData.data.map((result: { url: string }) => result.url);
-              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website);
 
               if (bestUrl) {
-                const score = scoreCareerUrl(bestUrl, careerPatterns);
+                const score = scoreCareerUrl(bestUrl, careerPatterns, company.company_name, company.website);
                 console.log(`Found career page via "werken bij" search for ${company.company_name}: ${bestUrl} (score: ${score})`);
                 results.push({ company_name: company.company_name, career_url: bestUrl, score });
                 continue;
@@ -869,10 +936,10 @@ Deno.serve(async (req) => {
 
             if (searchData.success && searchData.data?.length > 0) {
               const urls = searchData.data.map((result: { url: string }) => result.url);
-              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website);
 
               if (bestUrl) {
-                const score = scoreCareerUrl(bestUrl, careerPatterns);
+                const score = scoreCareerUrl(bestUrl, careerPatterns, company.company_name, company.website);
                 console.log(`Found career page via "werken bij" search for ${company.company_name}: ${bestUrl} (score: ${score})`);
                 results.push({ company_name: company.company_name, career_url: bestUrl, score });
                 continue;
@@ -906,10 +973,10 @@ Deno.serve(async (req) => {
             if (searchData.success && searchData.data?.length > 0) {
               // Find the best career URL from search results
               const urls = searchData.data.map((result: { url: string }) => result.url);
-              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website);
 
               if (bestUrl) {
-                const score = scoreCareerUrl(bestUrl, careerPatterns);
+                const score = scoreCareerUrl(bestUrl, careerPatterns, company.company_name, company.website);
                 console.log(`Found career page via international search for ${company.company_name}: ${bestUrl} (score: ${score})`);
                 results.push({ company_name: company.company_name, career_url: bestUrl, score });
                 continue;
