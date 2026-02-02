@@ -50,6 +50,10 @@ export default function FindCareerPagesModal({
   const [isPaused, setIsPaused] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const processingRef = useRef(false);
+  const startTimeRef = useRef<number | null>(null);
+  const completionTimesRef = useRef<number[]>([]);
+  const itemStartTimeRef = useRef<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const { toast } = useToast();
 
   // Initialize queue when modal opens
@@ -66,9 +70,26 @@ export default function FindCareerPagesModal({
       setCurrentIndex(0);
       setIsRunning(false);
       setIsPaused(false);
+      setElapsedTime(0);
       processingRef.current = false;
+      startTimeRef.current = null;
+      completionTimesRef.current = [];
+      itemStartTimeRef.current = null;
     }
   }, [isOpen, companies]);
+
+  // Timer for elapsed time display
+  useEffect(() => {
+    if (!isRunning || isPaused) return;
+    
+    const interval = setInterval(() => {
+      if (startTimeRef.current) {
+        setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [isRunning, isPaused]);
 
   // Process queue in batches
   useEffect(() => {
@@ -77,6 +98,7 @@ export default function FindCareerPagesModal({
 
     const processNext = async () => {
       processingRef.current = true;
+      itemStartTimeRef.current = Date.now();
       
       // Process one at a time for better responsiveness with slow companies
       const batchSize = 1;
@@ -185,6 +207,12 @@ export default function FindCareerPagesModal({
         );
       }
 
+      // Track completion time for this item
+      if (itemStartTimeRef.current) {
+        const itemDuration = (Date.now() - itemStartTimeRef.current) / 1000;
+        completionTimesRef.current.push(itemDuration);
+      }
+
       setCurrentIndex(batchEnd);
       processingRef.current = false;
     };
@@ -208,6 +236,8 @@ export default function FindCareerPagesModal({
   const handleStart = () => {
     setIsRunning(true);
     setIsPaused(false);
+    startTimeRef.current = Date.now();
+    completionTimesRef.current = [];
   };
 
   const handlePause = () => {
@@ -222,12 +252,40 @@ export default function FindCareerPagesModal({
     setIsRunning(false);
     setIsPaused(false);
     processingRef.current = false;
+    startTimeRef.current = null;
     onClose();
   };
 
   const completedCount = queue.filter((q) => q.status === 'completed').length;
   const failedCount = queue.filter((q) => q.status === 'failed').length;
-  const progressPercent = queue.length > 0 ? ((completedCount + failedCount) / queue.length) * 100 : 0;
+  const processedCount = completedCount + failedCount;
+  const pendingCount = queue.length - processedCount;
+  const progressPercent = queue.length > 0 ? (processedCount / queue.length) * 100 : 0;
+
+  // Calculate estimated time remaining
+  const formatTime = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+
+  const getEstimatedTimeRemaining = (): string | null => {
+    if (!isRunning || pendingCount === 0) return null;
+    
+    const times = completionTimesRef.current;
+    if (times.length === 0) {
+      // No data yet, use a default estimate of 15s per company
+      return `~${formatTime(pendingCount * 15)}`;
+    }
+    
+    // Calculate average time per company
+    const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
+    const estimatedSeconds = Math.ceil(avgTime * pendingCount);
+    return `~${formatTime(estimatedSeconds)}`;
+  };
+
+  const estimatedTimeRemaining = getEstimatedTimeRemaining();
 
   const getStatusIcon = (status: CompanyToProcess['status']) => {
     switch (status) {
@@ -260,11 +318,24 @@ export default function FindCareerPagesModal({
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                {completedCount + failedCount} / {queue.length} companies
+                {processedCount} / {queue.length} companies
               </span>
               <span className="font-medium">{completedCount} found</span>
             </div>
             <Progress value={progressPercent} className="h-2" />
+            
+            {/* Time indicators */}
+            {isRunning && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  <span>Elapsed: {formatTime(elapsedTime)}</span>
+                </div>
+                {estimatedTimeRemaining && (
+                  <span>Remaining: {estimatedTimeRemaining}</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Stats */}
@@ -278,7 +349,7 @@ export default function FindCareerPagesModal({
               <p className="text-xs text-muted-foreground">Not Found</p>
             </div>
             <div className="p-2 bg-muted/50 rounded">
-              <p className="font-bold">{queue.length - completedCount - failedCount}</p>
+              <p className="font-bold">{pendingCount}</p>
               <p className="text-xs text-muted-foreground">Pending</p>
             </div>
           </div>
