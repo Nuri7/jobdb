@@ -1,106 +1,108 @@
 
+## Plan: Fix Career Page Discovery for Fontys Hogescholen
 
-## Plan: Fix Career Page Discovery Timeout for Booking.com
+### Root Cause Analysis
 
-### Problem Analysis
+The discovery failed to find `werkenbijfontys.nl` because:
 
-When discovering the career page for Booking.com, the request "gets stuck" because:
-
-| Issue | Description |
-|-------|-------------|
-| **Slow edge function** | The `find-career-page` function takes 30+ seconds for Booking.com due to web scraping/validation |
-| **Client timeout** | Supabase client requests timeout before the function completes |
-| **No timeout handling** | The UI shows "running" indefinitely without feedback |
+| Issue | Detail |
+|-------|--------|
+| **Search query too specific** | Searched for `"werkenbijFontysHogescholen"` instead of also trying `"werkenbijfontys"` |
+| **Company identifiers not used** | The function extracts identifiers like `["fontys", "fontyshogescholen"]` but doesn't use them in the dedicated domain search |
+| **Validation passed wrong page** | `https://www.fontys.nl/Over-Fontys/Fontys-ICT.htm` passed validation with 3 indicators (likely generic words like "fulltime", "parttime" in course descriptions) |
 
 **Evidence from logs:**
-- Function starts at `16:08:26Z`, completes at `16:09:44Z` (~78 seconds total)
-- Network shows `Error: Load failed` (client-side timeout)
-- Function actually succeeds: `Found best career page for Booking.com: https://workingatbooking.com`
+```
+Searching for: "werkenbijFontysHogescholen" OR "werken bij Fontys Hogescholen"
+Found career domains: []   ← Empty because werkenbijfontys.nl doesn't match this pattern
+```
 
-### Solution Overview
+### Solution
 
-1. Add explicit timeout configuration to the Supabase function call
-2. Reduce batch size to 1 for more responsive processing
-3. Add proper timeout error handling with user-friendly messages
+Modify `searchDedicatedCareerDomain` to search for **all company identifiers**, not just the full name. This will find `werkenbijfontys.nl` when searching for `werkenbijfontys`.
 
 ### Technical Changes
 
-#### 1. Update FindCareerPagesModal.tsx
+#### 1. Update searchDedicatedCareerDomain Function
 
-**Change batch size from 5 to 1:**
+**Current approach (line 676):**
 ```typescript
-// Process one at a time for better responsiveness
-const batchSize = 1;
+const searchQuery = `"werkenbij${cleanName.replace(/\s+/g, '')}" OR "werken bij ${cleanName}" site:.nl vacatures`;
 ```
 
-**Add timeout configuration to function invoke:**
+**New approach:**
 ```typescript
-const { data, error } = await supabase.functions.invoke('find-career-page', {
-  body: {
-    companies: batch.map((c) => ({
-      company_name: c.company_name,
-      website: c.website,
-    })),
-  },
-  // Allow up to 2 minutes for slow companies
-  headers: {
-    'x-supabase-timeout': '120000'
-  }
-});
-```
-
-**Add AbortController for timeout handling:**
-```typescript
-const controller = new AbortController();
-const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout
-
-try {
-  const { data, error } = await supabase.functions.invoke('find-career-page', {
-    body: { ... },
-  });
-  clearTimeout(timeoutId);
-  // ... handle response
-} catch (error) {
-  clearTimeout(timeoutId);
-  if (error.name === 'AbortError') {
-    // Handle timeout specifically
-    setQueue(prev => prev.map(q => 
-      batch.find(b => b.id === q.id) 
-        ? { ...q, status: 'failed', error: 'Request timed out - try again' }
-        : q
-    ));
-  }
+function searchDedicatedCareerDomain(
+  companyName: string,
+  apiKey: string,
+  careerPatterns: RegExp[]
+): Promise<{ url: string; score: number } | null> {
+  // Get all company identifiers
+  const identifiers = extractCompanyIdentifiers(companyName);
+  
+  // Build search query using ALL identifiers
+  // E.g., for "Fontys Hogescholen": werkenbijfontys, werkenbijfontyshogescholen
+  const werkenbijVariants = identifiers
+    .map(id => `"werkenbij${id}"`)
+    .join(' OR ');
+  
+  const searchQuery = `(${werkenbijVariants}) OR "werken bij ${companyName}" site:.nl vacatures`;
+  // Result: ("werkenbijfontys" OR "werkenbijfontyshogescholen") OR "werken bij Fontys Hogescholen" site:.nl vacatures
+  
+  console.log(`Searching for dedicated career domain: ${searchQuery}`);
+  // ... rest of function
 }
 ```
 
-**Better error messages:**
+#### 2. Add Direct Domain Probing
+
+Additionally, directly try common career domain patterns using the company identifiers:
+
 ```typescript
-error: error instanceof Error 
-  ? (error.message.includes('Load failed') || error.message.includes('timeout')
-    ? 'Request timed out - company may have slow career page'
-    : error.message)
-  : 'Unknown error',
+// Before doing search, try direct domain probes
+for (const identifier of identifiers.slice(0, 2)) { // Try top 2 identifiers
+  const directUrls = [
+    `https://werkenbij${identifier}.nl/vacatures`,
+    `https://werkenbij${identifier}.nl`,
+    `https://www.werkenbij${identifier}.nl/vacatures`,
+    `https://careers.${identifier}.nl`,
+  ];
+  
+  for (const directUrl of directUrls) {
+    try {
+      const response = await fetch(directUrl, { method: 'HEAD' });
+      if (response.ok) {
+        // Validate this URL
+        const isValid = await validateCareerPage(directUrl, apiKey, true);
+        if (isValid) {
+          const score = scoreCareerUrl(directUrl, careerPatterns, companyName);
+          console.log(`Found career domain via direct probe: ${directUrl}`);
+          return { url: directUrl, score };
+        }
+      }
+    } catch {
+      // Domain doesn't exist, continue
+    }
+  }
+}
 ```
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/FindCareerPagesModal.tsx` | Reduce batch size, add timeout handling, improve error messages |
+| `supabase/functions/find-career-page/index.ts` | Update `searchDedicatedCareerDomain` to use all company identifiers in search query and add direct domain probing |
 
 ### Expected Behavior After Fix
 
-1. Companies are processed one at a time (more responsive feedback)
-2. Slow companies show "Request timed out" instead of getting stuck
-3. User can retry individual companies that timed out
-4. UI no longer appears "stuck" on slow companies
+1. For "Fontys Hogescholen", the search will include `"werkenbijfontys"` 
+2. Direct probing will try `werkenbijfontys.nl/vacatures` which will succeed
+3. The correct URL `https://werkenbijfontys.nl/home/onderwijs/vacatures/` will be found
 
-### Alternative Consideration
+### Test Cases
 
-If the edge function itself is too slow, we could also:
-- Skip page validation for known patterns (faster but less accurate)
-- Add caching for previously found career pages
-- Add a "quick mode" that only checks URL patterns without scraping
-
-However, the primary fix of handling timeouts gracefully on the client side should resolve the immediate issue.
-
+| Company | Expected Result |
+|---------|----------------|
+| Fontys Hogescholen | `werkenbijfontys.nl/...` (not fontys.nl) |
+| Avans Hogeschool | `werkenbijnavans.nl/...` |
+| Erasmus MC | `werkenbijerasmusmc.nl/vacatures` (already works) |
