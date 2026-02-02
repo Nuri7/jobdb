@@ -35,6 +35,30 @@ const NON_CAREER_SUBDOMAINS = [
   'static', 'assets', 'images', 'files', 'download'
 ];
 
+// === GENERIC JOB BOARD DOMAINS (-80 points) ===
+// These are job aggregators, not company-specific career pages
+const GENERIC_JOB_BOARDS = [
+  'nationalevacaturebank.nl',
+  'indeed.com', 'indeed.nl',
+  'linkedin.com',
+  'glassdoor.com', 'glassdoor.nl',
+  'monster.com', 'monster.nl',
+  'werk.nl',
+  'intermediair.nl',
+  'jobbird.nl',
+  'monsterboard.nl',
+  'stepstone.nl',
+  'randstad.nl',
+  'tempo-team.nl',
+  'uitzendbureau.nl',
+  'vacatures.nl',
+  'werkzoeken.nl',
+  'jooble.org',
+  'careerjet.nl',
+  'neuvoo.nl',
+  'adzuna.nl',
+];
+
 // High-value path segments that indicate a more specific career page
 const SPECIFICITY_BOOSTERS = [
   'vacatures', 'openings', 'positions', 'opportunities', 'listings',
@@ -88,6 +112,81 @@ const HEAVY_PENALTY_PATTERNS = [
   /\/documents\//i,
   /annual-report/i,
 ];
+
+// === GENERIC COMPANY NAME SUFFIXES ===
+// These are ignored when matching company name to domain
+const GENERIC_NAME_SUFFIXES = [
+  'hogeschool', 'universiteit', 'university', 'college',
+  'bv', 'b.v.', 'nv', 'n.v.', 'holding', 'group', 'groep',
+  'nederland', 'netherlands', 'international', 'europe',
+  'services', 'solutions', 'consulting', 'partners'
+];
+
+/**
+ * Extract meaningful company identifiers from a company name.
+ * E.g., "Avans Hogeschool" → ["avans", "avanshogeschool"]
+ *       "ABN AMRO" → ["abn", "abnamro"]
+ *       "a.s.r." → ["asr"]
+ */
+function extractCompanyIdentifiers(companyName: string): string[] {
+  const nameLower = companyName.toLowerCase();
+  
+  // Remove special characters and normalize
+  const normalized = nameLower.replace(/[.\-']/g, '').replace(/\s+/g, ' ').trim();
+  
+  // Split into words
+  const words = normalized.split(' ');
+  
+  // Filter out generic suffixes to find meaningful words
+  const meaningfulWords = words.filter(word => 
+    word.length > 1 && !GENERIC_NAME_SUFFIXES.includes(word)
+  );
+  
+  const identifiers: string[] = [];
+  
+  // Add the first meaningful word (primary identifier)
+  if (meaningfulWords.length > 0) {
+    identifiers.push(meaningfulWords[0]);
+  }
+  
+  // Add combined form of all meaningful words
+  if (meaningfulWords.length > 1) {
+    identifiers.push(meaningfulWords.join(''));
+  }
+  
+  // Add all meaningful words combined (for company names like "ABN AMRO")
+  if (words.length > 1) {
+    identifiers.push(words.join(''));
+  }
+  
+  // Handle special cases like "a.s.r." → "asr"
+  const compactName = nameLower.replace(/[.\-'\s]/g, '');
+  if (compactName.length >= 2 && !identifiers.includes(compactName)) {
+    identifiers.push(compactName);
+  }
+  
+  console.log(`Company identifiers for "${companyName}":`, identifiers);
+  return identifiers;
+}
+
+/**
+ * Check if a domain contains the company name or a recognizable variation.
+ * Used to validate that a career domain actually belongs to the company.
+ */
+function domainMatchesCompany(domain: string, companyName: string): boolean {
+  const domainLower = domain.toLowerCase().replace(/[.\-]/g, '');
+  const identifiers = extractCompanyIdentifiers(companyName);
+  
+  for (const identifier of identifiers) {
+    if (domainLower.includes(identifier)) {
+      console.log(`Domain "${domain}" matches company "${companyName}" via identifier "${identifier}"`);
+      return true;
+    }
+  }
+  
+  console.log(`Domain "${domain}" does NOT match company "${companyName}"`);
+  return false;
+}
 
 // Content validation keywords - if found on page, confirms it's a job listings page
 const JOB_PAGE_INDICATORS = [
@@ -149,8 +248,9 @@ function createPatternRegexes(patterns: string[]): RegExp[] {
 /**
  * Score a URL based on how likely it is to be a specific job listings page.
  * Higher score = more specific career page.
+ * @param companyName - Optional company name for domain validation scoring
  */
-function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
+function scoreCareerUrl(url: string, careerPatterns: RegExp[], companyName?: string): number {
   const urlLower = url.toLowerCase();
   let score = 0;
 
@@ -180,12 +280,32 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[]): number {
       }
     }
 
-    // === DOMAIN-LEVEL CAREER DETECTION (+50 points) ===
+    // === GENERIC JOB BOARD PENALTY (-80 points) ===
+    // These are aggregator sites, not company-specific career pages
+    for (const jobBoard of GENERIC_JOB_BOARDS) {
+      if (hostname.includes(jobBoard) || hostname.endsWith(jobBoard)) {
+        score -= 80;
+        console.log(`  -80 points for generic job board: ${jobBoard}`);
+        break;
+      }
+    }
+
+    // === DOMAIN-LEVEL CAREER DETECTION (+50 points, but -60 if doesn't match company) ===
+    let hasDedicatedCareerDomain = false;
     for (const pattern of CAREER_DOMAIN_PATTERNS) {
       if (pattern.test(hostname)) {
+        hasDedicatedCareerDomain = true;
         score += 50;
         console.log(`  +50 points for career domain pattern: ${hostname}`);
         break; // Only count once
+      }
+    }
+
+    // === COMPANY NAME VALIDATION FOR CAREER DOMAINS (-60 points if mismatch) ===
+    if (hasDedicatedCareerDomain && companyName) {
+      if (!domainMatchesCompany(hostname, companyName)) {
+        score -= 60;
+        console.log(`  -60 points for career domain not matching company "${companyName}"`);
       }
     }
 
@@ -361,10 +481,10 @@ async function findBestCareerUrl(
 
   console.log(`Pre-filtered ${urls.length - filteredUrls.length} non-page URLs, scoring ${filteredUrls.length} URLs for ${companyName}...`);
 
-  // Score all URLs
+  // Score all URLs with company name for domain validation
   const scoredUrls = filteredUrls
     .map(url => {
-      const score = scoreCareerUrl(url, careerPatterns);
+      const score = scoreCareerUrl(url, careerPatterns, companyName);
       return { url, score };
     })
     .filter(item => item.score > -50) // Filter out heavily penalized URLs
@@ -376,7 +496,7 @@ async function findBestCareerUrl(
   if (scoredUrls.length === 0) {
     // If all scores are very negative, check original list
     const allScored = filteredUrls
-      .map(url => ({ url, score: scoreCareerUrl(url, careerPatterns) }))
+      .map(url => ({ url, score: scoreCareerUrl(url, careerPatterns, companyName) }))
       .sort((a, b) => b.score - a.score);
     
     if (allScored.length > 0 && allScored[0].score > -100) {
@@ -462,9 +582,13 @@ async function searchDedicatedCareerDomain(
       try {
         const urlObj = new URL(url);
         const hostname = urlObj.hostname.toLowerCase();
-        // Check if this is a dedicated career domain
+        // Check if this is a dedicated career domain AND matches the company name
         if (CAREER_DOMAIN_PATTERNS.some(p => p.test(hostname))) {
-          careerDomains.add(hostname);
+          if (domainMatchesCompany(hostname, companyName)) {
+            careerDomains.add(hostname);
+          } else {
+            console.log(`Skipping career domain ${hostname} - doesn't match company: ${companyName}`);
+          }
         }
       } catch {
         continue;
@@ -481,7 +605,7 @@ async function searchDedicatedCareerDomain(
       // Check if this URL works and has job listings (use lenient validation for dedicated domains)
       const isValid = await validateCareerPage(vacaturesUrl, apiKey, true);
       if (isValid) {
-        const score = scoreCareerUrl(vacaturesUrl, careerPatterns);
+        const score = scoreCareerUrl(vacaturesUrl, careerPatterns, companyName);
         console.log(`Found valid vacatures page: ${vacaturesUrl} (score: ${score})`);
         return { url: vacaturesUrl, score };
       }
@@ -497,16 +621,16 @@ async function searchDedicatedCareerDomain(
       for (const variation of variations) {
         const varIsValid = await validateCareerPage(variation, apiKey, true);
         if (varIsValid) {
-          const score = scoreCareerUrl(variation, careerPatterns);
+          const score = scoreCareerUrl(variation, careerPatterns, companyName);
           console.log(`Found valid career page variation: ${variation} (score: ${score})`);
           return { url: variation, score };
         }
       }
     }
 
-    // Fallback: score original results and return best
+    // Fallback: score original results and return best (with company name validation)
     const scoredUrls = urls
-      .map((url: string) => ({ url, score: scoreCareerUrl(url, careerPatterns) }))
+      .map((url: string) => ({ url, score: scoreCareerUrl(url, careerPatterns, companyName) }))
       .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
 
     console.log('Dedicated domain search results (fallback):', scoredUrls.slice(0, 3));
