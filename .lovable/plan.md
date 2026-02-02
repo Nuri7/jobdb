@@ -1,78 +1,98 @@
 
 
-## Plan: Prefer Main Career Listing Pages Over Filtered Subpages
+## Plan: Prioritize Company's Own Domain Over Third-Party Job Sites
 
 ### Problem Analysis
 
-For Avans Hogeschool, the discovery found `https://www.avans.nl/werken-bij-avans/vacatures/EDUCATION_LEVEL/PHD` (score: 85) instead of `https://www.avans.nl/werken-bij-avans/vacatures` (score: 75).
+For ING, the discovery found `https://www.youngcapital.nl/werken-bij/ing-vacatures` (score: 75) instead of the official `https://careers.ing.com/en/search-jobs/`.
 
-**Root Cause: Path Depth Bonus**
-The current scoring gives +5 points per path segment (up to 20 points). This causes filtered/subset pages to score higher than main listing pages:
+**Root Cause:**
+The scoring system doesn't give preference to the company's own domain. Third-party job boards that mention the company name (YoungCapital, StudentJob) can score similarly or higher than the company's actual career site.
 
-| URL | Path Segments | Depth Bonus | Total |
-|-----|--------------|-------------|-------|
-| `/werken-bij-avans/vacatures` | 2 | +10 | 75 |
-| `/werken-bij-avans/vacatures/EDUCATION_LEVEL/PHD` | 4 | +20 | 85 |
+| URL | Current Issues |
+|-----|---------------|
+| `youngcapital.nl/werken-bij/ing-vacatures` | Third-party site, scores 75 |
+| `careers.ing.com/en/search-jobs/` | Company's own domain, but not prioritized |
 
 ### Solution Overview
 
-Add detection for filter/category path segments that indicate a subset of jobs rather than the main listing. Apply penalties to these filtered pages to prefer the comprehensive list.
+Add company domain detection and apply a significant bonus (+100 points) to URLs on the company's own domain or recognizable career subdomains.
 
 ### Technical Changes
 
-#### 1. Add Filter Path Detection
+#### 1. Add Company Domain Matching Function
 
-Create a list of common filter/category patterns that indicate a subset page:
+Create a function to check if a URL is on the company's own domain:
 
 ```typescript
-const FILTER_PATH_PENALTIES = [
-  /EDUCATION_LEVEL/i,
-  /EXPERIENCE_LEVEL/i,
-  /CONTRACT_TYPE/i,
-  /LOCATION/i,
-  /DEPARTMENT/i,
-  /CATEGORY/i,
-  /\/type\//i,
-  /\/level\//i,
-  /\/region\//i,
-  /\/team\//i,
-  /\/PHD$/i,
-  /\/WO$/i,
-  /\/HBO$/i,
-  /\/MBO$/i,
-  /\/internship$/i,
-  /\/stage$/i,
-  /\/fulltime$/i,
-  /\/parttime$/i,
-];
+function urlMatchesCompanyDomain(url: string, companyName: string, companyWebsite?: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    const identifiers = extractCompanyIdentifiers(companyName);
+    
+    // If company has a website, check if URL is on same root domain
+    if (companyWebsite) {
+      const websiteHost = new URL(companyWebsite.startsWith('http') ? companyWebsite : `https://${companyWebsite}`).hostname.toLowerCase();
+      const websiteRoot = websiteHost.split('.').slice(-2).join('.');
+      const urlRoot = hostname.split('.').slice(-2).join('.');
+      
+      if (urlRoot === websiteRoot || hostname.endsWith(websiteRoot)) {
+        return true; // Same root domain as company website
+      }
+    }
+    
+    // Check if domain contains company identifier (e.g., careers.ing.com)
+    for (const identifier of identifiers) {
+      const rootDomain = hostname.split('.').slice(-2).join('.');
+      if (rootDomain.startsWith(identifier) || rootDomain.includes(`.${identifier}.`)) {
+        return true;
+      }
+    }
+    
+    return false;
+  } catch {
+    return false;
+  }
+}
 ```
 
-Each match applies a **-25 point penalty**.
+#### 2. Add OWN DOMAIN BONUS (+100 points)
 
-#### 2. Adjust Path Depth Bonus Logic
-
-Modify the path depth calculation to not reward segments that are filter parameters:
+In `scoreCareerUrl`, add a new scoring section:
 
 ```typescript
-// Filter out segments that look like filter parameters
-const meaningfulSegments = pathSegments.filter(segment => {
-  const segmentUpper = segment.toUpperCase();
-  // Skip if it looks like a filter parameter
-  return !(/^[A-Z_]+$/.test(segmentUpper) && segmentUpper.length > 3);
-});
-score += Math.min(meaningfulSegments.length * 5, 20);
+// === OWN DOMAIN BONUS (+100 points) ===
+// Heavily prioritize the company's own domain over third-party sites
+if (companyName && urlMatchesCompanyDomain(url, companyName, companyWebsite)) {
+  score += 100;
+  console.log(`  +100 points for company's own domain`);
+}
 ```
 
-#### 3. Add "Root Vacatures" Preference
+#### 3. Update Function Signatures
 
-Give a bonus to URLs that end with the main listing path:
+Pass `companyWebsite` through to `scoreCareerUrl` and `findBestCareerUrl`:
 
 ```typescript
-// Bonus for main career listing pages (not filtered)
-if (/\/(vacatures|jobs|careers|openings)$/i.test(pathname) ||
-    /\/(vacatures|jobs|careers|openings)\/$/i.test(pathname)) {
-  score += 15;
-  console.log(`  +15 points for main listing page (ends with vacatures/jobs)`);
+function scoreCareerUrl(
+  url: string, 
+  careerPatterns: RegExp[], 
+  companyName?: string,
+  companyWebsite?: string  // NEW
+): number
+```
+
+#### 4. Add International Career Subdomain Detection
+
+Enhance detection for `careers.*.com` patterns that match the company:
+
+```typescript
+// === INTERNATIONAL CAREER SUBDOMAIN BONUS (+80 points) ===
+// careers.company.com, jobs.company.com patterns
+if (/^(careers?|jobs)\./i.test(hostname) && domainMatchesCompany(hostname, companyName)) {
+  score += 80;
+  console.log(`  +80 points for international career subdomain: ${hostname}`);
 }
 ```
 
@@ -80,25 +100,34 @@ if (/\/(vacatures|jobs|careers|openings)$/i.test(pathname) ||
 
 | URL | Before | After | Change |
 |-----|--------|-------|--------|
-| `/werken-bij-avans/vacatures` | 75 | 90 | +15 (main listing bonus) |
-| `/werken-bij-avans/vacatures/EDUCATION_LEVEL/PHD` | 85 | 50 | -35 (filter penalties, reduced depth) |
+| `careers.ing.com/en/search-jobs/` | ~45 | ~145 | +100 (own domain) |
+| `youngcapital.nl/werken-bij/ing-vacatures` | 75 | 75 | No change |
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/find-career-page/index.ts` | Add FILTER_PATH_PENALTIES, modify path depth bonus, add main listing bonus |
+| `supabase/functions/find-career-page/index.ts` | Add `urlMatchesCompanyDomain` function, add own domain bonus, update function signatures to pass website |
 
 ### Implementation Details
 
-1. **In the scoring function**, add new penalty array and detection
-2. **Modify path depth calculation** to skip uppercase parameter segments
-3. **Add main listing bonus** for URLs ending in `/vacatures`, `/jobs`, etc.
+1. **Own domain detection** checks:
+   - URL is on the same root domain as the company's website
+   - URL domain contains the company name (e.g., `ing.com`)
+   
+2. **International career subdomains** get extra bonus:
+   - `careers.ing.com` → +80 points (career subdomain that matches company)
+   - `jobs.philips.com` → +80 points
+
+3. **Combined scoring for ING example**:
+   - `careers.ing.com/en/search-jobs/`: +100 (own domain) + +80 (career subdomain) + +10 (search pattern) = ~190
+   - `youngcapital.nl/werken-bij/ing-vacatures`: +50 (werkenbij pattern) - 60 (domain mismatch) + 25 (vacatures) = ~75
 
 ### Testing Plan
 
 1. Deploy updated edge function
-2. Test "Find Career Page" on Avans Hogeschool → expect `avans.nl/werken-bij-avans/vacatures`
-3. Re-test ABN AMRO → still finds `werkenbijabnamro.nl/vacatures`
-4. Test on other companies to ensure no regressions
+2. Test "Find Career Page" on ING → expect `careers.ing.com`
+3. Test Philips → expect `careers.philips.com` or `philips.com/careers`
+4. Test KPN → verify own domain prioritization
+5. Re-test Rabobank, ABN AMRO, a.s.r. → verify no regressions
 
