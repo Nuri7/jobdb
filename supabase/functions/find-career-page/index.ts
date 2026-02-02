@@ -661,19 +661,78 @@ async function findBestCareerUrl(
 /**
  * Search for dedicated career domains using "werkenbij" pattern
  * Returns the best career URL, trying /vacatures path on career domains first
+ * 
+ * IMPROVED: Now uses all company identifiers (e.g., "fontys" AND "fontyshogescholen")
+ * and probes common domain patterns directly before falling back to search.
  */
 async function searchDedicatedCareerDomain(
   companyName: string,
   apiKey: string,
   careerPatterns: RegExp[]
 ): Promise<{ url: string; score: number } | null> {
-  // Clean company name for search - remove common suffixes
-  const cleanName = companyName
-    .replace(/\s*(b\.?v\.?|n\.?v\.?|holding|group|nederland)$/i, '')
-    .trim();
+  // Get all company identifiers for better coverage
+  const identifiers = extractCompanyIdentifiers(companyName);
+  console.log(`Searching for dedicated career domain for "${companyName}" with identifiers:`, identifiers);
 
-  // Search specifically for dedicated career domains
-  const searchQuery = `"werkenbij${cleanName.replace(/\s+/g, '')}" OR "werken bij ${cleanName}" site:.nl vacatures`;
+  // === STEP 1: Direct domain probing ===
+  // Try common career domain patterns directly - this is faster and more reliable
+  // than searching when the domain exists
+  for (const identifier of identifiers.slice(0, 3)) { // Try top 3 identifiers
+    const directUrls = [
+      `https://werkenbij${identifier}.nl/vacatures`,
+      `https://werkenbij${identifier}.nl`,
+      `https://www.werkenbij${identifier}.nl/vacatures`,
+      `https://www.werkenbij${identifier}.nl`,
+      `https://careers.${identifier}.nl`,
+      `https://jobs.${identifier}.nl`,
+      `https://${identifier}.nl/werken-bij`,
+      `https://${identifier}.nl/careers`,
+    ];
+
+    for (const directUrl of directUrls) {
+      try {
+        console.log(`Probing: ${directUrl}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout for HEAD
+
+        const response = await fetch(directUrl, { 
+          method: 'HEAD',
+          signal: controller.signal,
+          redirect: 'follow'
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          // Domain exists! Now validate it has job content
+          console.log(`Direct probe succeeded for: ${directUrl}`);
+          const isValid = await validateCareerPage(directUrl, apiKey, true);
+          if (isValid) {
+            const score = scoreCareerUrl(directUrl, careerPatterns, companyName);
+            console.log(`Found career domain via direct probe: ${directUrl} (score: ${score})`);
+            return { url: directUrl, score };
+          } else {
+            console.log(`Domain exists but failed validation: ${directUrl}`);
+          }
+        }
+      } catch (e) {
+        // Domain doesn't exist or timeout, continue to next
+        const errorMsg = e instanceof Error ? e.message : 'unknown error';
+        if (!errorMsg.includes('abort')) {
+          // Only log non-timeout errors
+          console.log(`Probe failed for ${directUrl}: ${errorMsg}`);
+        }
+      }
+    }
+  }
+
+  // === STEP 2: Search with ALL identifiers ===
+  // Build search query using all identifiers for better coverage
+  // E.g., for "Fontys Hogescholen": ("werkenbijfontys" OR "werkenbijfontyshogescholen")
+  const werkenbijVariants = identifiers
+    .map(id => `"werkenbij${id}"`)
+    .join(' OR ');
+  
+  const searchQuery = `(${werkenbijVariants}) OR "werken bij ${companyName}" site:.nl vacatures`;
   
   console.log(`Searching for dedicated career domain: ${searchQuery}`);
 
