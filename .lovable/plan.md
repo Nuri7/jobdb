@@ -1,33 +1,99 @@
-## Completed: Prioritize Company's Own Domain Over Third-Party Job Sites
 
-### Implementation Summary
+## Plan: Fix Booking.com Career Page Discovery
 
-✅ **Completed on 2026-02-02**
+### Problem Analysis
 
-Added own domain prioritization to the career page discovery engine:
+For "Booking.com", the discovery found `jobted.nl/booking.com-vacatures` (score: 60) instead of the official `jobs.booking.com/`.
 
-1. **Added `urlMatchesCompanyDomain` function** - Checks if a URL is on the company's own domain by:
-   - Comparing against the company's website root domain
-   - Checking if the root domain contains the company identifier
+**Root Causes Identified:**
 
-2. **Added +100 point Own Domain Bonus** - URLs on the company's own domain get heavily prioritized
+| Issue | Description |
+|-------|-------------|
+| **Company identifier** | "Booking.com" extracts as `["bookingcom"]` instead of `["booking", "bookingcom"]` |
+| **Missing job board** | `jobted.nl` is not in the generic job boards penalty list |
+| **Domain matching** | `jobs.booking.com` won't match identifier "bookingcom" because root domain is `booking.com` |
 
-3. **Added +80 point International Career Subdomain Bonus** - `careers.company.com` and `jobs.company.com` patterns get additional bonus
+### Solution Overview
 
-4. **Updated function signatures** - `scoreCareerUrl` and `findBestCareerUrl` now accept `companyWebsite` parameter
+Three targeted fixes to ensure company domains are properly recognized and third-party sites are penalized:
 
-### Test Results
+### Technical Changes
 
-| Company | Before | After | Status |
-|---------|--------|-------|--------|
-| ING | `youngcapital.nl/werken-bij/ing-vacatures` (75) | `ing.nl/carriere` (100) | ✅ Fixed |
-| Rabobank | `werkenbijrabobank.nl/vacatures` (170) | `werkenbijrabobank.nl/vacatures` (170) | ✅ No regression |
-| ABN AMRO | `werkenbijabnamro.nl/vacatures` (170) | `werkenbijabnamro.nl/vacatures` (170) | ✅ No regression |
+#### 1. Add Missing Job Board to Penalty List
 
-### Remaining Limitations
+Add `jobted.nl` to `GENERIC_JOB_BOARDS`:
 
-Philips and KPN still return third-party sites because:
-- Their official career domains (`careers.philips.com`, `werkenbijkpn.nl`) are not being returned by the Firecrawl search API
-- The own domain bonus can only apply to URLs that are present in the search results
+```typescript
+const GENERIC_JOB_BOARDS = [
+  // ... existing entries ...
+  'jobted.nl',      // NEW
+  'jobted.com',     // NEW
+];
+```
 
-**Potential future improvement**: Add a direct check for known career domain patterns (`careers.{company}.com`, `werkenbij{company}.nl`) before falling back to search.
+#### 2. Strip Domain Extensions from Company Names
+
+Handle company names that include domain extensions (e.g., "Booking.com", "Hotels.com"):
+
+```typescript
+function extractCompanyIdentifiers(companyName: string): string[] {
+  let nameLower = companyName.toLowerCase();
+  
+  // Strip domain extensions from company names (e.g., "Booking.com" → "Booking")
+  nameLower = nameLower.replace(/\.(com|net|org|nl|eu|io|co)$/i, '');
+  
+  // ... rest of existing logic ...
+}
+```
+
+This will extract `["booking"]` from "Booking.com" instead of `["bookingcom"]`.
+
+#### 3. Improve Domain Matching Logic
+
+Enhance `urlMatchesCompanyDomain` to better match identifier against root domain:
+
+```typescript
+// Current: rootDomain.split('.')[0] === identifier
+// Improved: also check if identifier is contained in domain name part
+const domainName = rootDomain.split('.')[0]; // "booking" from "booking.com"
+if (domainName === identifier || domainName.includes(identifier) || identifier.includes(domainName)) {
+  return true;
+}
+```
+
+### Expected Scoring After Changes
+
+| URL | Before | After | Change |
+|-----|--------|-------|--------|
+| `jobs.booking.com/` | ~0 (not matching) | ~195 | +100 (own domain) + +80 (career subdomain) + +15 (main listing) |
+| `jobted.nl/booking.com-vacatures` | 60 | -20 | -80 (job board penalty) |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/find-career-page/index.ts` | Add jobted.nl to penalty list, strip domain extensions from company names, improve domain matching |
+
+### Implementation Details
+
+1. **Domain extension stripping** handles:
+   - `.com` (Booking.com, Hotels.com)
+   - `.nl` (Dutch companies sometimes include this)
+   - `.net`, `.org`, `.eu`, `.io`, `.co` (other common TLDs)
+
+2. **Improved identifier extraction for "Booking.com"**:
+   - Before: `["bookingcom"]`
+   - After: `["booking"]`
+
+3. **Domain matching for `jobs.booking.com`**:
+   - Root domain: `booking.com`
+   - Domain name: `booking`
+   - Identifier: `booking`
+   - Match: ✓
+
+### Testing Plan
+
+1. Deploy updated edge function
+2. Test "Find Career Page" on Booking.com → expect `jobs.booking.com`
+3. Re-test ING, Rabobank, ABN AMRO → verify no regressions
+4. Test other ".com" named companies if known
