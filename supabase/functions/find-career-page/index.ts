@@ -57,6 +57,8 @@ const GENERIC_JOB_BOARDS = [
   'careerjet.nl',
   'neuvoo.nl',
   'adzuna.nl',
+  'jobted.nl',
+  'jobted.com',
 ];
 
 // High-value path segments that indicate a more specific career page
@@ -156,7 +158,11 @@ const GENERIC_NAME_SUFFIXES = [
  *       "a.s.r." → ["asr"]
  */
 function extractCompanyIdentifiers(companyName: string): string[] {
-  const nameLower = companyName.toLowerCase();
+  let nameLower = companyName.toLowerCase();
+  
+  // Strip domain extensions from company names (e.g., "Booking.com" → "Booking")
+  // This handles companies named after their domain
+  nameLower = nameLower.replace(/\.(com|net|org|nl|eu|io|co|de|uk|be)$/i, '');
   
   // Remove special characters and normalize
   const normalized = nameLower.replace(/[.\-']/g, '').replace(/\s+/g, ' ').trim();
@@ -245,16 +251,22 @@ function urlMatchesCompanyDomain(url: string, companyName: string, companyWebsit
     
     // Check if the root domain contains the company identifier
     // e.g., careers.ing.com → ing.com contains "ing"
+    // e.g., jobs.booking.com → booking.com contains "booking"
     const rootDomain = hostname.split('.').slice(-2).join('.');
+    const domainName = rootDomain.split('.')[0]; // "booking" from "booking.com"
+    
     for (const identifier of identifiers) {
-      // Check if root domain starts with identifier (e.g., ing.com)
-      // or contains identifier as a word boundary (e.g., ing-group.com)
-      if (rootDomain.startsWith(identifier + '.') || 
-          rootDomain === identifier + '.' + rootDomain.split('.').pop() ||
-          rootDomain.split('.')[0] === identifier ||
+      // Check various matching patterns:
+      // - Exact match: ing.com where identifier is "ing"
+      // - Contains: booking.com where identifier is "booking"  
+      // - Hyphenated: ing-group.com
+      if (domainName === identifier || 
+          domainName.includes(identifier) || 
+          identifier.includes(domainName) ||
+          rootDomain.startsWith(identifier + '.') || 
           rootDomain.includes(`-${identifier}`) ||
           rootDomain.includes(`${identifier}-`)) {
-        console.log(`URL "${url}" matches company domain via identifier "${identifier}"`);
+        console.log(`URL "${url}" matches company domain via identifier "${identifier}" (domainName: ${domainName})`);
         return true;
       }
     }
