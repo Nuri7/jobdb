@@ -66,6 +66,33 @@ const SPECIFICITY_BOOSTERS = [
   'all-jobs', 'beschikbare-vacatures', 'available-positions'
 ];
 
+// === FILTER PATH PENALTIES (-25 points each) ===
+// These indicate a filtered subset of jobs, not the main listing
+const FILTER_PATH_PATTERNS = [
+  /EDUCATION_LEVEL/i,
+  /EXPERIENCE_LEVEL/i,
+  /CONTRACT_TYPE/i,
+  /JOB_TYPE/i,
+  /LOCATION/i,
+  /DEPARTMENT/i,
+  /CATEGORY/i,
+  /\/type\//i,
+  /\/level\//i,
+  /\/region\//i,
+  /\/team\//i,
+  /\/PHD$/i,
+  /\/WO$/i,
+  /\/HBO$/i,
+  /\/MBO$/i,
+  /\/internship$/i,
+  /\/stage$/i,
+  /\/fulltime$/i,
+  /\/parttime$/i,
+  /\/junior$/i,
+  /\/senior$/i,
+  /\/medior$/i,
+];
+
 // === SEARCH PAGE PATTERNS (+10 points) ===
 // Some orgs use /search for job listings (e.g., AIESEC)
 const SEARCH_PAGE_PATTERNS = [
@@ -356,8 +383,33 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[], companyName?: str
       }
     }
 
+    // === FILTER PATH PENALTIES (-25 points each) ===
+    // Penalize URLs that look like filtered subsets of job listings
+    for (const pattern of FILTER_PATH_PATTERNS) {
+      if (pattern.test(pathname)) {
+        score -= 25;
+        console.log(`  -25 points for filter path pattern: ${pattern}`);
+      }
+    }
+
     // === PATH DEPTH BONUS (up to 20 points) ===
-    score += Math.min(pathSegments.length * 5, 20);
+    // Filter out segments that look like filter parameters (uppercase with underscores)
+    const meaningfulSegments = pathSegments.filter(segment => {
+      const segmentUpper = segment.toUpperCase();
+      // Skip if it looks like a filter parameter (e.g., EDUCATION_LEVEL, PHD)
+      if (/^[A-Z_]+$/.test(segmentUpper) && segment.length > 2) {
+        return false;
+      }
+      return true;
+    });
+    score += Math.min(meaningfulSegments.length * 5, 20);
+
+    // === MAIN LISTING PAGE BONUS (+15 points) ===
+    // Prefer URLs that end with the main career listing path (not filtered)
+    if (/\/(vacatures|jobs|careers|openings|positions)\/?$/i.test(pathname)) {
+      score += 15;
+      console.log(`  +15 points for main listing page (ends with vacatures/jobs/careers)`);
+    }
 
     // === GENERIC LANDING PAGE PENALTY ===
     if (urlLower.endsWith('/werken-bij') || urlLower.endsWith('/careers') || urlLower.endsWith('/jobs')) {
