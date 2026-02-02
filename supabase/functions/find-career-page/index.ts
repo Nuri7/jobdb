@@ -59,6 +59,10 @@ const GENERIC_JOB_BOARDS = [
   'adzuna.nl',
   'jobted.nl',
   'jobted.com',
+  'vacaturesinfood.nl',
+  'werkenbijdeoverheid.nl',
+  'meesterbaan.nl',
+  'zorgbanen.nl',
 ];
 
 // High-value path segments that indicate a more specific career page
@@ -679,6 +683,7 @@ async function searchDedicatedCareerDomain(
   // than searching when the domain exists
   for (const identifier of identifiers.slice(0, 3)) { // Try top 3 identifiers
     const directUrls = [
+      // Dutch patterns (.nl)
       `https://werkenbij${identifier}.nl/vacatures`,
       `https://werkenbij${identifier}.nl`,
       `https://www.werkenbij${identifier}.nl/vacatures`,
@@ -687,6 +692,12 @@ async function searchDedicatedCareerDomain(
       `https://jobs.${identifier}.nl`,
       `https://${identifier}.nl/werken-bij`,
       `https://${identifier}.nl/careers`,
+      // International patterns (.com) - for multinationals like FrieslandCampina
+      `https://careers.${identifier}.com`,
+      `https://careers.${identifier}.com/nld/nl`,
+      `https://jobs.${identifier}.com`,
+      `https://www.${identifier}.com/careers`,
+      `https://www.${identifier}.com/jobs`,
     ];
 
     for (const directUrl of directUrls) {
