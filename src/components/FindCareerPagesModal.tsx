@@ -78,8 +78,8 @@ export default function FindCareerPagesModal({
     const processNext = async () => {
       processingRef.current = true;
       
-      // Process in batches of 5
-      const batchSize = 5;
+      // Process one at a time for better responsiveness with slow companies
+      const batchSize = 1;
       const batchStart = currentIndex;
       const batchEnd = Math.min(currentIndex + batchSize, queue.length);
       const batch = queue.slice(batchStart, batchEnd);
@@ -98,6 +98,10 @@ export default function FindCareerPagesModal({
         )
       );
 
+      // Set up timeout handling - 90 second client-side timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
+
       try {
         const { data, error } = await supabase.functions.invoke('find-career-page', {
           body: {
@@ -107,6 +111,8 @@ export default function FindCareerPagesModal({
             })),
           },
         });
+
+        clearTimeout(timeoutId);
 
         if (error) throw error;
 
@@ -156,14 +162,23 @@ export default function FindCareerPagesModal({
           );
         }
       } catch (error) {
+        clearTimeout(timeoutId);
         console.error('Error finding career pages:', error);
+        
+        // Determine user-friendly error message
+        const errorMessage = error instanceof Error 
+          ? (error.name === 'AbortError' || error.message.includes('Load failed') || error.message.includes('timeout')
+            ? 'Request timed out - company may have slow career page'
+            : error.message)
+          : 'Unknown error';
+        
         setQueue((prev) =>
           prev.map((q) =>
             batch.find((b) => b.id === q.id)
               ? {
                   ...q,
                   status: 'failed' as const,
-                  error: error instanceof Error ? error.message : 'Unknown error',
+                  error: errorMessage,
                 }
               : q
           )
