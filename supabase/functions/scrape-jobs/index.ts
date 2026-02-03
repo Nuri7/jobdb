@@ -364,6 +364,62 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
 }
 
+// Clean job description by removing UI/UX text patterns
+function cleanDescription(text: string): string {
+  return text
+    // Remove duplicated button text (Dutch)
+    .replace(/Solliciteer(Solliciteer)+/gi, '')
+    .replace(/\bSolliciteer\b/gi, '')
+    .replace(/Opslaan(Opslaan)+/gi, '')
+    .replace(/\bOpslaan\b/gi, '')
+    .replace(/Verwijder(en)?(Verwijder(en)?)+/gi, '')
+    .replace(/\bVerwijder(en)?\b/gi, '')
+    .replace(/Bewaar(Bewaar)+/gi, '')
+    .replace(/\bBewaar\b/gi, '')
+    // Remove duplicated button text (English)
+    .replace(/Apply(\s*now)?(Apply(\s*now)?)+/gi, '')
+    .replace(/\bApply(\s+now)?\b/gi, '')
+    .replace(/Save(\s*job)?(Save(\s*job)?)+/gi, '')
+    .replace(/\bSave(\s+job)?\b/gi, '')
+    // Remove navigation text (Dutch)
+    .replace(/Terug naar\s+\w+(\s+\w+)?/gi, '')
+    .replace(/Ga terug/gi, '')
+    // Remove navigation text (English)
+    .replace(/Back to\s+\w+(\s+\w+)?/gi, '')
+    .replace(/Go back/gi, '')
+    // Remove status/countdown messages (Dutch)
+    .replace(/Deze vacature staat nog \d+ dagen? open\.?/gi, '')
+    .replace(/Nog \d+ dagen? geldig\.?/gi, '')
+    .replace(/Sluitingsdatum[:\s]+[^\n]+/gi, '')
+    // Remove status messages (English)
+    .replace(/This (job|position|vacancy) (is|will be) (open|available|closing)[^\n]*/gi, '')
+    .replace(/Closing in \d+ days?\.?/gi, '')
+    // Remove social sharing prompts (Dutch)
+    .replace(/Deel (deze vacature|dit|via)[^\n]*/gi, '')
+    .replace(/Delen via[^\n]*/gi, '')
+    // Remove social sharing prompts (English)
+    .replace(/Share (this job|on|via)[^\n]*/gi, '')
+    .replace(/Share with[^\n]*/gi, '')
+    // Remove standalone social media names (often from share buttons)
+    .replace(/^(LinkedIn|Facebook|Twitter|X|WhatsApp|Email|E-mail|Mail)\s*$/gim, '')
+    // Remove print/copy prompts
+    .replace(/Print( deze pagina)?/gi, '')
+    .replace(/Kopieer link/gi, '')
+    .replace(/Copy link/gi, '')
+    // Remove favorites prompts
+    .replace(/Voeg toe aan favorieten/gi, '')
+    .replace(/Add to favorites/gi, '')
+    .replace(/Bookmark (this )?job/gi, '')
+    // Remove cookie/consent notices (basic patterns)
+    .replace(/We (use|gebruiken) cookies[^\n]*/gi, '')
+    .replace(/Accept (all )?cookies/gi, '')
+    .replace(/Cookie (settings|instellingen)/gi, '')
+    // Clean up resulting whitespace
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s+$/gm, '')
+    .trim();
+}
+
 // Extract job data from a job page
 function extractJobData(url: string, content: string, metadata: any, settings: Record<string, any>): JobData {
   // Extract job title
@@ -580,7 +636,7 @@ function extractJobData(url: string, content: string, metadata: any, settings: R
     location: location.slice(0, 100),
     employment_type: employmentType,
     department: department?.slice(0, 100),
-    description: content.slice(0, 5000),
+    description: cleanDescription(content).slice(0, 5000),
     is_remote: isRemote,
     is_internship: finalIsInternship,
     experience_level: experienceLevel?.slice(0, 50) || undefined,
