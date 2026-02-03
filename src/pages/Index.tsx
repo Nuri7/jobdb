@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useJobs, useCompanies, useLocations, useIndustries } from "@/hooks/useJobs";
-import { jobsApi, Job } from "@/lib/api/jobs";
+import { jobsApi } from "@/lib/api/jobs";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import FilterBar from "@/components/FilterBar";
 import JobListItem from "@/components/JobListItem";
-import JobDetailModal from "@/components/JobDetailModal";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Trash2 } from "lucide-react";
@@ -23,7 +22,6 @@ const Index = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [scrapingCompany, setScrapingCompany] = useState<string | null>(null);
   const [scrapeProgress, setScrapeProgress] = useState({ current: 0, total: 0 });
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const { toast } = useToast();
 
   const { data: companies } = useCompanies();
@@ -282,7 +280,6 @@ const Index = () => {
                   isInternship={job.is_internship || false}
                   industry={job.industry}
                   description={job.description}
-                  onClick={() => setSelectedJob(job)}
                 />
               ))}
             </div>
@@ -299,12 +296,6 @@ const Index = () => {
         )}
       </div>
 
-      {/* Job Detail Modal */}
-      <JobDetailModal
-        isOpen={!!selectedJob}
-        onClose={() => setSelectedJob(null)}
-        job={selectedJob}
-      />
     </div>
   );
 };

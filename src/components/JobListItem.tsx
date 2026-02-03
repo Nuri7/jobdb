@@ -21,10 +21,9 @@ interface JobListItemProps {
   isInternship?: boolean;
   industry?: string | null;
   description?: string | null;
-  onClick?: () => void;
 }
 
-const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, industry, description, onClick }: JobListItemProps) => {
+const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, industry, description }: JobListItemProps) => {
   const { toast } = useToast();
   const [logoError, setLogoError] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -49,10 +48,7 @@ const JobListItem = ({ title, location, dateRange, source, startDate, jobUrl, ex
 
   return (
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-      <div 
-        className="bg-card rounded-lg border border-border hover:shadow-lg transition-shadow duration-200 p-4 cursor-pointer"
-        onClick={onClick}
-      >
+      <div className="bg-card rounded-lg border border-border hover:shadow-lg transition-shadow duration-200 p-4">
         <div className="flex items-center gap-4">
           {/* Company Logo */}
           <div className="w-12 h-12 flex-shrink-0 rounded-lg bg-muted overflow-hidden flex items-center justify-center">
