@@ -281,6 +281,7 @@ const Index = () => {
                   companyCareerUrl={job.company_career_url}
                   isInternship={job.is_internship || false}
                   industry={job.industry}
+                  description={job.description}
                   onClick={() => setSelectedJob(job)}
                 />
               ))}
