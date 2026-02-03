@@ -1,50 +1,156 @@
 
-## Plan: Fix Career Page Discovery for Fontys Hogescholen
+## Plan: Prevent False Positives Like Privacy Statements in Job Scraping
 
-### Status: ✅ IMPLEMENTED
+### Problem Summary
+
+When scraping ABN AMRO, the URL `https://www.werkenbijabnamro.nl/privacy-statement-nl` was incorrectly detected as a job posting with the title "Privacy Statement".
 
 ### Root Cause Analysis
 
-The discovery failed to find `werkenbijfontys.nl` because:
+| Check | Result | Issue |
+|-------|--------|-------|
+| `isJobUrl` | Passed | Matches "werk" in domain `werkenbijabnamro.nl`, not the path |
+| `isExcluded` | Not excluded | No exclusion for `privacy`, `terms`, `legal`, etc. |
+| `isDetailPage` | Passed | Slug pattern `/[a-z]+-[a-z]+-[a-z]+/` matches `privacy-statement-nl` |
+| `isValidJobContent` | Passed | Privacy policies contain "submit" (for data submission) |
 
-| Issue | Detail |
-|-------|--------|
-| **Search query too specific** | Searched for `"werkenbijFontysHogescholen"` instead of also trying `"werkenbijfontys"` |
-| **Company identifiers not used** | The function extracts identifiers like `["fontys", "fontyshogescholen"]` but doesn't use them in the dedicated domain search |
-| **Validation passed wrong page** | `https://www.fontys.nl/Over-Fontys/Fontys-ICT.htm` passed validation with 3 indicators (likely generic words like "fulltime", "parttime" in course descriptions) |
+### Solution
 
-### Solution Implemented
+Implement a multi-layer defense against legal/policy page false positives:
 
-Modified `searchDedicatedCareerDomain` to:
+1. **URL Path Filtering** - Check job keywords in PATH only, not full URL
+2. **Expanded Exclusion Patterns** - Add legal/policy page patterns  
+3. **Content-Based Disqualification** - Detect legal document signatures
 
-1. **Use all company identifiers in search query**
-   - Now searches for `("werkenbijfontys" OR "werkenbijfontyshogescholen")` instead of just `"werkenbijFontysHogescholen"`
+### Technical Changes
 
-2. **Add direct domain probing BEFORE search**
-   - Probes common career domain patterns directly (faster and more reliable):
-     - `werkenbij${identifier}.nl/vacatures`
-     - `werkenbij${identifier}.nl`
-     - `careers.${identifier}.nl`
-     - `jobs.${identifier}.nl`
-   - Uses HEAD requests with 5s timeout for fast probing
-   - Validates discovered domains before returning
+#### 1. Fix `filterJobUrls` - Check Path, Not Full URL
 
-### Files Modified
+**Current code (line 221-232):**
+```typescript
+const isJobUrl = (
+  lowerUrl.includes('job') || 
+  lowerUrl.includes('vacanc') || 
+  lowerUrl.includes('werk') ||  // ← Matches domain!
+  // ...
+);
+```
+
+**New approach:**
+```typescript
+// Extract just the path for job URL detection
+const urlPath = new URL(url).pathname.toLowerCase();
+
+const isJobUrl = (
+  urlPath.includes('job') || 
+  urlPath.includes('vacanc') || 
+  urlPath.includes('vacature') ||
+  urlPath.includes('position') ||
+  urlPath.includes('opening') ||
+  // Note: Remove 'werk' - too generic, matches domain names
+  // Keep numeric ID patterns
+  /\/\d{5,}/.test(url) ||
+  /id=\d+/.test(url) ||
+  /job[_-]?id/i.test(url)
+);
+```
+
+#### 2. Add Legal/Policy Page Exclusions
+
+Add built-in exclusions for common non-job page patterns:
+
+```typescript
+// Built-in exclusions (always applied)
+const BUILT_IN_EXCLUSIONS = [
+  'privacy',
+  'cookie',
+  'terms',
+  'disclaimer',
+  'legal',
+  'policy',
+  'policies',
+  'gdpr',
+  'imprint',
+  'impressum',
+  'algemene-voorwaarden',
+  'privacyverklaring',
+  'cookieverklaring',
+];
+
+const isExcluded = (
+  matchesExcludedPattern ||
+  BUILT_IN_EXCLUSIONS.some(pattern => lowerUrl.includes(pattern)) ||
+  // ... existing checks
+);
+```
+
+#### 3. Enhanced Content Validation
+
+Add negative signals that disqualify content as a job posting:
+
+```typescript
+function isValidJobContent(content: string, requiredKeywords: string[]): boolean {
+  const lowerContent = content.toLowerCase();
+  
+  // Negative signals - if these appear prominently, it's not a job
+  const legalDocumentSignals = [
+    'privacy policy',
+    'privacyverklaring',
+    'cookie policy',
+    'terms of service',
+    'terms and conditions',
+    'algemene voorwaarden',
+    'personal data we collect',
+    'gegevensbescherming',
+    'data protection officer',
+    'legal notice',
+    'disclaimer',
+  ];
+  
+  // If content starts with or heavily features legal language, reject it
+  const contentStart = lowerContent.slice(0, 500);
+  const isLegalDocument = legalDocumentSignals.some(signal => 
+    contentStart.includes(signal)
+  );
+  
+  if (isLegalDocument) {
+    console.log('Rejecting page: Detected as legal/policy document');
+    return false;
+  }
+  
+  // Existing keyword and length checks...
+  const hasRequiredKeyword = requiredKeywords.some(keyword => 
+    lowerContent.includes(keyword.toLowerCase())
+  );
+  
+  const hasReasonableLength = content.length > 200;
+  
+  return hasRequiredKeyword && hasReasonableLength;
+}
+```
+
+### File to Modify
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/find-career-page/index.ts` | Rewrote `searchDedicatedCareerDomain` function with multi-identifier search and direct domain probing |
+| `supabase/functions/scrape-jobs/index.ts` | Update `filterJobUrls` to check path only, add built-in exclusions, enhance `isValidJobContent` with legal document detection |
+
+### Additional Improvement: Clean Existing Data
+
+After deploying the fix, delete the false positive from the database:
+```sql
+DELETE FROM job_opportunities 
+WHERE job_url LIKE '%privacy-statement%' 
+   OR job_url LIKE '%cookie%' 
+   OR job_url LIKE '%terms%'
+   OR job_url LIKE '%disclaimer%';
+```
 
 ### Expected Behavior After Fix
 
-1. For "Fontys Hogescholen", direct probe will try `werkenbijfontys.nl/vacatures`
-2. If probe succeeds, validates and returns immediately (no search needed)
-3. Fallback search now includes `"werkenbijfontys"` in query
-
-### Test Cases
-
-| Company | Expected Result |
-|---------|----------------|
-| Fontys Hogescholen | `werkenbijfontys.nl/...` (not fontys.nl) |
-| Avans Hogeschool | `werkenbijnavans.nl/...` |
-| Erasmus MC | `werkenbijerasmusmc.nl/vacatures` (already works) |
+| URL | Before | After |
+|-----|--------|-------|
+| `werkenbijabnamro.nl/privacy-statement-nl` | ❌ Scraped as job | ✅ Excluded by URL pattern |
+| `werkenbijabnamro.nl/vacature/8970/...` | ✅ Scraped | ✅ Scraped (no change) |
+| `werkenbijabnamro.nl/cookie-policy` | ❌ Would be scraped | ✅ Excluded by URL pattern |
+| `werkenbijabnamro.nl/algemene-voorwaarden` | ❌ Would be scraped | ✅ Excluded by URL pattern |
