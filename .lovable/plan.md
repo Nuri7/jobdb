@@ -1,86 +1,128 @@
 
 
-## Plan: Add Expandable Job Descriptions to Job Cards
+## Plan: Filter UI/UX Text from Job Descriptions
 
-### Overview
+### Problem
 
-Add a "Show more" / "Show less" toggle button to each job card that expands to reveal the full job description with markdown formatting. When collapsed, the card shows only the current metadata. When expanded, the full description appears below.
+When scraping job pages, the raw markdown content includes interactive UI elements and navigation text that shouldn't be part of the job description:
+- Button text: "Solliciteer", "Opslaan", "Verwijderen"
+- Navigation: "Terug naar vacatureoverzicht"
+- Status messages: "Deze vacature staat nog 10 dagen open"
+- Duplicated text from buttons being rendered multiple times
 
-### User Experience
+### Solution
 
-**Collapsed State (Default)**
-- Current card layout with title, URL, metadata, badges
-- Small "Show more" button/chevron at bottom right
-
-**Expanded State**
-- Card grows to accommodate full description
-- Description rendered with markdown formatting
-- "Show less" button to collapse
+Add a content cleaning function to the `scrape-jobs` edge function that removes these UI patterns before storing the description.
 
 ### Technical Changes
 
-#### 1. Update JobListItem Props
+#### 1. Add UI Text Patterns to Remove
 
-Add new prop for the description:
+Create a new constant array of patterns to filter out (both Dutch and English):
 
-```typescript
-interface JobListItemProps {
-  // ... existing props
-  description?: string | null;  // NEW
-}
+```text
+UI PATTERNS TO REMOVE
+=====================
+- SolliciteerSolliciteer, Solliciteer
+- OpslaanOpslaan, Opslaan
+- VerwijderVerwijder, Verwijder
+- Terug naar vacatureoverzicht
+- Terug naar overzicht
+- Deze vacature staat nog X dagen open
+- Apply now, Apply, Save job, Save
+- Back to jobs, Back to overview
+- Share this job, Deel deze vacature
+- Print, Print deze pagina
+- Copy link, Kopieer link
+- Add to favorites, Voeg toe aan favorieten
+- Cookie/privacy consent text blocks
+- Social sharing buttons (LinkedIn, Facebook, Twitter, etc.)
 ```
 
-#### 2. Add Expand/Collapse State & UI
+#### 2. Create Clean Description Function
 
-Update `JobListItem.tsx`:
+Add a `cleanDescription()` function that:
 
-- Add `isExpanded` state
-- Add expand/collapse toggle button (ChevronDown/ChevronUp icons)
-- Use Collapsible component from shadcn/ui for smooth animation
-- Render description with ReactMarkdown when expanded
-- Stop propagation on toggle to prevent modal from opening
+1. Removes common UI button text patterns
+2. Removes navigation links text
+3. Removes status/countdown messages
+4. Removes social sharing prompts
+5. Removes duplicate whitespace/newlines
+6. Preserves the actual job content
 
-#### 3. Update Index.tsx
+#### 3. Apply Cleaning Before Storage
 
-Pass the description prop to JobListItem:
+Update line 583 in `extractJobData()`:
 
-```typescript
-<JobListItem
-  // ... existing props
-  description={job.description}
-/>
+```text
+BEFORE:
+description: content.slice(0, 5000)
+
+AFTER:
+description: cleanDescription(content).slice(0, 5000)
 ```
+
+#### 4. Add Configurable Setting (Optional Enhancement)
+
+Add a new `description_cleanup_patterns` setting to the `scraper_settings` table so patterns can be updated without code changes.
 
 ### File Changes
 
 | File | Changes |
 |------|---------|
-| `src/components/JobListItem.tsx` | Add `description` prop, `isExpanded` state, Collapsible wrapper, expand/collapse button, ReactMarkdown for description |
-| `src/pages/Index.tsx` | Pass `description={job.description}` to JobListItem |
+| `supabase/functions/scrape-jobs/index.ts` | Add `cleanDescription()` function with UI text removal patterns, apply it to description extraction |
 
-### Component Structure
+### Implementation Details
 
+The `cleanDescription` function will use regex patterns to:
+
+1. **Remove button patterns** (case-insensitive, handles duplicates):
+   - `/Solliciteer(Solliciteer)?/gi`
+   - `/Opslaan(Opslaan)?/gi`
+   - `/Verwijder(en)?(Verwijder(en)?)?/gi`
+   - `/Apply(\s+now)?/gi`
+   - `/Save(\s+job)?/gi`
+
+2. **Remove navigation text**:
+   - `/Terug naar\s+\w+/gi`
+   - `/Back to\s+\w+/gi`
+
+3. **Remove status messages**:
+   - `/Deze vacature staat nog \d+ dagen? open/gi`
+   - `/This (job|position) (is|will be) (open|available).*/gi`
+
+4. **Remove social/share blocks**:
+   - `/Deel (deze vacature|dit|via)/gi`
+   - `/Share (this job|on|via)/gi`
+   - Lines that are just "LinkedIn", "Facebook", "Twitter", etc.
+
+5. **Clean up whitespace**:
+   - Multiple blank lines → single blank line
+   - Trailing/leading whitespace per line
+
+### Example Before/After
+
+```text
+BEFORE:
+Senior Developer
+
+SolliciteerSolliciteer
+
+VerwijderOpslaanOpslaan
+
+Terug naar vacatureoverzicht
+
+Deze vacature staat nog 10 dagen open
+
+We are looking for a Senior Developer to join our team...
+
+LinkedIn Facebook Twitter
+
+Deel deze vacature
+
+AFTER:
+Senior Developer
+
+We are looking for a Senior Developer to join our team...
 ```
-JobListItem (card container)
-+-- Logo
-+-- Content
-|   +-- Title
-|   +-- Job URL
-|   +-- Metadata row (location, type, experience, industry, salary)
-|   +-- Collapsible  <-- NEW
-|       +-- CollapsibleContent
-|           +-- ReactMarkdown (description)
-+-- Meta (company, badges)
-+-- Expand Toggle Button  <-- NEW
-```
-
-### Visual Design
-
-- Toggle button: Small pill with "Show more" text + chevron icon
-- Expanded description: 
-  - Light background (bg-muted/50)
-  - Rounded corners
-  - Proper padding
-  - Markdown prose styling
-- Smooth height animation via Collapsible component
 
