@@ -636,7 +636,7 @@ function extractJobData(url: string, content: string, metadata: any, settings: R
     location: location.slice(0, 100),
     employment_type: employmentType,
     department: department?.slice(0, 100),
-    description: cleanDescription(content).slice(0, 5000),
+    description: cleanDescription(content).slice(0, 15000),
     is_remote: isRemote,
     is_internship: finalIsInternship,
     experience_level: experienceLevel?.slice(0, 50) || undefined,
