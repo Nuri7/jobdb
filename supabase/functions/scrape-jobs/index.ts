@@ -210,6 +210,28 @@ function findPaginationLinks(links: string[], baseUrl: string, currentUrl: strin
   return paginationUrls;
 }
 
+// Built-in exclusions for legal/policy pages (always applied)
+const BUILT_IN_EXCLUSIONS = [
+  'privacy',
+  'cookie',
+  'terms',
+  'disclaimer',
+  'legal',
+  'policy',
+  'policies',
+  'gdpr',
+  'imprint',
+  'impressum',
+  'algemene-voorwaarden',
+  'privacyverklaring',
+  'cookieverklaring',
+  'terms-of-service',
+  'terms-and-conditions',
+  'terms-of-use',
+  'gebruiksvoorwaarden',
+  'voorwaarden',
+];
+
 // Filter links to find job URLs
 function filterJobUrls(links: string[], baseUrl: string, careerUrl: string, excludedUrlPatterns: string[] = []): string[] {
   return links.filter((url: string) => {
@@ -218,14 +240,22 @@ function filterJobUrls(links: string[], baseUrl: string, careerUrl: string, excl
     // Must be on same domain
     if (!url.startsWith(baseUrl)) return false;
     
-    // Include URLs that look like job detail pages
+    // Extract just the path for job URL detection (not full URL to avoid domain matches)
+    let urlPath: string;
+    try {
+      urlPath = new URL(url).pathname.toLowerCase();
+    } catch {
+      urlPath = lowerUrl;
+    }
+    
+    // Include URLs that look like job detail pages (check PATH only, not full URL)
     const isJobUrl = (
-      lowerUrl.includes('job') || 
-      lowerUrl.includes('vacanc') || 
-      lowerUrl.includes('position') ||
-      lowerUrl.includes('opening') ||
-      lowerUrl.includes('vacature') ||
-      lowerUrl.includes('werk') ||
+      urlPath.includes('job') || 
+      urlPath.includes('vacanc') || 
+      urlPath.includes('position') ||
+      urlPath.includes('opening') ||
+      urlPath.includes('vacature') ||
+      // Note: Removed 'werk' - too generic, often in domain names like werkenbij*
       /\/\d{5,}/.test(url) || // Job IDs are often long numbers
       /id=\d+/.test(url) ||
       /job[_-]?id/i.test(url)
@@ -236,9 +266,15 @@ function filterJobUrls(links: string[], baseUrl: string, careerUrl: string, excl
       lowerUrl.includes(pattern.toLowerCase())
     );
     
+    // Check against built-in legal/policy exclusions
+    const matchesBuiltInExclusion = BUILT_IN_EXCLUSIONS.some(pattern => 
+      lowerUrl.includes(pattern)
+    );
+    
     // Exclude non-job URLs
     const isExcluded = (
       matchesExcludedPattern ||
+      matchesBuiltInExclusion ||
       lowerUrl.includes('linkedin.com') ||
       lowerUrl.includes('facebook.com') ||
       lowerUrl.includes('twitter.com') ||
@@ -266,9 +302,43 @@ function filterJobUrls(links: string[], baseUrl: string, careerUrl: string, excl
   });
 }
 
+// Legal document signals - if these appear prominently, it's not a job
+const LEGAL_DOCUMENT_SIGNALS = [
+  'privacy policy',
+  'privacyverklaring',
+  'privacybeleid',
+  'cookie policy',
+  'cookiebeleid',
+  'terms of service',
+  'terms and conditions',
+  'algemene voorwaarden',
+  'personal data we collect',
+  'gegevensbescherming',
+  'data protection officer',
+  'legal notice',
+  'disclaimer',
+  'your privacy rights',
+  'we use cookies',
+  'wij gebruiken cookies',
+  'this privacy statement',
+  'deze privacyverklaring',
+];
+
 // Validate if scraped content is actually a job posting
 function isValidJobContent(content: string, requiredKeywords: string[]): boolean {
   const lowerContent = content.toLowerCase();
+  
+  // Check for legal document signals in the first 500 characters
+  // If content starts with or heavily features legal language, reject it
+  const contentStart = lowerContent.slice(0, 500);
+  const isLegalDocument = LEGAL_DOCUMENT_SIGNALS.some(signal => 
+    contentStart.includes(signal)
+  );
+  
+  if (isLegalDocument) {
+    console.log('Rejecting page: Detected as legal/policy document');
+    return false;
+  }
   
   // Must contain at least one of the required keywords
   const hasRequiredKeyword = requiredKeywords.some(keyword => 
