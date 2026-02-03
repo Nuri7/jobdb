@@ -367,7 +367,12 @@ function decodeHtmlEntities(text: string): string {
 // Clean job description by removing UI/UX text patterns
 function cleanDescription(text: string): string {
   return text
-    // Remove duplicated button text (Dutch)
+    // Remove markdown images
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    // Remove HTML img tags
+    .replace(/<img[^>]*>/gi, '')
+    // Remove duplicated button text (Dutch) - handle concatenated versions
+    .replace(/Bewaar vacatureBewaar vacature/gi, '')
     .replace(/Solliciteer(Solliciteer)+/gi, '')
     .replace(/\bSolliciteer\b/gi, '')
     .replace(/Opslaan(Opslaan)+/gi, '')
@@ -383,7 +388,8 @@ function cleanDescription(text: string): string {
     .replace(/\bApply(\s+now)?\b/gi, '')
     .replace(/Save(\s*job)?(Save(\s*job)?)+/gi, '')
     .replace(/\bSave(\s+job)?\b/gi, '')
-    // Remove "Interested?" / "Are you interested?" prompts
+    // Remove "Interested?" / "Are you interested?" prompts and broken fragments
+    .replace(/Are you\s+Please via the button below\.?/gi, '')
     .replace(/Interested\??/gi, '')
     .replace(/Are you interested\??/gi, '')
     .replace(/Ge[ïi]nteresseerd\??/gi, '')
@@ -401,13 +407,15 @@ function cleanDescription(text: string): string {
     .replace(/In het kort/gi, '')
     .replace(/At a glance/gi, '')
     .replace(/Job summary/gi, '')
-    // Remove contact person blocks
+    // Remove contact person blocks and names
     .replace(/Liever persoonlijk advies\??/gi, '')
     .replace(/Prefer personal advice\??/gi, '')
     .replace(/op deze functie/gi, '')
     .replace(/for this position/gi, '')
-    // Remove email addresses on their own line
-    .replace(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/gm, '')
+    // Remove email addresses anywhere in text
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '')
+    // Remove standalone person names (common patterns: First Last on own line)
+    .replace(/^[A-Z][a-z]+\s+[A-Z][a-z]+\s*$/gm, '')
     // Remove navigation text (Dutch)
     .replace(/Terug naar\s+\w+(\s+\w+)?/gi, '')
     .replace(/Ga terug/gi, '')
