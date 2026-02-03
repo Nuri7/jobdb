@@ -4,10 +4,8 @@ import { jobsApi, Job } from "@/lib/api/jobs";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import FilterBar from "@/components/FilterBar";
-import JobCard from "@/components/JobCard";
 import JobListItem from "@/components/JobListItem";
 import JobDetailModal from "@/components/JobDetailModal";
-import ViewToggle from "@/components/ViewToggle";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Trash2 } from "lucide-react";
@@ -20,7 +18,6 @@ const Index = () => {
   const [experienceLevel, setExperienceLevel] = useState("all");
   const [source, setSource] = useState("all");
   const [industry, setIndustry] = useState("all");
-  const [view, setView] = useState<"grid" | "list">("list");
   const [currentPage, setCurrentPage] = useState(1);
   const [isScraping, setIsScraping] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -240,15 +237,12 @@ const Index = () => {
           </div>
         )}
 
-        {/* Job Count, Search & View Toggle */}
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-4">
-            <span className="text-lg font-bold text-foreground">
-              {totalCount} {totalCount === 1 ? 'job' : 'jobs'}
-            </span>
-            <SearchBar value={search} onChange={setSearch} />
-          </div>
-          <ViewToggle view={view} onViewChange={setView} />
+        {/* Job Count & Search */}
+        <div className="flex items-center gap-4 mb-4">
+          <span className="text-lg font-bold text-foreground">
+            {totalCount} {totalCount === 1 ? 'job' : 'jobs'}
+          </span>
+          <SearchBar value={search} onChange={setSearch} />
         </div>
 
         {/* Loading State */}
@@ -268,53 +262,29 @@ const Index = () => {
           </div>
         )}
 
-        {/* Jobs Grid/List */}
+        {/* Jobs List - Full Width Cards */}
         {!isLoading && jobs.length > 0 && (
           <>
-            {view === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mt-6">
-                {jobs.map((job) => (
-                  <JobCard
-                    key={job.id}
-                    title={job.job_title}
-                    image=""
-                    location={job.location || "Netherlands"}
-                    dateRange={job.employment_type || "Full-time"}
-                    source={job.company_name || "Unknown"}
-                    startDate={job.is_remote ? "Remote" : "On-site"}
-                    description={job.description || undefined}
-                    jobUrl={job.job_url}
-                    experienceLevel={job.experience_level || undefined}
-                    salaryRange={job.salary_range || undefined}
-                    companyCareerUrl={job.company_career_url}
-                    isInternship={job.is_internship || false}
-                    industry={job.industry}
-                    onClick={() => setSelectedJob(job)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3 mt-6">
-                {jobs.map((job) => (
-                  <JobListItem
-                    key={job.id}
-                    title={job.job_title}
-                    image=""
-                    location={job.location || "Netherlands"}
-                    dateRange={job.employment_type || "Full-time"}
-                    source={job.company_name || "Unknown"}
-                    startDate={job.is_remote ? "Remote" : "On-site"}
-                    jobUrl={job.job_url}
-                    experienceLevel={job.experience_level || undefined}
-                    salaryRange={job.salary_range || undefined}
-                    companyCareerUrl={job.company_career_url}
-                    isInternship={job.is_internship || false}
-                    industry={job.industry}
-                    onClick={() => setSelectedJob(job)}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="flex flex-col gap-3 mt-6">
+              {jobs.map((job) => (
+                <JobListItem
+                  key={job.id}
+                  title={job.job_title}
+                  image=""
+                  location={job.location || "Netherlands"}
+                  dateRange={job.employment_type || "Full-time"}
+                  source={job.company_name || "Unknown"}
+                  startDate={job.is_remote ? "Remote" : "On-site"}
+                  jobUrl={job.job_url}
+                  experienceLevel={job.experience_level || undefined}
+                  salaryRange={job.salary_range || undefined}
+                  companyCareerUrl={job.company_career_url}
+                  isInternship={job.is_internship || false}
+                  industry={job.industry}
+                  onClick={() => setSelectedJob(job)}
+                />
+              ))}
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
