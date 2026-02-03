@@ -71,7 +71,7 @@ const JobDetailModal = ({ isOpen, onClose, job }: JobDetailModalProps) => {
           )}
         </div>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
           <div className="py-4">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
               <Briefcase className="w-4 h-4" />
