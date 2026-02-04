@@ -164,6 +164,54 @@ async function scrapePage(url: string, apiKey: string, waitTime: number): Promis
   return null;
 }
 
+// Helper to scrape a page with click actions to expand hidden content
+async function scrapePageWithActions(url: string, apiKey: string, waitTime: number): Promise<ScrapeResult | null> {
+  try {
+    console.log('Attempting scrape with actions to expand hidden content...');
+    
+    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        formats: ['markdown', 'links'],
+        onlyMainContent: false,
+        waitFor: waitTime,
+        actions: [
+          // Wait for page to load
+          { type: 'wait', milliseconds: 2000 },
+          // Click all "View Detail" type buttons/links to expand content
+          { type: 'click', selector: '[class*="view-detail"], [class*="viewDetail"], button:contains("View Detail"), a:contains("View Detail"), [class*="expand"], [class*="accordion"], [class*="toggle"]', ignoreIfNotFound: true },
+          // Wait for content to expand
+          { type: 'wait', milliseconds: 1000 },
+          // Try clicking more specific patterns
+          { type: 'click', selector: 'button[aria-expanded="false"], [data-state="closed"], details:not([open]) summary', ignoreIfNotFound: true },
+          { type: 'wait', milliseconds: 1000 },
+        ],
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.success && data.data) {
+      console.log('Scrape with actions successful, content length:', data.data.markdown?.length || 0);
+      return {
+        links: data.data.links || [],
+        markdown: data.data.markdown || '',
+        html: data.data.html || '',
+      };
+    } else {
+      console.log('Scrape with actions failed:', data.error || 'Unknown error');
+    }
+  } catch (err) {
+    console.error('Error scraping page with actions:', url, err);
+  }
+  return null;
+}
+
 // Detect pagination links from a page
 function findPaginationLinks(links: string[], baseUrl: string, currentUrl: string): string[] {
   const paginationUrls: string[] = [];
@@ -1053,9 +1101,17 @@ Deno.serve(async (req) => {
       console.log('No individual job URLs found - trying single-page extraction from careers page...');
       await updateProgress(supabase, companyId, 'scraping', pagesScraped, 0, 'Extracting from single page');
       
-      // Scrape the careers page content
-      const pageData = await scrapePage(careerUrl, apiKey, WAIT_TIME);
+      // First, try scraping with actions to expand hidden content (View Detail, accordions, etc.)
+      let pageData = await scrapePageWithActions(careerUrl, apiKey, WAIT_TIME);
+      
+      // If actions scrape didn't get more content, fall back to regular scrape
+      if (!pageData || !pageData.markdown || pageData.markdown.length < 500) {
+        console.log('Actions scrape yielded little content, trying regular scrape...');
+        pageData = await scrapePage(careerUrl, apiKey, WAIT_TIME);
+      }
+      
       if (pageData && pageData.markdown) {
+        console.log(`Single-page content length: ${pageData.markdown.length} characters`);
         const singlePageJobs = extractJobsFromSinglePage(careerUrl, pageData.markdown, settings);
         for (const job of singlePageJobs) {
           jobs.push(job);
