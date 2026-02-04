@@ -325,7 +325,7 @@ const LEGAL_DOCUMENT_SIGNALS = [
 ];
 
 // Validate if scraped content is actually a job posting
-function isValidJobContent(content: string, requiredKeywords: string[]): boolean {
+function isValidJobContent(content: string, requiredKeywords: string[], url: string): boolean {
   const lowerContent = content.toLowerCase();
   
   // Check for legal document signals in the first 500 characters
@@ -338,6 +338,20 @@ function isValidJobContent(content: string, requiredKeywords: string[]): boolean
   if (isLegalDocument) {
     console.log('Rejecting page: Detected as legal/policy document');
     return false;
+  }
+  
+  // Check if URL strongly suggests this is a job page (has job ID pattern)
+  const hasJobIdInUrl = (
+    /\/\d{6,}\//.test(url) || // Numeric job ID like /2600001M/
+    /\/[A-Z0-9]{7,}\//.test(url) || // Alphanumeric job ID
+    /job[_-]?id[=\/]\d+/i.test(url) ||
+    /vacature[s]?\/[^\/]+\/[^\/]+/i.test(url) // Pattern like /vacatures/ID/title
+  );
+  
+  // If URL has a strong job ID pattern, be more lenient with content validation
+  if (hasJobIdInUrl && content.length > 100) {
+    console.log(`Accepting job page based on URL pattern: ${url.substring(0, 80)}...`);
+    return true;
   }
   
   // Must contain at least one of the required keywords
@@ -746,56 +760,61 @@ Deno.serve(async (req) => {
     
     let pagesScraped = 0;
 
-    // Phase 1: Collect all job URLs from listing pages (with pagination)
-    console.log('Phase 1: Collecting job URLs from listing pages...');
+    // Phase 1: Use Firecrawl Map API to discover all job URLs (fast, no JS rendering needed)
+    console.log('Phase 1: Using Map API to discover job URLs...');
     
-    while (pagesToScrape.length > 0 && pagesScraped < MAX_PAGES) {
-      const currentUrl = pagesToScrape.shift()!;
+    try {
+      const mapResponse = await fetch('https://api.firecrawl.dev/v1/map', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: careerUrl,
+          limit: MAX_JOBS * 2, // Get more links than needed to filter
+          includeSubdomains: false,
+        }),
+      });
+
+      const mapData = await mapResponse.json();
       
-      if (scrapedPages.has(currentUrl)) continue;
-      scrapedPages.add(currentUrl);
-      pagesScraped++;
-      
-      // Update progress
-      await updateProgress(supabase, companyId, 'collecting', pagesScraped, allJobUrls.size, currentUrl);
-      
-      console.log(`Scraping listing page ${pagesScraped}/${MAX_PAGES}: ${currentUrl}`);
-      
-      const pageData = await scrapePage(currentUrl, apiKey, WAIT_TIME);
-      
-      if (!pageData) {
-        console.log('Failed to scrape page:', currentUrl);
-        continue;
+      if (mapResponse.ok && mapData.success && mapData.links) {
+        console.log(`Map API found ${mapData.links.length} total URLs`);
+        
+        // Filter to job URLs only
+        const jobUrls = filterJobUrls(mapData.links, baseUrl, careerUrl, EXCLUDED_URL_PATTERNS);
+        console.log(`Filtered to ${jobUrls.length} potential job URLs`);
+        
+        for (const url of jobUrls) {
+          allJobUrls.add(url);
+        }
+        pagesScraped = 1;
+        
+        await updateProgress(supabase, companyId, 'collecting', 1, allJobUrls.size, careerUrl);
+      } else {
+        console.log('Map API failed, falling back to scrape method:', mapData.error);
+        // Fallback to scraping the listing page
+        const pageData = await scrapePage(careerUrl, apiKey, WAIT_TIME);
+        if (pageData) {
+          const jobUrls = filterJobUrls(pageData.links, baseUrl, careerUrl, EXCLUDED_URL_PATTERNS);
+          for (const url of jobUrls) {
+            allJobUrls.add(url);
+          }
+        }
+        pagesScraped = 1;
       }
-      
-      // Extract job URLs from this page
-      const jobUrls = filterJobUrls(pageData.links, baseUrl, careerUrl, EXCLUDED_URL_PATTERNS);
-      console.log(`Found ${jobUrls.length} job URLs on this page`);
-      
-      for (const url of jobUrls) {
-        allJobUrls.add(url);
-      }
-      
-      // Update progress with new job count
-      await updateProgress(supabase, companyId, 'collecting', pagesScraped, allJobUrls.size, currentUrl);
-      
-      // Update history periodically
-      if (historyId && pagesScraped % 3 === 0) {
-        await updateHistory(supabase, historyId, {
-          pages_scraped: pagesScraped,
-          jobs_found: allJobUrls.size,
-        });
-      }
-      
-      // Find pagination links and add to queue
-      const paginationLinks = findPaginationLinks(pageData.links, baseUrl, currentUrl);
-      console.log(`Found ${paginationLinks.length} pagination links`);
-      
-      for (const link of paginationLinks) {
-        if (!scrapedPages.has(link) && !pagesToScrape.includes(link)) {
-          pagesToScrape.push(link);
+    } catch (mapError) {
+      console.error('Map API error:', mapError);
+      // Fallback to scraping
+      const pageData = await scrapePage(careerUrl, apiKey, WAIT_TIME);
+      if (pageData) {
+        const jobUrls = filterJobUrls(pageData.links, baseUrl, careerUrl, EXCLUDED_URL_PATTERNS);
+        for (const url of jobUrls) {
+          allJobUrls.add(url);
         }
       }
+      pagesScraped = 1;
     }
 
     console.log(`Phase 1 complete: Found ${allJobUrls.size} unique job URLs across ${pagesScraped} pages`);
@@ -837,6 +856,7 @@ Deno.serve(async (req) => {
             url: jobUrl,
             formats: ['markdown'],
             onlyMainContent: true,
+            // Skip waitFor to prevent CPU timeout - we use URL patterns for validation
           }),
         });
 
@@ -847,7 +867,7 @@ Deno.serve(async (req) => {
           const metadata = jobData.data.metadata || {};
           
           // Validate that this is actually a job posting
-          if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS)) {
+          if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS, jobUrl)) {
             console.log(`Skipping non-job page: ${jobUrl} (missing required keywords)`);
             skippedUrls.push({ url: jobUrl, reason: 'Missing required keywords (apply, requirements, etc.)' });
             continue;
