@@ -535,36 +535,68 @@ function extractJobsFromSinglePage(careerUrl: string, content: string, settings:
   // Common patterns for job listings on a single page
   // Pattern 1: Markdown headers followed by job details
   // ### Job Title
-  // Description text
+  // CategoryLevel tag (optional)
+  // Description summary
   // Full-Time / Remote / Location
+  // View DetailApply Now
   
   const lines = content.split('\n');
   let currentJob: Partial<JobData> | null = null;
-  let descriptionLines: string[] = [];
+  let summaryLines: string[] = [];
+  let foundOpenPositions = false;
+  
+  // Metadata patterns to exclude from description
+  const metadataPatterns = [
+    /^(full-time|part-time|fulltime|parttime|contract|freelance|intern|internship)$/i,
+    /^(remote|hybrid|on-?site|global|worldwide)$/i,
+    /^(view detail|apply now|apply|learn more|read more|see more)+$/i,
+    /^[a-z]+(?:entry|mid|senior|junior|manager|lead)$/i, // Category tags like "Engineeringmid"
+  ];
+  
+  const isMetadataLine = (line: string): boolean => {
+    const trimmed = line.trim();
+    return metadataPatterns.some(p => p.test(trimmed)) || trimmed.length === 0;
+  };
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     
+    // Look for "Open Positions" section to start capturing jobs
+    if (line.toLowerCase().includes('open position')) {
+      foundOpenPositions = true;
+      continue;
+    }
+    
+    // Stop capturing at "Don't See" or similar sections
+    if (line.toLowerCase().includes("don't see") || line.toLowerCase().includes('welcome to')) {
+      // Save last job before stopping
+      if (currentJob && currentJob.job_title) {
+        const desc = summaryLines.filter(l => !isMetadataLine(l)).join(' ').trim();
+        currentJob.description = cleanDescription(desc) || `${currentJob.job_title} position.`;
+        jobs.push(currentJob as JobData);
+      }
+      break;
+    }
+    
     // Detect job title headers (### Job Title or ## Job Title)
     const headerMatch = line.match(/^#{2,3}\s+(.+)$/);
-    if (headerMatch) {
+    if (headerMatch && foundOpenPositions) {
       const potentialTitle = headerMatch[1].trim();
       
       // Check if this looks like a job title (not a section header like "Benefits" or "Our Values")
-      const sectionHeaders = ['benefits', 'perks', 'values', 'about', 'why work', 'culture', 'team', 'what we', 'our ', 'open position', 'don\'t see', 'welcome'];
+      const sectionHeaders = ['benefits', 'perks', 'values', 'about', 'why work', 'culture', 'team', 'what we', 'our ', 'open position', 'don\'t see', 'welcome', 'transform', 'integration', 'automation', 'security'];
       const isSection = sectionHeaders.some(s => potentialTitle.toLowerCase().includes(s));
       
       // Job titles usually contain role keywords
-      const roleKeywords = ['engineer', 'developer', 'manager', 'analyst', 'designer', 'writer', 'lead', 'director', 'specialist', 'coordinator', 'consultant', 'architect', 'scientist', 'officer', 'admin', 'support', 'sales', 'marketing', 'product', 'data', 'software', 'frontend', 'backend', 'fullstack', 'devops', 'qa', 'success'];
+      const roleKeywords = ['engineer', 'developer', 'manager', 'analyst', 'designer', 'writer', 'lead', 'director', 'specialist', 'coordinator', 'consultant', 'architect', 'scientist', 'officer', 'admin', 'support', 'sales', 'marketing', 'product', 'data', 'software', 'frontend', 'backend', 'fullstack', 'devops', 'qa', 'success', 'content', 'customer'];
       const hasRoleKeyword = roleKeywords.some(k => potentialTitle.toLowerCase().includes(k));
       
-      if (!isSection && (hasRoleKeyword || potentialTitle.length < 60)) {
+      if (!isSection && hasRoleKeyword) {
         // Save previous job if exists
         if (currentJob && currentJob.job_title) {
-          currentJob.description = cleanDescription(descriptionLines.join('\n').trim());
-          if (currentJob.description && currentJob.description.length > 20) {
-            jobs.push(currentJob as JobData);
-          }
+          const desc = summaryLines.filter(l => !isMetadataLine(l)).join(' ').trim();
+          currentJob.description = cleanDescription(desc) || `${currentJob.job_title} position.`;
+          jobs.push(currentJob as JobData);
         }
         
         // Start new job
@@ -574,64 +606,89 @@ function extractJobsFromSinglePage(careerUrl: string, content: string, settings:
           location: 'Remote', // Default
           employment_type: 'Full-time',
         };
-        descriptionLines = [];
+        summaryLines = [];
+        
+        // Check title for experience level
+        const lowerTitle = potentialTitle.toLowerCase();
+        if (lowerTitle.includes('senior')) {
+          currentJob.experience_level = 'Senior';
+        } else if (lowerTitle.includes('junior')) {
+          currentJob.experience_level = 'Junior';
+        }
       }
     } else if (currentJob) {
-      // Collect description and metadata for current job
+      // Process lines after job title
       const lowerLine = line.toLowerCase();
       
       // Detect employment type
-      if (lowerLine.includes('full-time') || lowerLine.includes('fulltime')) {
+      if (lowerLine === 'full-time' || lowerLine === 'fulltime') {
         currentJob.employment_type = 'Full-time';
-      } else if (lowerLine.includes('part-time') || lowerLine.includes('parttime')) {
+      } else if (lowerLine === 'part-time' || lowerLine === 'parttime') {
         currentJob.employment_type = 'Part-time';
-      } else if (lowerLine.includes('contract')) {
+      } else if (lowerLine === 'contract') {
         currentJob.employment_type = 'Contract';
       }
       
       // Detect remote/hybrid
-      if (lowerLine.includes('remote')) {
+      if (lowerLine === 'remote') {
         currentJob.is_remote = true;
-        if (!currentJob.location || currentJob.location === 'Remote') {
-          currentJob.location = 'Remote';
-        }
-      } else if (lowerLine.includes('hybrid')) {
+        currentJob.location = 'Remote';
+      } else if (lowerLine === 'hybrid') {
         currentJob.is_remote = true;
         currentJob.location = 'Hybrid';
+      } else if (lowerLine === 'global' || lowerLine === 'worldwide') {
+        // Keep existing location, just note it's global
+        if (!currentJob.location || currentJob.location === 'Remote') {
+          currentJob.location = 'Global (Remote)';
+        }
       }
       
       // Detect location from known cities
       const locationKeywords = settings.location_keywords || ['amsterdam', 'rotterdam', 'utrecht'];
       for (const city of locationKeywords) {
-        if (lowerLine.includes(city.toLowerCase())) {
+        if (lowerLine === city.toLowerCase()) {
           currentJob.location = city.charAt(0).toUpperCase() + city.slice(1);
           break;
         }
       }
       
-      // Detect experience level from title or description
-      if (lowerLine.includes('senior')) {
+      // Detect experience level from category tags (e.g., "Engineeringsenior", "Analyticsentry")
+      if (/senior$/i.test(line)) {
         currentJob.experience_level = 'Senior';
-      } else if (lowerLine.includes('junior') || lowerLine.includes('entry')) {
-        currentJob.experience_level = 'Junior';
-      } else if (lowerLine.includes('mid') || lowerLine.includes('medior')) {
-        currentJob.experience_level = 'Medior';
+      } else if (/entry$/i.test(line) || /junior$/i.test(line)) {
+        currentJob.experience_level = 'Entry';
+      } else if (/mid$/i.test(line)) {
+        currentJob.experience_level = 'Mid';
+      } else if (/manager$/i.test(line)) {
+        currentJob.experience_level = 'Manager';
       }
       
-      // Skip navigation/button text
-      if (!line.match(/^(View Detail|Apply Now|Apply|Learn More|Read More|See More)$/i)) {
-        descriptionLines.push(line);
+      // Detect department from category tags
+      if (/^engineering/i.test(line)) {
+        currentJob.department = 'Engineering';
+      } else if (/^product/i.test(line)) {
+        currentJob.department = 'Product';
+      } else if (/^analytics/i.test(line)) {
+        currentJob.department = 'Analytics';
+      } else if (/^customer/i.test(line)) {
+        currentJob.department = 'Customer Success';
+      } else if (/^content/i.test(line)) {
+        currentJob.department = 'Content';
+      } else if (/^marketing/i.test(line)) {
+        currentJob.department = 'Marketing';
+      }
+      
+      // Collect non-metadata lines as potential description
+      if (line && !isMetadataLine(line)) {
+        summaryLines.push(line);
       }
     }
   }
   
   // Don't forget the last job
   if (currentJob && currentJob.job_title) {
-    currentJob.description = cleanDescription(descriptionLines.join('\n').trim());
-    if (!currentJob.description || currentJob.description.length < 20) {
-      // Try to create a description from the job title context
-      currentJob.description = `${currentJob.job_title} position at the company.`;
-    }
+    const desc = summaryLines.filter(l => !isMetadataLine(l)).join(' ').trim();
+    currentJob.description = cleanDescription(desc) || `${currentJob.job_title} position.`;
     jobs.push(currentJob as JobData);
   }
   
