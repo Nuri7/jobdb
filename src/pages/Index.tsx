@@ -1,15 +1,62 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useJobs, useCompanies } from "@/hooks/useJobs";
-import { jobsApi } from "@/lib/api/jobs";
+import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
+import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
 import JobListItem from "@/components/JobListItem";
 import Pagination from "@/components/Pagination";
+import CompanyEditModal from "@/components/CompanyEditModal";
+import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { 
+  Loader2, 
+  RefreshCw, 
+  Trash2, 
+  Pencil, 
+  History, 
+  Ban, 
+  ExternalLink,
+  Building2
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
+
+// Company logo component with fallback
+const CompanyLogo = ({ careerUrl, companyName, size = "sm" }: { careerUrl: string; companyName: string; size?: "sm" | "md" }) => {
+  const [logoError, setLogoError] = useState(false);
+  const logoUrl = getCompanyLogoUrl(careerUrl);
+  const fallbackUrl = getCompanyFaviconUrl(careerUrl);
+  
+  const sizeClasses = size === "sm" ? "w-6 h-6" : "w-10 h-10";
+  const iconSize = size === "sm" ? "w-3 h-3" : "w-5 h-5";
+
+  return (
+    <div className={`${sizeClasses} rounded-md bg-muted flex items-center justify-center overflow-hidden`}>
+      {logoUrl && !logoError ? (
+        <img 
+          src={logoUrl}
+          alt={`${companyName} logo`}
+          className="w-full h-full object-contain p-0.5"
+          onError={() => setLogoError(true)}
+        />
+      ) : fallbackUrl && logoError ? (
+        <img 
+          src={fallbackUrl}
+          alt={`${companyName} logo`}
+          className={iconSize}
+        />
+      ) : (
+        <Building2 className={`${iconSize} text-muted-foreground`} />
+      )}
+    </div>
+  );
+};
 
 const Index = () => {
   const [search, setSearch] = useState("");
@@ -19,9 +66,13 @@ const Index = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [scrapingCompany, setScrapingCompany] = useState<string | null>(null);
   const [scrapeProgress, setScrapeProgress] = useState({ current: 0, total: 0 });
+  const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
+  const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const { data: companies } = useCompanies();
+  const { data: companies, refetch: refetchCompanies } = useCompanies();
   
   // Get enabled companies for tabs
   const enabledCompanies = companies?.filter(c => c.is_scrape_enabled === true) || [];
@@ -42,6 +93,9 @@ const Index = () => {
   // Calculate total job count across all enabled companies
   const totalJobCount = enabledCompanies.reduce((sum, c) => sum + (c.jobs_found_count || 0), 0);
 
+  // Get currently selected company
+  const selectedCompany = activeTab !== "all" ? companies?.find(c => c.id === activeTab) : null;
+
   const handleScrape = async () => {
     if (!companies || companies.length === 0) {
       toast({
@@ -59,7 +113,7 @@ const Index = () => {
       if (enabledCompanies.length === 0) {
         toast({
           title: "No enabled companies",
-          description: "No companies are enabled for scraping. Enable companies in the Companies page.",
+          description: "No companies are enabled for scraping.",
           variant: "destructive",
         });
         return;
@@ -103,6 +157,7 @@ const Index = () => {
     setScrapingCompany(null);
     setScrapeProgress({ current: 0, total: 0 });
     refetch();
+    refetchCompanies();
 
     toast({
       title: "Scraping complete",
@@ -134,6 +189,7 @@ const Index = () => {
           : `All jobs from ${companyName} have been deleted.`,
       });
       refetch();
+      refetchCompanies();
     } catch (error) {
       console.error('Failed to delete jobs:', error);
       toast({
@@ -143,6 +199,139 @@ const Index = () => {
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const toggleScrapeEnabled = async (companyId: string, enabled: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('company_career_sites')
+        .update({ is_scrape_enabled: enabled })
+        .eq('id', companyId);
+
+      if (error) throw error;
+      refetchCompanies();
+      
+      // If disabling the currently selected company, switch to "all"
+      if (!enabled && activeTab === companyId) {
+        setActiveTab("all");
+      }
+    } catch (error) {
+      console.error('Error updating scrape enabled:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update company status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveCareerUrl = async (companyId: string, careerUrl: string) => {
+    setIsSaving(true);
+    try {
+      await jobsApi.updateCompanyCareerUrl(companyId, careerUrl);
+      toast({
+        title: "URL updated",
+        description: "Career page URL has been updated successfully",
+      });
+      refetchCompanies();
+      setEditingCompany(null);
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description: "Failed to update career page URL",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const extractMainDomain = (url: string): string => {
+    try {
+      const hostname = new URL(url).hostname;
+      return hostname.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  };
+
+  const handleExcludeDomain = async (companyId: string, careerUrl: string, companyName: string) => {
+    const domain = extractMainDomain(careerUrl);
+    if (!domain) {
+      toast({
+        title: "Invalid URL",
+        description: "Could not extract domain from career URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to ban ${companyName}? This will:\n• Add "${domain}" to excluded domains\n• Delete all jobs from this company\n• Remove the company from the database`)) {
+      return;
+    }
+
+    try {
+      // Fetch current excluded_domains setting
+      const { data: settingData, error: fetchError } = await supabase
+        .from('scraper_settings')
+        .select('setting_value')
+        .eq('setting_key', 'excluded_domains')
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentDomains: string[] = Array.isArray(settingData?.setting_value) ? (settingData.setting_value as string[]) : [];
+      
+      // Add domain if not already in list
+      if (!currentDomains.includes(domain)) {
+        const updatedDomains = [...currentDomains, domain];
+
+        const { error: updateError } = await supabase
+          .from('scraper_settings')
+          .update({ setting_value: updatedDomains })
+          .eq('setting_key', 'excluded_domains');
+
+        if (updateError) throw updateError;
+      }
+
+      // Delete scrape history associated with this company
+      await supabase
+        .from('scrape_history')
+        .delete()
+        .eq('company_career_site_id', companyId);
+
+      // Delete all jobs associated with this company
+      await supabase
+        .from('job_opportunities')
+        .delete()
+        .eq('company_career_site_id', companyId);
+
+      // Delete the company from the database
+      await supabase
+        .from('company_career_sites')
+        .delete()
+        .eq('id', companyId);
+
+      // Switch to "all" tab if we banned the currently selected company
+      if (activeTab === companyId) {
+        setActiveTab("all");
+      }
+
+      // Invalidate all related queries
+      await queryClient.invalidateQueries({ queryKey: ['companies'] });
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] });
+
+      toast({
+        title: "Company banned",
+        description: `${companyName} and its jobs have been removed. Domain "${domain}" added to excluded list.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error banning company",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -216,7 +405,8 @@ const Index = () => {
                 All ({totalJobCount})
               </TabsTrigger>
               {enabledCompanies.map(company => (
-                <TabsTrigger key={company.id} value={company.id} className="px-4">
+                <TabsTrigger key={company.id} value={company.id} className="px-4 gap-2">
+                  <CompanyLogo careerUrl={company.career_url} companyName={company.company_name} size="sm" />
                   {company.company_name} ({company.jobs_found_count || 0})
                 </TabsTrigger>
               ))}
@@ -225,18 +415,97 @@ const Index = () => {
           </ScrollArea>
 
           <TabsContent value={activeTab} className="mt-4">
-            {/* Selected Company Career URL */}
-            {activeTab !== "all" && companies?.find(c => c.id === activeTab)?.career_url && (
-              <div className="text-sm text-muted-foreground mb-4">
-                <span className="font-medium">Career page:</span>{" "}
-                <a 
-                  href={companies.find(c => c.id === activeTab)?.career_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {companies.find(c => c.id === activeTab)?.career_url}
-                </a>
+            {/* Per-Company Actions Bar - Only show for specific company */}
+            {selectedCompany && (
+              <div className="flex items-center justify-between gap-4 p-3 bg-muted/30 rounded-lg border border-border mb-4">
+                <div className="flex items-center gap-3">
+                  <CompanyLogo careerUrl={selectedCompany.career_url} companyName={selectedCompany.company_name} size="md" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">{selectedCompany.company_name}</h3>
+                    <a 
+                      href={selectedCompany.career_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                    >
+                      {selectedCompany.career_url}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Enabled</span>
+                          <Switch
+                            checked={selectedCompany.is_scrape_enabled === true}
+                            onCheckedChange={(checked) => toggleScrapeEnabled(selectedCompany.id, checked)}
+                            className="scale-90"
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Toggle scraping for this company</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <div className="w-px h-6 bg-border" />
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setHistoryCompany({ id: selectedCompany.id, name: selectedCompany.company_name })}
+                        >
+                          <History className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>View scrape history</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingCompany(selectedCompany)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Edit career URL</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleExcludeDomain(selectedCompany.id, selectedCompany.career_url, selectedCompany.company_name)}
+                        >
+                          <Ban className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ban company and exclude domain</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
             )}
 
@@ -301,6 +570,23 @@ const Index = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Modal */}
+      <CompanyEditModal
+        isOpen={!!editingCompany}
+        onClose={() => setEditingCompany(null)}
+        company={editingCompany}
+        onSave={handleSaveCareerUrl}
+        isSaving={isSaving}
+      />
+
+      {/* Scrape History Modal */}
+      <ScrapeHistoryModal
+        isOpen={!!historyCompany}
+        onClose={() => setHistoryCompany(null)}
+        companyId={historyCompany?.id || null}
+        companyName={historyCompany?.name || ""}
+      />
     </div>
   );
 };
