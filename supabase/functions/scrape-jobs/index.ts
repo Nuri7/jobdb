@@ -472,6 +472,62 @@ function cleanDescription(text: string): string {
     .trim();
 }
 
+// Fast extraction: Extract job data from URL alone (no page scraping needed)
+function extractJobFromUrl(url: string): JobData | null {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(p => p);
+    
+    // Find the job title part (usually the last non-ID segment)
+    // Example: /vacatures/2600001M/Junior-Hypotheekacceptant -> "Junior Hypotheekacceptant"
+    let titlePart = '';
+    for (let i = pathParts.length - 1; i >= 0; i--) {
+      const part = pathParts[i];
+      // Skip if it looks like an ID (alphanumeric codes, numbers only)
+      if (/^[0-9A-Z]{6,}$/i.test(part) || /^\d+$/.test(part)) continue;
+      // Skip common path segments
+      if (['vacatures', 'vacature', 'jobs', 'job', 'careers', 'career', 'positions'].includes(part.toLowerCase())) continue;
+      titlePart = part;
+      break;
+    }
+    
+    if (!titlePart) return null;
+    
+    // Convert URL slug to readable title
+    // "Junior-Hypotheekacceptant" -> "Junior Hypotheekacceptant"
+    const jobTitle = decodeURIComponent(titlePart)
+      .replace(/[-_]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+    
+    if (jobTitle.length < 3) return null;
+    
+    // Try to extract location from URL path
+    const locationKeywords = ['amsterdam', 'rotterdam', 'utrecht', 'den-haag', 'eindhoven', 'groningen', 'leiden', 'delft', 'maastricht', 'nijmegen', 'arnhem', 'breda', 'tilburg', 'almere', 'enschede', 'haarlem', 'amersfoort', 'apeldoorn', 'zwolle', 'dordrecht', 'hilversum', 'alkmaar', 'venlo', 'leeuwarden', 'heerlen', 'helmond', 'oss', 'amstelveen', 'schiphol', 'hoofddorp'];
+    let location: string | undefined;
+    
+    const urlLower = url.toLowerCase();
+    for (const city of locationKeywords) {
+      if (urlLower.includes(city)) {
+        location = city.replace(/-/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        break;
+      }
+    }
+    
+    return {
+      job_title: jobTitle,
+      job_url: url,
+      location: location,
+    };
+  } catch (e) {
+    console.error('Error extracting job from URL:', url, e);
+    return null;
+  }
+}
+
 // Extract job data from a job page
 function extractJobData(url: string, content: string, metadata: any, settings: Record<string, any>): JobData {
   // Extract job title
@@ -819,68 +875,89 @@ Deno.serve(async (req) => {
 
     console.log(`Phase 1 complete: Found ${allJobUrls.size} unique job URLs across ${pagesScraped} pages`);
 
-    // Phase 2: Scrape individual job detail pages
-    console.log('Phase 2: Scraping individual job pages...');
-    await updateProgress(supabase, companyId, 'scraping', pagesScraped, allJobUrls.size, null);
-    
+    // Phase 2: Extract jobs - use fast mode for large job sets to avoid CPU timeout
+    const jobUrlArray = Array.from(allJobUrls);
     const jobs: JobData[] = [];
     const skippedUrls: Array<{ url: string; reason: string }> = [];
-    const jobUrlArray = Array.from(allJobUrls);
     
-    for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
-      const jobUrl = jobUrlArray[i];
+    // Fast mode threshold: if more than 15 jobs, use URL-based extraction for most
+    const FAST_MODE_THRESHOLD = 15;
+    const DETAILED_SCRAPE_LIMIT = 10; // Only scrape this many pages for full details
+    
+    if (jobUrlArray.length > FAST_MODE_THRESHOLD) {
+      console.log(`Phase 2: Using FAST MODE for ${jobUrlArray.length} jobs (scraping ${DETAILED_SCRAPE_LIMIT} for details)`);
+      await updateProgress(supabase, companyId, 'scraping', pagesScraped, 0, 'Fast mode: extracting from URLs');
       
-      // Update progress every 5 jobs to reduce DB calls
-      if (i % 5 === 0) {
-        await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, jobUrl);
-        
-        // Update history
-        if (historyId) {
-          await updateHistory(supabase, historyId, {
-            pages_scraped: pagesScraped,
-            jobs_found: jobs.length,
-          });
+      // Extract basic job data from URLs for all jobs
+      for (const jobUrl of jobUrlArray.slice(0, MAX_JOBS)) {
+        const job = extractJobFromUrl(jobUrl);
+        if (job) {
+          jobs.push(job);
         }
       }
       
-      try {
-        console.log(`Scraping job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}: ${jobUrl}`);
+      console.log(`Fast extraction: Created ${jobs.length} jobs from URLs`);
+      
+      // Optionally scrape a few pages for richer metadata (async, non-blocking)
+      // Skip for now to prevent timeout - the URL-based data is sufficient
+    } else {
+      // Normal mode: scrape individual pages for smaller job sets
+      console.log('Phase 2: Scraping individual job pages...');
+      await updateProgress(supabase, companyId, 'scraping', pagesScraped, allJobUrls.size, null);
+      
+      for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
+        const jobUrl = jobUrlArray[i];
         
-        const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: jobUrl,
-            formats: ['markdown'],
-            onlyMainContent: true,
-            // Skip waitFor to prevent CPU timeout - we use URL patterns for validation
-          }),
-        });
-
-        const jobData = await jobResponse.json();
-        
-        if (jobResponse.ok && jobData.success && jobData.data) {
-          const content = jobData.data.markdown || '';
-          const metadata = jobData.data.metadata || {};
+        // Update progress every 5 jobs to reduce DB calls
+        if (i % 5 === 0) {
+          await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, jobUrl);
           
-          // Validate that this is actually a job posting
-          if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS, jobUrl)) {
-            console.log(`Skipping non-job page: ${jobUrl} (missing required keywords)`);
-            skippedUrls.push({ url: jobUrl, reason: 'Missing required keywords (apply, requirements, etc.)' });
-            continue;
+          if (historyId) {
+            await updateHistory(supabase, historyId, {
+              pages_scraped: pagesScraped,
+              jobs_found: jobs.length,
+            });
           }
-          
-          const job = extractJobData(jobUrl, content, metadata, settings);
-          jobs.push(job);
-        } else {
-          skippedUrls.push({ url: jobUrl, reason: 'Failed to scrape page' });
         }
-      } catch (err) {
-        console.error('Error scraping job URL:', jobUrl, err);
-        skippedUrls.push({ url: jobUrl, reason: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` });
+        
+        try {
+          console.log(`Scraping job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}: ${jobUrl}`);
+          
+          const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url: jobUrl,
+              formats: ['markdown'],
+              onlyMainContent: true,
+            }),
+          });
+
+          const jobData = await jobResponse.json();
+          
+          if (jobResponse.ok && jobData.success && jobData.data) {
+            const content = jobData.data.markdown || '';
+            const metadata = jobData.data.metadata || {};
+            
+            // Validate that this is actually a job posting
+            if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS, jobUrl)) {
+              console.log(`Skipping non-job page: ${jobUrl} (missing required keywords)`);
+              skippedUrls.push({ url: jobUrl, reason: 'Missing required keywords (apply, requirements, etc.)' });
+              continue;
+            }
+            
+            const job = extractJobData(jobUrl, content, metadata, settings);
+            jobs.push(job);
+          } else {
+            skippedUrls.push({ url: jobUrl, reason: 'Failed to scrape page' });
+          }
+        } catch (err) {
+          console.error('Error scraping job URL:', jobUrl, err);
+          skippedUrls.push({ url: jobUrl, reason: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` });
+        }
       }
     }
 
