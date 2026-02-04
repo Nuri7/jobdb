@@ -225,6 +225,21 @@ const Index = () => {
           </div>
         </div>
 
+        {/* Selected Company Career URL */}
+        {source !== "all" && companies?.find(c => c.id === source)?.career_url && (
+          <div className="text-sm text-muted-foreground mb-4">
+            <span className="font-medium">Career page:</span>{" "}
+            <a 
+              href={companies.find(c => c.id === source)?.career_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {companies.find(c => c.id === source)?.career_url}
+            </a>
+          </div>
+        )}
+
         {/* Scraping Progress */}
         {isScraping && scrapingCompany && (
           <div className="text-sm text-muted-foreground flex items-center gap-2 mb-4">
