@@ -875,89 +875,97 @@ Deno.serve(async (req) => {
 
     console.log(`Phase 1 complete: Found ${allJobUrls.size} unique job URLs across ${pagesScraped} pages`);
 
-    // Phase 2: Extract jobs - use fast mode for large job sets to avoid CPU timeout
+    // Phase 2: Extract jobs - always scrape individual pages for descriptions
     const jobUrlArray = Array.from(allJobUrls);
     const jobs: JobData[] = [];
     const skippedUrls: Array<{ url: string; reason: string }> = [];
     
-    // Fast mode threshold: if more than 15 jobs, use URL-based extraction for most
-    const FAST_MODE_THRESHOLD = 15;
-    const DETAILED_SCRAPE_LIMIT = 10; // Only scrape this many pages for full details
+    console.log(`Phase 2: Scraping ${Math.min(jobUrlArray.length, MAX_JOBS)} job pages for details...`);
+    await updateProgress(supabase, companyId, 'scraping', pagesScraped, allJobUrls.size, null);
     
-    if (jobUrlArray.length > FAST_MODE_THRESHOLD) {
-      console.log(`Phase 2: Using FAST MODE for ${jobUrlArray.length} jobs (scraping ${DETAILED_SCRAPE_LIMIT} for details)`);
-      await updateProgress(supabase, companyId, 'scraping', pagesScraped, 0, 'Fast mode: extracting from URLs');
+    for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
+      const jobUrl = jobUrlArray[i];
       
-      // Extract basic job data from URLs for all jobs
-      for (const jobUrl of jobUrlArray.slice(0, MAX_JOBS)) {
-        const job = extractJobFromUrl(jobUrl);
-        if (job) {
-          jobs.push(job);
+      // Update progress every 5 jobs to reduce DB calls
+      if (i % 5 === 0) {
+        await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, `Job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}`);
+        
+        if (historyId) {
+          await updateHistory(supabase, historyId, {
+            pages_scraped: pagesScraped,
+            jobs_found: jobs.length,
+          });
         }
       }
       
-      console.log(`Fast extraction: Created ${jobs.length} jobs from URLs`);
-      
-      // Optionally scrape a few pages for richer metadata (async, non-blocking)
-      // Skip for now to prevent timeout - the URL-based data is sufficient
-    } else {
-      // Normal mode: scrape individual pages for smaller job sets
-      console.log('Phase 2: Scraping individual job pages...');
-      await updateProgress(supabase, companyId, 'scraping', pagesScraped, allJobUrls.size, null);
-      
-      for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
-        const jobUrl = jobUrlArray[i];
+      try {
+        console.log(`Scraping job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}: ${jobUrl.substring(0, 80)}...`);
         
-        // Update progress every 5 jobs to reduce DB calls
-        if (i % 5 === 0) {
-          await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, jobUrl);
-          
-          if (historyId) {
-            await updateHistory(supabase, historyId, {
-              pages_scraped: pagesScraped,
-              jobs_found: jobs.length,
-            });
-          }
-        }
-        
-        try {
-          console.log(`Scraping job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}: ${jobUrl}`);
-          
-          const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              url: jobUrl,
-              formats: ['markdown'],
-              onlyMainContent: true,
-            }),
-          });
+        const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: jobUrl,
+            formats: ['markdown'],
+            onlyMainContent: true,
+            timeout: 10000, // 10 second timeout per page
+          }),
+        });
 
-          const jobData = await jobResponse.json();
+        // Check if page exists (404 = job no longer exists)
+        if (jobResponse.status === 404 || jobResponse.status === 410) {
+          console.log(`Job no longer exists (${jobResponse.status}): ${jobUrl}`);
+          skippedUrls.push({ url: jobUrl, reason: `Page not found (${jobResponse.status})` });
+          continue;
+        }
+
+        const jobData = await jobResponse.json();
+        
+        if (jobResponse.ok && jobData.success && jobData.data) {
+          const content = jobData.data.markdown || '';
+          const metadata = jobData.data.metadata || {};
           
-          if (jobResponse.ok && jobData.success && jobData.data) {
-            const content = jobData.data.markdown || '';
-            const metadata = jobData.data.metadata || {};
-            
-            // Validate that this is actually a job posting
-            if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS, jobUrl)) {
-              console.log(`Skipping non-job page: ${jobUrl} (missing required keywords)`);
-              skippedUrls.push({ url: jobUrl, reason: 'Missing required keywords (apply, requirements, etc.)' });
-              continue;
-            }
-            
-            const job = extractJobData(jobUrl, content, metadata, settings);
-            jobs.push(job);
+          // Check if page returns 404/error content
+          const is404Page = 
+            content.toLowerCase().includes('page not found') ||
+            content.toLowerCase().includes('pagina niet gevonden') ||
+            content.toLowerCase().includes('deze vacature bestaat niet') ||
+            content.toLowerCase().includes('vacature niet gevonden') ||
+            content.toLowerCase().includes('this job is no longer available') ||
+            content.toLowerCase().includes('deze functie is niet meer beschikbaar') ||
+            (content.toLowerCase().includes('404') && content.length < 500) ||
+            content.length < 100;
+          
+          if (is404Page) {
+            console.log(`Skipping 404/empty page: ${jobUrl.substring(0, 60)}...`);
+            skippedUrls.push({ url: jobUrl, reason: 'Page not found or empty content' });
+            continue;
+          }
+          
+          // Validate that this is actually a job posting
+          if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS, jobUrl)) {
+            console.log(`Skipping non-job page: ${jobUrl.substring(0, 60)}...`);
+            skippedUrls.push({ url: jobUrl, reason: 'Missing required keywords (apply, requirements, etc.)' });
+            continue;
+          }
+          
+          const job = extractJobData(jobUrl, content, metadata, settings);
+          jobs.push(job);
+        } else {
+          // Check error message for 404-like responses
+          const errorMsg = jobData.error || '';
+          if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+            skippedUrls.push({ url: jobUrl, reason: 'Page not found' });
           } else {
             skippedUrls.push({ url: jobUrl, reason: 'Failed to scrape page' });
           }
-        } catch (err) {
-          console.error('Error scraping job URL:', jobUrl, err);
-          skippedUrls.push({ url: jobUrl, reason: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` });
         }
+      } catch (err) {
+        console.error('Error scraping job URL:', jobUrl.substring(0, 60), err);
+        skippedUrls.push({ url: jobUrl, reason: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` });
       }
     }
 
