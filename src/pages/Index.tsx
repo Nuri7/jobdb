@@ -256,7 +256,7 @@ const Index = () => {
     }
   };
 
-  const handleExcludeDomain = async (companyId: string, careerUrl: string, companyName: string) => {
+  const handleExcludeDomain = async (careerUrl: string) => {
     const domain = extractMainDomain(careerUrl);
     if (!domain) {
       toast({
@@ -264,10 +264,6 @@ const Index = () => {
         description: "Could not extract domain from career URL",
         variant: "destructive",
       });
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to ban ${companyName}? This will:\n• Add "${domain}" to excluded domains\n• Delete all jobs from this company\n• Remove the company from the database`)) {
       return;
     }
 
@@ -283,52 +279,32 @@ const Index = () => {
 
       const currentDomains: string[] = Array.isArray(settingData?.setting_value) ? (settingData.setting_value as string[]) : [];
       
-      // Add domain if not already in list
-      if (!currentDomains.includes(domain)) {
-        const updatedDomains = [...currentDomains, domain];
-
-        const { error: updateError } = await supabase
-          .from('scraper_settings')
-          .update({ setting_value: updatedDomains })
-          .eq('setting_key', 'excluded_domains');
-
-        if (updateError) throw updateError;
+      // Check if already excluded
+      if (currentDomains.includes(domain)) {
+        toast({
+          title: "Already excluded",
+          description: `Domain "${domain}" is already in the excluded list.`,
+        });
+        return;
       }
 
-      // Delete scrape history associated with this company
-      await supabase
-        .from('scrape_history')
-        .delete()
-        .eq('company_career_site_id', companyId);
+      // Add domain to excluded list
+      const updatedDomains = [...currentDomains, domain];
 
-      // Delete all jobs associated with this company
-      await supabase
-        .from('job_opportunities')
-        .delete()
-        .eq('company_career_site_id', companyId);
+      const { error: updateError } = await supabase
+        .from('scraper_settings')
+        .update({ setting_value: updatedDomains })
+        .eq('setting_key', 'excluded_domains');
 
-      // Delete the company from the database
-      await supabase
-        .from('company_career_sites')
-        .delete()
-        .eq('id', companyId);
-
-      // Switch to "all" tab if we banned the currently selected company
-      if (activeTab === companyId) {
-        setActiveTab("all");
-      }
-
-      // Invalidate all related queries
-      await queryClient.invalidateQueries({ queryKey: ['companies'] });
-      await queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      if (updateError) throw updateError;
 
       toast({
-        title: "Company banned",
-        description: `${companyName} and its jobs have been removed. Domain "${domain}" added to excluded list.`,
+        title: "Domain excluded",
+        description: `"${domain}" has been added to the excluded domains list.`,
       });
     } catch (error: any) {
       toast({
-        title: "Error banning company",
+        title: "Error excluding domain",
         description: error.message,
         variant: "destructive",
       });
@@ -494,14 +470,13 @@ const Index = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleExcludeDomain(selectedCompany.id, selectedCompany.career_url, selectedCompany.company_name)}
+                          onClick={() => handleExcludeDomain(selectedCompany.career_url)}
                         >
                           <Ban className="w-4 h-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Ban company and exclude domain</p>
+                        <p>Exclude this domain from scraping</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
