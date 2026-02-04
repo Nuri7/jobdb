@@ -366,6 +366,20 @@ export const jobsApi = {
       throw error;
     }
 
+    // Also reset the jobs_found_count in company_career_sites
+    if (companyId) {
+      await supabase
+        .from('company_career_sites')
+        .update({ jobs_found_count: 0 })
+        .eq('id', companyId);
+    } else {
+      // Reset all companies' job counts
+      await supabase
+        .from('company_career_sites')
+        .update({ jobs_found_count: 0 })
+        .gte('id', '00000000-0000-0000-0000-000000000000');
+    }
+
     return { deletedCount: count || 0 };
   },
 
