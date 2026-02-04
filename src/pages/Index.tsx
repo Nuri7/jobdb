@@ -9,6 +9,7 @@ import JobListItem from "@/components/JobListItem";
 import Pagination from "@/components/Pagination";
 import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
+import { AddCompanyModal } from "@/components/AddCompanyModal";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -323,6 +324,7 @@ const Index = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <SearchBar value={search} onChange={setSearch} />
           <div className="flex items-center gap-2">
+            <AddCompanyModal onCompanyAdded={() => { refetchCompanies(); refetch(); }} />
             <Button 
               onClick={handleScrape} 
               disabled={isScraping || isDeleting}
