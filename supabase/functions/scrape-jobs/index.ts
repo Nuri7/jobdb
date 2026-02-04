@@ -528,6 +528,117 @@ function extractJobFromUrl(url: string): JobData | null {
   }
 }
 
+// Extract multiple jobs from a single-page career listing (when jobs are listed on one page)
+function extractJobsFromSinglePage(careerUrl: string, content: string, settings: Record<string, any>): JobData[] {
+  const jobs: JobData[] = [];
+  
+  // Common patterns for job listings on a single page
+  // Pattern 1: Markdown headers followed by job details
+  // ### Job Title
+  // Description text
+  // Full-Time / Remote / Location
+  
+  const lines = content.split('\n');
+  let currentJob: Partial<JobData> | null = null;
+  let descriptionLines: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Detect job title headers (### Job Title or ## Job Title)
+    const headerMatch = line.match(/^#{2,3}\s+(.+)$/);
+    if (headerMatch) {
+      const potentialTitle = headerMatch[1].trim();
+      
+      // Check if this looks like a job title (not a section header like "Benefits" or "Our Values")
+      const sectionHeaders = ['benefits', 'perks', 'values', 'about', 'why work', 'culture', 'team', 'what we', 'our ', 'open position', 'don\'t see', 'welcome'];
+      const isSection = sectionHeaders.some(s => potentialTitle.toLowerCase().includes(s));
+      
+      // Job titles usually contain role keywords
+      const roleKeywords = ['engineer', 'developer', 'manager', 'analyst', 'designer', 'writer', 'lead', 'director', 'specialist', 'coordinator', 'consultant', 'architect', 'scientist', 'officer', 'admin', 'support', 'sales', 'marketing', 'product', 'data', 'software', 'frontend', 'backend', 'fullstack', 'devops', 'qa', 'success'];
+      const hasRoleKeyword = roleKeywords.some(k => potentialTitle.toLowerCase().includes(k));
+      
+      if (!isSection && (hasRoleKeyword || potentialTitle.length < 60)) {
+        // Save previous job if exists
+        if (currentJob && currentJob.job_title) {
+          currentJob.description = cleanDescription(descriptionLines.join('\n').trim());
+          if (currentJob.description && currentJob.description.length > 20) {
+            jobs.push(currentJob as JobData);
+          }
+        }
+        
+        // Start new job
+        currentJob = {
+          job_title: potentialTitle,
+          job_url: `${careerUrl}#${potentialTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          location: 'Remote', // Default
+          employment_type: 'Full-time',
+        };
+        descriptionLines = [];
+      }
+    } else if (currentJob) {
+      // Collect description and metadata for current job
+      const lowerLine = line.toLowerCase();
+      
+      // Detect employment type
+      if (lowerLine.includes('full-time') || lowerLine.includes('fulltime')) {
+        currentJob.employment_type = 'Full-time';
+      } else if (lowerLine.includes('part-time') || lowerLine.includes('parttime')) {
+        currentJob.employment_type = 'Part-time';
+      } else if (lowerLine.includes('contract')) {
+        currentJob.employment_type = 'Contract';
+      }
+      
+      // Detect remote/hybrid
+      if (lowerLine.includes('remote')) {
+        currentJob.is_remote = true;
+        if (!currentJob.location || currentJob.location === 'Remote') {
+          currentJob.location = 'Remote';
+        }
+      } else if (lowerLine.includes('hybrid')) {
+        currentJob.is_remote = true;
+        currentJob.location = 'Hybrid';
+      }
+      
+      // Detect location from known cities
+      const locationKeywords = settings.location_keywords || ['amsterdam', 'rotterdam', 'utrecht'];
+      for (const city of locationKeywords) {
+        if (lowerLine.includes(city.toLowerCase())) {
+          currentJob.location = city.charAt(0).toUpperCase() + city.slice(1);
+          break;
+        }
+      }
+      
+      // Detect experience level from title or description
+      if (lowerLine.includes('senior')) {
+        currentJob.experience_level = 'Senior';
+      } else if (lowerLine.includes('junior') || lowerLine.includes('entry')) {
+        currentJob.experience_level = 'Junior';
+      } else if (lowerLine.includes('mid') || lowerLine.includes('medior')) {
+        currentJob.experience_level = 'Medior';
+      }
+      
+      // Skip navigation/button text
+      if (!line.match(/^(View Detail|Apply Now|Apply|Learn More|Read More|See More)$/i)) {
+        descriptionLines.push(line);
+      }
+    }
+  }
+  
+  // Don't forget the last job
+  if (currentJob && currentJob.job_title) {
+    currentJob.description = cleanDescription(descriptionLines.join('\n').trim());
+    if (!currentJob.description || currentJob.description.length < 20) {
+      // Try to create a description from the job title context
+      currentJob.description = `${currentJob.job_title} position at the company.`;
+    }
+    jobs.push(currentJob as JobData);
+  }
+  
+  console.log(`Single-page extraction found ${jobs.length} jobs`);
+  return jobs;
+}
+
 // Extract job data from a job page
 function extractJobData(url: string, content: string, metadata: any, settings: Record<string, any>): JobData {
   // Extract job title
@@ -875,13 +986,29 @@ Deno.serve(async (req) => {
 
     console.log(`Phase 1 complete: Found ${allJobUrls.size} unique job URLs across ${pagesScraped} pages`);
 
-    // Phase 2: Extract jobs using batch scraping for efficiency
+    // Phase 2: Extract jobs
     const jobUrlArray = Array.from(allJobUrls).slice(0, MAX_JOBS);
     const jobs: JobData[] = [];
     const skippedUrls: Array<{ url: string; reason: string }> = [];
     
-    console.log(`Phase 2: Batch scraping ${jobUrlArray.length} job pages for details...`);
-    await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobUrlArray.length, 'Starting batch scrape');
+    // If no individual job URLs found, try extracting jobs from the main careers page
+    if (jobUrlArray.length === 0) {
+      console.log('No individual job URLs found - trying single-page extraction from careers page...');
+      await updateProgress(supabase, companyId, 'scraping', pagesScraped, 0, 'Extracting from single page');
+      
+      // Scrape the careers page content
+      const pageData = await scrapePage(careerUrl, apiKey, WAIT_TIME);
+      if (pageData && pageData.markdown) {
+        const singlePageJobs = extractJobsFromSinglePage(careerUrl, pageData.markdown, settings);
+        for (const job of singlePageJobs) {
+          jobs.push(job);
+        }
+        console.log(`Single-page extraction found ${jobs.length} jobs`);
+      }
+    } else {
+      // Normal flow: batch scrape individual job pages
+      console.log(`Phase 2: Batch scraping ${jobUrlArray.length} job pages for details...`);
+      await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobUrlArray.length, 'Starting batch scrape');
     
     // Use Firecrawl's batch scrape endpoint for efficiency
     // Process in batches of 10 URLs at a time
@@ -981,7 +1108,8 @@ Deno.serve(async (req) => {
           jobs_found: jobs.length,
         });
       }
-    }
+      }
+    } // end else (batch scraping)
 
     console.log(`Phase 2 complete: Scraped ${jobs.length} job details, skipped ${skippedUrls.length} URLs`);
 
