@@ -875,97 +875,111 @@ Deno.serve(async (req) => {
 
     console.log(`Phase 1 complete: Found ${allJobUrls.size} unique job URLs across ${pagesScraped} pages`);
 
-    // Phase 2: Extract jobs - always scrape individual pages for descriptions
-    const jobUrlArray = Array.from(allJobUrls);
+    // Phase 2: Extract jobs using batch scraping for efficiency
+    const jobUrlArray = Array.from(allJobUrls).slice(0, MAX_JOBS);
     const jobs: JobData[] = [];
     const skippedUrls: Array<{ url: string; reason: string }> = [];
     
-    console.log(`Phase 2: Scraping ${Math.min(jobUrlArray.length, MAX_JOBS)} job pages for details...`);
-    await updateProgress(supabase, companyId, 'scraping', pagesScraped, allJobUrls.size, null);
+    console.log(`Phase 2: Batch scraping ${jobUrlArray.length} job pages for details...`);
+    await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobUrlArray.length, 'Starting batch scrape');
     
-    for (let i = 0; i < Math.min(jobUrlArray.length, MAX_JOBS); i++) {
-      const jobUrl = jobUrlArray[i];
+    // Use Firecrawl's batch scrape endpoint for efficiency
+    // Process in batches of 10 URLs at a time
+    const BATCH_SIZE = 10;
+    const batches = [];
+    for (let i = 0; i < jobUrlArray.length; i += BATCH_SIZE) {
+      batches.push(jobUrlArray.slice(i, i + BATCH_SIZE));
+    }
+    
+    console.log(`Processing ${batches.length} batches of up to ${BATCH_SIZE} URLs each`);
+    
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      console.log(`Batch ${batchIndex + 1}/${batches.length}: Scraping ${batch.length} pages in parallel...`);
       
-      // Update progress every 5 jobs to reduce DB calls
-      if (i % 5 === 0) {
-        await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, `Job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}`);
-        
-        if (historyId) {
-          await updateHistory(supabase, historyId, {
-            pages_scraped: pagesScraped,
-            jobs_found: jobs.length,
+      await updateProgress(supabase, companyId, 'scraping', pagesScraped, jobs.length, 
+        `Batch ${batchIndex + 1}/${batches.length}`);
+      
+      // Scrape all URLs in this batch in parallel
+      const batchPromises = batch.map(async (jobUrl) => {
+        try {
+          const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url: jobUrl,
+              formats: ['markdown'],
+              onlyMainContent: true,
+              timeout: 15000,
+            }),
           });
+
+          // Check if page exists (404 = job no longer exists)
+          if (jobResponse.status === 404 || jobResponse.status === 410) {
+            return { url: jobUrl, success: false, reason: `Page not found (${jobResponse.status})` };
+          }
+
+          const jobData = await jobResponse.json();
+          
+          if (jobResponse.ok && jobData.success && jobData.data) {
+            const content = jobData.data.markdown || '';
+            const metadata = jobData.data.metadata || {};
+            
+            // Check if page returns 404/error content
+            const lowerContent = content.toLowerCase();
+            const is404Page = 
+              lowerContent.includes('page not found') ||
+              lowerContent.includes('pagina niet gevonden') ||
+              lowerContent.includes('deze vacature bestaat niet') ||
+              lowerContent.includes('vacature niet gevonden') ||
+              lowerContent.includes('this job is no longer available') ||
+              lowerContent.includes('deze functie is niet meer beschikbaar') ||
+              (lowerContent.includes('404') && content.length < 500) ||
+              content.length < 100;
+            
+            if (is404Page) {
+              return { url: jobUrl, success: false, reason: 'Page not found or empty content' };
+            }
+            
+            // Validate that this is actually a job posting
+            if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS, jobUrl)) {
+              return { url: jobUrl, success: false, reason: 'Missing required job keywords' };
+            }
+            
+            const job = extractJobData(jobUrl, content, metadata, settings);
+            return { url: jobUrl, success: true, job };
+          } else {
+            const errorMsg = jobData.error || '';
+            return { url: jobUrl, success: false, reason: errorMsg.includes('404') ? 'Page not found' : 'Failed to scrape' };
+          }
+        } catch (err) {
+          return { url: jobUrl, success: false, reason: `Error: ${err instanceof Error ? err.message : 'Unknown'}` };
+        }
+      });
+      
+      // Wait for all parallel requests in this batch
+      const batchResults = await Promise.all(batchPromises);
+      
+      // Process results
+      for (const result of batchResults) {
+        if (result.success && result.job) {
+          jobs.push(result.job);
+        } else {
+          skippedUrls.push({ url: result.url, reason: result.reason || 'Unknown error' });
         }
       }
       
-      try {
-        console.log(`Scraping job ${i + 1}/${Math.min(jobUrlArray.length, MAX_JOBS)}: ${jobUrl.substring(0, 80)}...`);
-        
-        const jobResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: jobUrl,
-            formats: ['markdown'],
-            onlyMainContent: true,
-            timeout: 10000, // 10 second timeout per page
-          }),
+      console.log(`Batch ${batchIndex + 1} complete: ${jobs.length} jobs found so far`);
+      
+      // Update history periodically
+      if (historyId) {
+        await updateHistory(supabase, historyId, {
+          pages_scraped: pagesScraped,
+          jobs_found: jobs.length,
         });
-
-        // Check if page exists (404 = job no longer exists)
-        if (jobResponse.status === 404 || jobResponse.status === 410) {
-          console.log(`Job no longer exists (${jobResponse.status}): ${jobUrl}`);
-          skippedUrls.push({ url: jobUrl, reason: `Page not found (${jobResponse.status})` });
-          continue;
-        }
-
-        const jobData = await jobResponse.json();
-        
-        if (jobResponse.ok && jobData.success && jobData.data) {
-          const content = jobData.data.markdown || '';
-          const metadata = jobData.data.metadata || {};
-          
-          // Check if page returns 404/error content
-          const is404Page = 
-            content.toLowerCase().includes('page not found') ||
-            content.toLowerCase().includes('pagina niet gevonden') ||
-            content.toLowerCase().includes('deze vacature bestaat niet') ||
-            content.toLowerCase().includes('vacature niet gevonden') ||
-            content.toLowerCase().includes('this job is no longer available') ||
-            content.toLowerCase().includes('deze functie is niet meer beschikbaar') ||
-            (content.toLowerCase().includes('404') && content.length < 500) ||
-            content.length < 100;
-          
-          if (is404Page) {
-            console.log(`Skipping 404/empty page: ${jobUrl.substring(0, 60)}...`);
-            skippedUrls.push({ url: jobUrl, reason: 'Page not found or empty content' });
-            continue;
-          }
-          
-          // Validate that this is actually a job posting
-          if (!isValidJobContent(content, REQUIRED_CONTENT_KEYWORDS, jobUrl)) {
-            console.log(`Skipping non-job page: ${jobUrl.substring(0, 60)}...`);
-            skippedUrls.push({ url: jobUrl, reason: 'Missing required keywords (apply, requirements, etc.)' });
-            continue;
-          }
-          
-          const job = extractJobData(jobUrl, content, metadata, settings);
-          jobs.push(job);
-        } else {
-          // Check error message for 404-like responses
-          const errorMsg = jobData.error || '';
-          if (errorMsg.includes('404') || errorMsg.includes('not found')) {
-            skippedUrls.push({ url: jobUrl, reason: 'Page not found' });
-          } else {
-            skippedUrls.push({ url: jobUrl, reason: 'Failed to scrape page' });
-          }
-        }
-      } catch (err) {
-        console.error('Error scraping job URL:', jobUrl.substring(0, 60), err);
-        skippedUrls.push({ url: jobUrl, reason: `Error: ${err instanceof Error ? err.message : 'Unknown error'}` });
       }
     }
 
