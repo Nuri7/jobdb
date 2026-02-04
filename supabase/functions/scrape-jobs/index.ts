@@ -165,9 +165,30 @@ async function scrapePage(url: string, apiKey: string, waitTime: number): Promis
 }
 
 // Helper to scrape a page with click actions to expand hidden content
-async function scrapePageWithActions(url: string, apiKey: string, waitTime: number): Promise<ScrapeResult | null> {
+async function scrapePageWithActions(url: string, apiKey: string, waitTime: number, customSelectors: string[] = []): Promise<ScrapeResult | null> {
   try {
     console.log('Attempting scrape with actions to expand hidden content...');
+    
+    // Build click actions from custom selectors or use defaults
+    const defaultSelectors = [
+      '[class*="view-detail"], [class*="viewDetail"], button:contains("View Detail"), a:contains("View Detail"), [class*="expand"], [class*="accordion"], [class*="toggle"]',
+      'button[aria-expanded="false"], [data-state="closed"], details:not([open]) summary'
+    ];
+    
+    const selectorsToUse = customSelectors.length > 0 ? customSelectors : defaultSelectors;
+    
+    const actions: Array<{ type: string; milliseconds?: number; selector?: string; ignoreIfNotFound?: boolean }> = [
+      // Wait for page to load
+      { type: 'wait', milliseconds: 2000 },
+    ];
+    
+    // Add click actions for each selector
+    for (const selector of selectorsToUse) {
+      actions.push({ type: 'click', selector, ignoreIfNotFound: true });
+      actions.push({ type: 'wait', milliseconds: 1000 });
+    }
+    
+    console.log(`Using ${selectorsToUse.length} click selectors:`, selectorsToUse);
     
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
@@ -180,17 +201,7 @@ async function scrapePageWithActions(url: string, apiKey: string, waitTime: numb
         formats: ['markdown', 'links'],
         onlyMainContent: false,
         waitFor: waitTime,
-        actions: [
-          // Wait for page to load
-          { type: 'wait', milliseconds: 2000 },
-          // Click all "View Detail" type buttons/links to expand content
-          { type: 'click', selector: '[class*="view-detail"], [class*="viewDetail"], button:contains("View Detail"), a:contains("View Detail"), [class*="expand"], [class*="accordion"], [class*="toggle"]', ignoreIfNotFound: true },
-          // Wait for content to expand
-          { type: 'wait', milliseconds: 1000 },
-          // Try clicking more specific patterns
-          { type: 'click', selector: 'button[aria-expanded="false"], [data-state="closed"], details:not([open]) summary', ignoreIfNotFound: true },
-          { type: 'wait', milliseconds: 1000 },
-        ],
+        actions,
       }),
     });
 
@@ -992,17 +1003,49 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Load scraper settings from database
-    const settings = await getScraperSettings(supabase);
+    // Load global scraper settings from database
+    const globalSettings = await getScraperSettings(supabase);
+    
+    // Load company-specific scrape config
+    const { data: companyData, error: companyError } = await supabase
+      .from('company_career_sites')
+      .select('scrape_config')
+      .eq('id', companyId)
+      .single();
+    
+    if (companyError) {
+      console.error('Error loading company config:', companyError);
+    }
+    
+    const companyConfig = companyData?.scrape_config || {};
+    console.log('Company-specific config:', JSON.stringify(companyConfig));
+    
+    // Merge settings: company config overrides global settings
+    const settings = {
+      ...globalSettings,
+      ...(companyConfig.extraction_prompt && { extraction_prompt: companyConfig.extraction_prompt }),
+      ...(companyConfig.wait_time && { wait_time: companyConfig.wait_time }),
+      ...(companyConfig.job_url_patterns && { 
+        job_url_patterns: [...(globalSettings.job_url_patterns || []), ...companyConfig.job_url_patterns] 
+      }),
+      ...(companyConfig.excluded_url_patterns && { 
+        excluded_url_patterns: [...(globalSettings.excluded_url_patterns || []), ...companyConfig.excluded_url_patterns] 
+      }),
+    };
+    
+    // Determine scrape mode from company config
+    const scrapeMode = companyConfig.scrape_mode || 'individual';
+    const clickSelectors = companyConfig.click_selectors || [];
+    
     const MAX_PAGES = settings.max_pages || 20;
     const MAX_JOBS = settings.max_jobs || 150;
-    const WAIT_TIME = settings.wait_time || 3000;
+    const WAIT_TIME = companyConfig.wait_time || settings.wait_time || 3000;
     const EXCLUDED_URL_PATTERNS = settings.excluded_url_patterns || [];
     const REQUIRED_CONTENT_KEYWORDS = settings.required_content_keywords || ['apply', 'sollicit', 'submit', 'responsibilities', 'requirements', 'qualifications'];
 
     console.log('Starting scrape for:', careerUrl);
-    console.log(`Settings: MAX_PAGES=${MAX_PAGES}, MAX_JOBS=${MAX_JOBS}, WAIT_TIME=${WAIT_TIME}`);
-    console.log(`Excluded URL patterns: ${EXCLUDED_URL_PATTERNS.length}, Required keywords: ${REQUIRED_CONTENT_KEYWORDS.length}`);
+    console.log(`Scrape mode: ${scrapeMode}, Settings: MAX_PAGES=${MAX_PAGES}, MAX_JOBS=${MAX_JOBS}, WAIT_TIME=${WAIT_TIME}`);
+    console.log(`Click selectors: ${clickSelectors.length}, Excluded URL patterns: ${EXCLUDED_URL_PATTERNS.length}, Required keywords: ${REQUIRED_CONTENT_KEYWORDS.length}`);
     const baseUrl = new URL(careerUrl).origin;
 
     // Create history entry
@@ -1091,21 +1134,33 @@ Deno.serve(async (req) => {
 
     console.log(`Phase 1 complete: Found ${allJobUrls.size} unique job URLs across ${pagesScraped} pages`);
 
-    // Phase 2: Extract jobs
+    // Phase 2: Extract jobs based on scrape mode
     const jobUrlArray = Array.from(allJobUrls).slice(0, MAX_JOBS);
     const jobs: JobData[] = [];
     const skippedUrls: Array<{ url: string; reason: string }> = [];
     
-    // If no individual job URLs found, try extracting jobs from the main careers page
-    if (jobUrlArray.length === 0) {
-      console.log('No individual job URLs found - trying single-page extraction from careers page...');
+    // Force single-page or actions mode if configured, OR if no individual job URLs found
+    const shouldUseSinglePage = scrapeMode === 'single_page' || scrapeMode === 'actions' || jobUrlArray.length === 0;
+    
+    if (shouldUseSinglePage) {
+      const modeReason = scrapeMode === 'single_page' 
+        ? 'Company configured for single-page mode' 
+        : scrapeMode === 'actions' 
+          ? 'Company configured for actions mode'
+          : 'No individual job URLs found';
+      console.log(`${modeReason} - extracting jobs from careers page...`);
       await updateProgress(supabase, companyId, 'scraping', pagesScraped, 0, 'Extracting from single page');
       
-      // First, try scraping with actions to expand hidden content (View Detail, accordions, etc.)
-      let pageData = await scrapePageWithActions(careerUrl, apiKey, WAIT_TIME);
+      let pageData: ScrapeResult | null = null;
       
-      // If actions scrape didn't get more content, fall back to regular scrape
-      if (!pageData || !pageData.markdown || pageData.markdown.length < 500) {
+      // Use actions mode (with custom selectors) if configured, or as fallback
+      if (scrapeMode === 'actions' || jobUrlArray.length === 0) {
+        console.log('Using actions mode to expand hidden content...');
+        pageData = await scrapePageWithActions(careerUrl, apiKey, WAIT_TIME, clickSelectors);
+      }
+      
+      // If actions scrape didn't get enough content, fall back to regular scrape (unless forced single_page mode)
+      if ((!pageData || !pageData.markdown || pageData.markdown.length < 500) && scrapeMode !== 'actions') {
         console.log('Actions scrape yielded little content, trying regular scrape...');
         pageData = await scrapePage(careerUrl, apiKey, WAIT_TIME);
       }

@@ -10,6 +10,7 @@ import Pagination from "@/components/Pagination";
 import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import { AddCompanyModal } from "@/components/AddCompanyModal";
+import { CompanyScrapeSettingsModal } from "@/components/CompanyScrapeSettingsModal";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -23,7 +24,8 @@ import {
   History, 
   Ban, 
   ExternalLink,
-  Building2
+  Building2,
+  Sliders
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -69,6 +71,7 @@ const Index = () => {
   const [scrapeProgress, setScrapeProgress] = useState({ current: 0, total: 0 });
   const [editingCompany, setEditingCompany] = useState<CompanyCareerSite | null>(null);
   const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
+  const [scrapeSettingsCompany, setScrapeSettingsCompany] = useState<CompanyCareerSite | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -482,6 +485,23 @@ const Index = () => {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setScrapeSettingsCompany(selectedCompany)}
+                        >
+                          <Sliders className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Configure scraper settings</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             )}
@@ -563,6 +583,14 @@ const Index = () => {
         onClose={() => setHistoryCompany(null)}
         companyId={historyCompany?.id || null}
         companyName={historyCompany?.name || ""}
+      />
+
+      {/* Scrape Settings Modal */}
+      <CompanyScrapeSettingsModal
+        isOpen={!!scrapeSettingsCompany}
+        onClose={() => setScrapeSettingsCompany(null)}
+        company={scrapeSettingsCompany}
+        onSaved={() => refetchCompanies()}
       />
     </div>
   );

@@ -70,6 +70,7 @@ export type Database = {
           last_scheduled_scrape_at: string | null
           phone_number: string | null
           postal_code: string | null
+          scrape_config: Json | null
           scrape_progress_current_page: string | null
           scrape_progress_jobs_found: number | null
           scrape_progress_pages_scraped: number | null
@@ -106,6 +107,7 @@ export type Database = {
           last_scheduled_scrape_at?: string | null
           phone_number?: string | null
           postal_code?: string | null
+          scrape_config?: Json | null
           scrape_progress_current_page?: string | null
           scrape_progress_jobs_found?: number | null
           scrape_progress_pages_scraped?: number | null
@@ -142,6 +144,7 @@ export type Database = {
           last_scheduled_scrape_at?: string | null
           phone_number?: string | null
           postal_code?: string | null
+          scrape_config?: Json | null
           scrape_progress_current_page?: string | null
           scrape_progress_jobs_found?: number | null
           scrape_progress_pages_scraped?: number | null
