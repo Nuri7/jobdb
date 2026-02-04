@@ -3,7 +3,7 @@ import { useJobs, useCompanies, useLocations, useIndustries } from "@/hooks/useJ
 import { jobsApi } from "@/lib/api/jobs";
 import Header from "@/components/Header";
 import SearchBar from "@/components/SearchBar";
-import FilterBar from "@/components/FilterBar";
+
 import JobListItem from "@/components/JobListItem";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
@@ -165,25 +165,8 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container max-w-7xl py-8">
-        {/* Filters Row with Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <FilterBar
-            totalJobs={totalCount}
-            location={location}
-            onLocationChange={setLocation}
-            jobType={jobType}
-            onJobTypeChange={setJobType}
-            experienceLevel={experienceLevel}
-            onExperienceLevelChange={setExperienceLevel}
-            source={source}
-            onSourceChange={setSource}
-            industry={industry}
-            onIndustryChange={setIndustry}
-            onClearAll={handleClearAll}
-            companies={companies || []}
-            locations={locations || []}
-            industries={industries || []}
-          />
+        {/* Actions Row */}
+        <div className="flex flex-wrap items-center justify-end gap-4 mb-4">
           <div className="flex items-center gap-2">
             <Button 
               onClick={handleScrape} 
