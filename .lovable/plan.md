@@ -1,117 +1,177 @@
 
 
-## Plan: Company Tabs on Jobs Page
+# Per-Company Scraping Configuration
 
-### Overview
+## Problem Analysis
 
-Transform the jobs page to display all companies as horizontal tabs, where selecting a tab shows that company's jobs. This keeps all company and job information accessible on a single page while providing quick navigation between companies.
+Currently, all companies share global scraper settings (extraction prompt, patterns, etc.) from the `scraper_settings` table. However, different companies have vastly different website structures:
 
-### Visual Design
+- **Traditional career pages** (e.g., ASR): Individual job URLs that can be scraped separately
+- **Single-page sites** (e.g., DataFuse AI): All jobs on one page with expandable sections
+- **ATS platforms** (e.g., Greenhouse, Lever): Require specific handling
+- **Custom sites**: May need special click actions, wait times, or extraction logic
 
-```text
-+------------------------------------------------------------------+
-|  Header Navigation                                                |
-+------------------------------------------------------------------+
-|  [Search Bar]                     [Bulk Scrape] [Delete All Jobs] |
-+------------------------------------------------------------------+
-|  TABS (horizontally scrollable):                                  |
-|  [All (156)] [ABN AMRO (24)] [ING (18)] [Philips (12)] [...]     |
-+------------------------------------------------------------------+
-|  Career page: https://careers.company.com  [Scrape] [Delete]      |
-+------------------------------------------------------------------+
-|  24 jobs                                                          |
-|  +--------------------------------------------------------------+ |
-|  | Job Card 1                                                   | |
-|  +--------------------------------------------------------------+ |
-|  | Job Card 2                                                   | |
-|  +--------------------------------------------------------------+ |
-|  | ...                                                          | |
-+------------------------------------------------------------------+
+## Proposed Solution
+
+Add per-company scraping configuration stored directly on the `company_career_sites` table. When a specific company tab is selected, show a "Scraper Settings" button that opens a modal to configure company-specific settings.
+
+The scraper will prioritize company-specific settings, falling back to global settings when not specified.
+
+---
+
+## Implementation Overview
+
+### 1. Database Changes
+
+Add a new column to store company-specific scraping configuration:
+
+```sql
+ALTER TABLE company_career_sites 
+ADD COLUMN scrape_config JSONB DEFAULT NULL;
 ```
 
-### Key Features
+The `scrape_config` will store optional overrides:
+- `extraction_prompt`: Custom AI extraction prompt for this company
+- `scrape_mode`: "individual" | "single_page" | "actions"
+- `click_selectors`: CSS selectors to click before scraping (for expandable content)
+- `wait_time`: Custom wait time in milliseconds
+- `job_url_patterns`: Custom patterns to identify job URLs
+- `excluded_url_patterns`: Company-specific exclusions
+- `notes`: Free-text notes about this company's structure
 
-1. **Horizontal Tab Bar**: Shows all enabled companies as tabs with job counts
-2. **"All" Tab**: First tab shows jobs from all enabled companies (current default behavior)
-3. **Scrollable Tabs**: Uses ScrollArea for horizontal scrolling when many companies exist
-4. **Per-Tab Actions**: Scrape and Delete buttons context-aware to selected tab
-5. **Career URL Display**: Shows career page URL when a specific company is selected
-6. **Job Counts in Tabs**: Each tab badge shows the number of jobs for quick reference
+### 2. New Component: CompanyScrapeSettingsModal
 
-### Technical Approach
+A modal accessible from the per-company action bar with these sections:
 
-| Component | Change |
-|-----------|--------|
-| `src/pages/Index.tsx` | Replace filter-based company selection with Radix Tabs |
-| New hook or query | Fetch job counts per company for tab badges |
+**Scrape Mode**
+- Individual Pages (default): Standard multi-page scraping
+- Single Page: All jobs on one page, use regex extraction
+- Actions Mode: Click to expand content before scraping
 
-### Implementation Details
+**Extraction Prompt** (textarea)
+- Pre-filled with global default
+- Allows company-specific customization
 
-**1. Add Tabs Structure**
-- Import `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` from shadcn
-- Use `ScrollArea` with horizontal orientation for the tab list
-- First tab is "All" (value="all"), subsequent tabs use company IDs
+**Click Selectors** (when Actions Mode)
+- List of CSS selectors to click before content extraction
+- Examples: `[class*="view-detail"]`, `button[aria-expanded="false"]`
 
-**2. Tab Triggers with Job Counts**
-- Each company tab shows: `{company_name} ({job_count})`
-- "All" tab shows total job count across enabled companies
-- Tabs styled with company logos as optional enhancement
+**Custom Wait Time** (input)
+- Override the global wait time for slow-loading pages
 
-**3. State Management**
-- Replace `source` state with `activeTab` state
-- Tab change triggers job refetch with company filter
-- Pagination resets to page 1 when switching tabs
+**URL Patterns** (chips)
+- Job URL patterns specific to this company's site structure
+- Excluded patterns for this company
 
-**4. Per-Company Job Counts**
-- Fetch job counts grouped by company for tab badges
-- Use a separate lightweight query to avoid performance issues
+### 3. Update Edge Function: scrape-jobs
 
-**Code Structure:**
+Modify the scraper to check for company-specific config:
+
+```typescript
+// In Deno.serve handler
+const { data: companyData } = await supabase
+  .from('company_career_sites')
+  .select('scrape_config')
+  .eq('id', companyId)
+  .single();
+
+const companyConfig = companyData?.scrape_config || {};
+
+// Merge with global settings (company overrides global)
+const effectiveSettings = {
+  ...globalSettings,
+  ...companyConfig,
+};
+
+// Use scrape_mode to determine scraping strategy
+if (effectiveSettings.scrape_mode === 'single_page') {
+  // Force single-page extraction
+} else if (effectiveSettings.scrape_mode === 'actions') {
+  // Use scrapePageWithActions with custom selectors
+}
+```
+
+### 4. UI Integration on Jobs Page
+
+Add a settings button to the per-company action bar (next to Edit, History, Exclude):
 
 ```tsx
-<Tabs value={activeTab} onValueChange={handleTabChange}>
-  <ScrollArea className="w-full" orientation="horizontal">
-    <TabsList className="inline-flex h-10 items-center gap-1 p-1">
-      <TabsTrigger value="all">
-        All ({totalJobCount})
-      </TabsTrigger>
-      {enabledCompanies.map(company => (
-        <TabsTrigger key={company.id} value={company.id}>
-          {company.company_name} ({company.jobs_found_count || 0})
-        </TabsTrigger>
-      ))}
-    </TabsList>
-  </ScrollArea>
-  
-  <TabsContent value={activeTab}>
-    {/* Current job list and pagination */}
-  </TabsContent>
-</Tabs>
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setScrapeSettingsCompany(selectedCompany)}
+      >
+        <Sliders className="w-4 h-4" />
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent>
+      <p>Configure scraper settings</p>
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
 ```
 
-### Data Flow
+---
 
-1. Fetch all enabled companies with `jobs_found_count`
-2. Render tabs from company list
-3. When tab changes, update `source` filter and reset pagination
-4. Job query automatically refetches with new company filter
+## Files to Create/Modify
 
-### Edge Cases Handled
+| File | Change |
+|------|--------|
+| `supabase/migrations/add_scrape_config.sql` | Add `scrape_config JSONB` column |
+| `src/components/CompanyScrapeSettingsModal.tsx` | New modal component |
+| `src/pages/Index.tsx` | Add settings button and modal state |
+| `supabase/functions/scrape-jobs/index.ts` | Load and apply company-specific config |
 
-- **Many companies**: Horizontal scroll prevents overflow
-- **Empty companies**: Tabs still show with (0) count
-- **Loading states**: Show skeleton or spinner during tab switch
-- **URL sync**: Consider adding URL params for deep-linking to specific company tab
+---
 
-### Files to Modify
+## User Experience Flow
 
-| File | Changes |
-|------|---------|
-| `src/pages/Index.tsx` | Add Tabs component, restructure layout, update state management |
+1. User selects a company tab (e.g., "DataFuse AI")
+2. User clicks the new "Sliders" icon in the action bar
+3. Modal opens with:
+   - Current scrape mode (defaults to "Individual Pages")
+   - Option to switch to "Single Page" or "Actions Mode"
+   - Textarea for custom extraction prompt
+   - Inputs for click selectors (if Actions Mode)
+   - Custom patterns and wait time
+4. User saves configuration
+5. Next scrape uses the custom configuration
 
-### Notes
+---
 
-- The existing `source` state already handles company filtering, so the data layer remains unchanged
-- Job counts come from `company_career_sites.jobs_found_count` which is already available
-- No database changes required
+## Technical Details
+
+### Scrape Mode Detection
+
+The modal can offer an "Auto-detect" feature that:
+1. Fetches the career page
+2. Counts individual job URLs found
+3. Suggests "Single Page" mode if no URLs detected
+4. Checks for common expandable patterns (accordions, "View Detail" buttons)
+
+### Fallback Chain
+
+```
+Company scrape_config → Global scraper_settings → Hardcoded defaults
+```
+
+### Schema for scrape_config
+
+```json
+{
+  "scrape_mode": "single_page",
+  "extraction_prompt": "Custom prompt for this company...",
+  "click_selectors": [
+    "[class*='view-detail']",
+    "button[aria-expanded='false']"
+  ],
+  "wait_time": 5000,
+  "job_url_patterns": ["position", "opening"],
+  "excluded_url_patterns": ["/team", "/about"],
+  "notes": "This site uses accordions for job details"
+}
+```
 
