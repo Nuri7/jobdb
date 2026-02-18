@@ -12,6 +12,7 @@ import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import { AddCompanyModal } from "@/components/AddCompanyModal";
 import { CompanyScrapeSettingsModal } from "@/components/CompanyScrapeSettingsModal";
 import FindCareerPagesModal from "@/components/FindCareerPagesModal";
+import CareerDiscoveryConfig from "@/components/CareerDiscoveryConfig";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -377,6 +378,22 @@ const Index = () => {
               )}
             </Button>
           </div>
+        </div>
+
+        {/* Career Discovery Config */}
+        <div className="mb-4">
+          <CareerDiscoveryConfig
+            companiesCount={(companies || []).filter(c => {
+              if (!c.website) return false;
+              try {
+                const careerHost = new URL(c.career_url).hostname.replace(/^www\./, '');
+                const websiteHost = new URL(c.website).hostname.replace(/^www\./, '');
+                return careerHost === websiteHost;
+              } catch {
+                return true;
+              }
+            }).length}
+          />
         </div>
 
         {/* Scraping Progress */}
