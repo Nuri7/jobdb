@@ -11,6 +11,7 @@ import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import { AddCompanyModal } from "@/components/AddCompanyModal";
 import { CompanyScrapeSettingsModal } from "@/components/CompanyScrapeSettingsModal";
+import FindCareerPagesModal from "@/components/FindCareerPagesModal";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -25,7 +26,8 @@ import {
   Ban, 
   ExternalLink,
   Building2,
-  Sliders
+  Sliders,
+  Search
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -73,6 +75,7 @@ const Index = () => {
   const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
   const [scrapeSettingsCompany, setScrapeSettingsCompany] = useState<CompanyCareerSite | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showFindCareerPages, setShowFindCareerPages] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -327,6 +330,14 @@ const Index = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <SearchBar value={search} onChange={setSearch} />
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowFindCareerPages(true)}
+              variant="outline"
+              size="sm"
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Find Career Pages
+            </Button>
             <AddCompanyModal onCompanyAdded={() => { refetchCompanies(); refetch(); }} />
             <Button 
               onClick={handleScrape} 
@@ -591,6 +602,26 @@ const Index = () => {
         onClose={() => setScrapeSettingsCompany(null)}
         company={scrapeSettingsCompany}
         onSaved={() => refetchCompanies()}
+      />
+
+      {/* Find Career Pages Modal */}
+      <FindCareerPagesModal
+        isOpen={showFindCareerPages}
+        onClose={() => setShowFindCareerPages(false)}
+        companies={(companies || [])
+          .filter(c => {
+            // Include companies whose career_url is just their website domain (not yet discovered)
+            if (!c.website) return false;
+            try {
+              const careerHost = new URL(c.career_url).hostname.replace(/^www\./, '');
+              const websiteHost = new URL(c.website).hostname.replace(/^www\./, '');
+              return careerHost === websiteHost;
+            } catch {
+              return true;
+            }
+          })
+          .map(c => ({ id: c.id, company_name: c.company_name, website: c.website }))}
+        onComplete={() => { refetchCompanies(); refetch(); }}
       />
     </div>
   );
