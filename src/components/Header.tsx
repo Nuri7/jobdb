@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Briefcase, Building2, BarChart3, Settings, Code, PieChart, TrendingUp } from "lucide-react";
+import { Briefcase, BarChart3, Settings, Code, PieChart, TrendingUp } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 const Header = () => {
@@ -22,15 +22,6 @@ const Header = () => {
           >
             <PieChart className="w-4 h-4" />
             Overview
-          </Link>
-          <Link
-            to="/companies"
-            className={`relative flex items-center gap-2 text-sm font-medium transition-all duration-200 hover:text-primary hover:-translate-y-0.5 after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:-bottom-1 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left ${
-              location.pathname === "/companies" ? "text-primary after:scale-x-100" : "text-muted-foreground"
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            Companies
           </Link>
           <Link
             to="/jobs"
