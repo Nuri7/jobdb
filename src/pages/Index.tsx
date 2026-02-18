@@ -12,7 +12,7 @@ import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import { AddCompanyModal } from "@/components/AddCompanyModal";
 import { CompanyScrapeSettingsModal } from "@/components/CompanyScrapeSettingsModal";
 import FindCareerPagesModal from "@/components/FindCareerPagesModal";
-import CareerDiscoveryConfig from "@/components/CareerDiscoveryConfig";
+import CareerDiscoveryConfig, { DiscoverySpeedSettings } from "@/components/CareerDiscoveryConfig";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -77,6 +77,9 @@ const Index = () => {
   const [scrapeSettingsCompany, setScrapeSettingsCompany] = useState<CompanyCareerSite | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showFindCareerPages, setShowFindCareerPages] = useState(false);
+  const [discoverySettings, setDiscoverySettings] = useState<DiscoverySpeedSettings>({
+    skipValidation: false, probeTimeout: 5000, mapLimit: 50, searchLimit: 10, batchSize: 1, concurrency: 1,
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -393,6 +396,7 @@ const Index = () => {
                 return true;
               }
             }).length}
+            onSettingsChange={setDiscoverySettings}
           />
         </div>
 
@@ -639,6 +643,7 @@ const Index = () => {
           })
           .map(c => ({ id: c.id, company_name: c.company_name, website: c.website }))}
         onComplete={() => { refetchCompanies(); refetch(); }}
+        speedSettings={discoverySettings}
       />
     </div>
   );

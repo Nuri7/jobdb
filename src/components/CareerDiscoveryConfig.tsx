@@ -22,13 +22,24 @@ import {
   Shield,
   Plus,
   X,
+  Layers,
 } from "lucide-react";
+
+export interface DiscoverySpeedSettings {
+  skipValidation: boolean;
+  probeTimeout: number;
+  mapLimit: number;
+  searchLimit: number;
+  batchSize: number;
+  concurrency: number;
+}
 
 interface CareerDiscoveryConfigProps {
   companiesCount: number;
+  onSettingsChange?: (settings: DiscoverySpeedSettings) => void;
 }
 
-export default function CareerDiscoveryConfig({ companiesCount }: CareerDiscoveryConfigProps) {
+export default function CareerDiscoveryConfig({ companiesCount, onSettingsChange }: CareerDiscoveryConfigProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,11 +48,18 @@ export default function CareerDiscoveryConfig({ companiesCount }: CareerDiscover
   const [newDomain, setNewDomain] = useState("");
   const { toast } = useToast();
 
-  // Local state for speed settings (not persisted to DB)
+  // Speed settings
   const [skipValidation, setSkipValidation] = useState(false);
   const [probeTimeout, setProbeTimeout] = useState(5000);
   const [mapLimit, setMapLimit] = useState(50);
   const [searchLimit, setSearchLimit] = useState(10);
+  const [batchSize, setBatchSize] = useState(1);
+  const [concurrency, setConcurrency] = useState(1);
+
+  // Notify parent of settings changes
+  useEffect(() => {
+    onSettingsChange?.({ skipValidation, probeTimeout, mapLimit, searchLimit, batchSize, concurrency });
+  }, [skipValidation, probeTimeout, mapLimit, searchLimit, batchSize, concurrency]);
 
   useEffect(() => {
     if (isOpen && Object.keys(settings).length === 0) {
@@ -92,6 +110,8 @@ export default function CareerDiscoveryConfig({ companiesCount }: CareerDiscover
   const excludedDomains: string[] = settings.excluded_domains || [];
   const waitTime: number = settings.wait_time || 3000;
 
+  const estimatedSeconds = companiesCount * (skipValidation ? 3 : 12) / concurrency / Math.max(batchSize, 1);
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
@@ -109,16 +129,57 @@ export default function CareerDiscoveryConfig({ companiesCount }: CareerDiscover
           </div>
         ) : (
           <div className="space-y-4 border border-border rounded-lg p-4 bg-card">
-            {/* Speed Settings */}
+            {/* Batch & Concurrency */}
             <Card className="border-primary/20">
+              <CardHeader className="py-3 px-4">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-violet-500" />
+                  <CardTitle className="text-sm">Batch & Processing</CardTitle>
+                </div>
+                <CardDescription className="text-xs">
+                  {companiesCount} companies • ~{Math.ceil(estimatedSeconds)}s estimated
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-4 pb-3 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Batch size</Label>
+                    <p className="text-[10px] text-muted-foreground">Companies per API call</p>
+                    <Input
+                      type="number"
+                      value={batchSize}
+                      onChange={(e) => setBatchSize(Math.max(1, parseInt(e.target.value) || 1))}
+                      min={1}
+                      max={20}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Concurrency</Label>
+                    <p className="text-[10px] text-muted-foreground">Parallel API calls</p>
+                    <Input
+                      type="number"
+                      value={concurrency}
+                      onChange={(e) => setConcurrency(Math.max(1, parseInt(e.target.value) || 1))}
+                      min={1}
+                      max={5}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Batch=1 + Concurrency=1 = consecutive (safest). Higher values = faster but may hit rate limits.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Speed Settings */}
+            <Card>
               <CardHeader className="py-3 px-4">
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-yellow-500" />
                   <CardTitle className="text-sm">Speed Optimization</CardTitle>
                 </div>
-                <CardDescription className="text-xs">
-                  {companiesCount} companies to process • ~{Math.ceil(companiesCount * (skipValidation ? 5 : 15))} seconds estimated
-                </CardDescription>
               </CardHeader>
               <CardContent className="px-4 pb-3 space-y-3">
                 <div className="flex items-center justify-between">

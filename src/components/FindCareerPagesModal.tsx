@@ -37,6 +37,14 @@ interface FindCareerPagesModalProps {
   onClose: () => void;
   companies: Array<{ id: string; company_name: string; website: string | null }>;
   onComplete: () => void;
+  speedSettings?: {
+    skipValidation: boolean;
+    probeTimeout: number;
+    mapLimit: number;
+    searchLimit: number;
+    batchSize: number;
+    concurrency: number;
+  };
 }
 
 export default function FindCareerPagesModal({
@@ -44,6 +52,7 @@ export default function FindCareerPagesModal({
   onClose,
   companies,
   onComplete,
+  speedSettings,
 }: FindCareerPagesModalProps) {
   const [queue, setQueue] = useState<CompanyToProcess[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -100,10 +109,10 @@ export default function FindCareerPagesModal({
       processingRef.current = true;
       itemStartTimeRef.current = Date.now();
       
-      // Process one at a time for better responsiveness with slow companies
-      const batchSize = 1;
+      const effectiveBatchSize = speedSettings?.batchSize || 1;
+      const effectiveConcurrency = speedSettings?.concurrency || 1;
       const batchStart = currentIndex;
-      const batchEnd = Math.min(currentIndex + batchSize, queue.length);
+      const batchEnd = Math.min(currentIndex + effectiveBatchSize * effectiveConcurrency, queue.length);
       const batch = queue.slice(batchStart, batchEnd);
       
       if (batch.length === 0) {
@@ -120,33 +129,57 @@ export default function FindCareerPagesModal({
         )
       );
 
+      // Split into concurrent chunks
+      const chunks: typeof batch[] = [];
+      for (let i = 0; i < batch.length; i += effectiveBatchSize) {
+        chunks.push(batch.slice(i, i + effectiveBatchSize));
+      }
+
       // Set up timeout handling - 90 second client-side timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 90000);
 
       try {
-        const { data, error } = await supabase.functions.invoke('find-career-page', {
-          body: {
-            companies: batch.map((c) => ({
-              company_name: c.company_name,
-              website: c.website,
-            })),
-          },
-        });
+        // Process chunks concurrently
+        const chunkResults = await Promise.allSettled(
+          chunks.map(async (chunk) => {
+            const { data, error } = await supabase.functions.invoke('find-career-page', {
+              body: {
+                companies: chunk.map((c) => ({
+                  company_name: c.company_name,
+                  website: c.website,
+                })),
+                options: speedSettings ? {
+                  skipValidation: speedSettings.skipValidation,
+                  probeTimeout: speedSettings.probeTimeout,
+                  mapLimit: speedSettings.mapLimit,
+                  searchLimit: speedSettings.searchLimit,
+                } : undefined,
+              },
+            });
+            if (error) throw error;
+            return { data, chunk };
+          })
+        );
 
         clearTimeout(timeoutId);
 
-        if (error) throw error;
+        // Aggregate results from all chunks
+        const resultsMap = new Map<string, string>();
+        let anySuccess = false;
 
-        // Update queue with results
-        if (data?.success && data.results) {
-          const resultsMap = new Map<string, string>();
-          for (const r of data.results as Array<{ company_name: string; career_url: string | null }>) {
-            if (r.career_url) {
-              resultsMap.set(r.company_name, r.career_url);
+        for (const result of chunkResults) {
+          if (result.status === 'fulfilled' && result.value.data?.success && result.value.data.results) {
+            anySuccess = true;
+            for (const r of result.value.data.results as Array<{ company_name: string; career_url: string | null }>) {
+              if (r.career_url) {
+                resultsMap.set(r.company_name, r.career_url);
+              }
             }
           }
+        }
 
+        if (anySuccess) {
           // Update database for each found career URL
           for (const item of batch) {
             const careerUrl = resultsMap.get(item.company_name);
