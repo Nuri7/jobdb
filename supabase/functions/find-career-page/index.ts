@@ -516,7 +516,11 @@ function scoreCareerUrl(url: string, careerPatterns: RegExp[], companyName?: str
  * @param apiKey - Firecrawl API key
  * @param isDedicatedCareerDomain - If true, use more lenient validation
  */
-async function validateCareerPage(url: string, apiKey: string, isDedicatedCareerDomain: boolean = false): Promise<boolean> {
+async function validateCareerPage(url: string, apiKey: string, isDedicatedCareerDomain: boolean = false, skip: boolean = false): Promise<boolean> {
+  if (skip) {
+    console.log(`Skipping validation for: ${url} (skip_validation enabled)`);
+    return true;
+  }
   try {
     console.log(`Validating career page content: ${url} (dedicated: ${isDedicatedCareerDomain})`);
     
@@ -605,7 +609,8 @@ async function findBestCareerUrl(
   careerPatterns: RegExp[], 
   apiKey: string,
   companyName: string,
-  companyWebsite?: string
+  companyWebsite?: string,
+  skip: boolean = false
 ): Promise<string | null> {
   // Pre-filter: remove URLs with non-page extensions before scoring
   const filteredUrls = urls.filter(url => {
@@ -646,7 +651,7 @@ async function findBestCareerUrl(
     
     // For high-scoring URLs, validate the content
     if (score >= 30) {
-      const isValid = await validateCareerPage(url, apiKey);
+      const isValid = await validateCareerPage(url, apiKey, false, skip);
       if (isValid) {
         console.log(`Validated career page: ${url}`);
         return url;
@@ -672,7 +677,8 @@ async function findBestCareerUrl(
 async function searchDedicatedCareerDomain(
   companyName: string,
   apiKey: string,
-  careerPatterns: RegExp[]
+  careerPatterns: RegExp[],
+  skip: boolean = false
 ): Promise<{ url: string; score: number } | null> {
   // Get all company identifiers for better coverage
   const identifiers = extractCompanyIdentifiers(companyName);
@@ -704,7 +710,7 @@ async function searchDedicatedCareerDomain(
       try {
         console.log(`Probing: ${directUrl}`);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout for HEAD
+        const timeoutId = setTimeout(() => controller.abort(), probeTimeoutMs);
 
         const response = await fetch(directUrl, { 
           method: 'HEAD',
@@ -716,7 +722,7 @@ async function searchDedicatedCareerDomain(
         if (response.ok) {
           // Domain exists! Now validate it has job content
           console.log(`Direct probe succeeded for: ${directUrl}`);
-          const isValid = await validateCareerPage(directUrl, apiKey, true);
+          const isValid = await validateCareerPage(directUrl, apiKey, true, skip);
           if (isValid) {
             const score = scoreCareerUrl(directUrl, careerPatterns, companyName);
             console.log(`Found career domain via direct probe: ${directUrl} (score: ${score})`);
@@ -756,7 +762,7 @@ async function searchDedicatedCareerDomain(
       },
       body: JSON.stringify({
         query: searchQuery,
-        limit: 10,
+        limit: searchResultLimit,
         lang: 'nl',
         country: 'nl',
       }),
@@ -803,7 +809,7 @@ async function searchDedicatedCareerDomain(
       console.log(`Trying direct vacatures URL: ${vacaturesUrl}`);
       
       // Check if this URL works and has job listings (use lenient validation for dedicated domains)
-      const isValid = await validateCareerPage(vacaturesUrl, apiKey, true);
+      const isValid = await validateCareerPage(vacaturesUrl, apiKey, true, skip);
       if (isValid) {
         const score = scoreCareerUrl(vacaturesUrl, careerPatterns, companyName);
         console.log(`Found valid vacatures page: ${vacaturesUrl} (score: ${score})`);
@@ -819,7 +825,7 @@ async function searchDedicatedCareerDomain(
       ];
 
       for (const variation of variations) {
-        const varIsValid = await validateCareerPage(variation, apiKey, true);
+        const varIsValid = await validateCareerPage(variation, apiKey, true, skip);
         if (varIsValid) {
           const score = scoreCareerUrl(variation, careerPatterns, companyName);
           console.log(`Found valid career page variation: ${variation} (score: ${score})`);
@@ -852,7 +858,20 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { companies } = await req.json() as { companies: CompanyData[] };
+    const { companies, options } = await req.json() as { 
+      companies: CompanyData[];
+      options?: {
+        skipValidation?: boolean;
+        probeTimeout?: number;
+        mapLimit?: number;
+        searchLimit?: number;
+      };
+    };
+    
+    const skipValidation = options?.skipValidation ?? false;
+    const probeTimeoutMs = options?.probeTimeout ?? 5000;
+    const mapUrlLimit = options?.mapLimit ?? 50;
+    const searchResultLimit = options?.searchLimit ?? 10;
 
     if (!companies || !Array.isArray(companies)) {
       return new Response(
@@ -891,7 +910,8 @@ Deno.serve(async (req) => {
         const dedicatedDomain = await searchDedicatedCareerDomain(
           company.company_name,
           apiKey,
-          careerPatterns
+          careerPatterns,
+          skipValidation
         );
 
         if (dedicatedDomain) {
@@ -924,7 +944,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               url: websiteUrl,
               search: mapKeywords,
-              limit: 50,
+              limit: mapUrlLimit,
               includeSubdomains: true,
             }),
           });
@@ -939,7 +959,8 @@ Deno.serve(async (req) => {
                 careerPatterns, 
                 apiKey, 
                 company.company_name,
-                company.website
+                company.website,
+                skipValidation
               );
 
               if (bestUrl) {
@@ -964,7 +985,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               query: `werken bij ${company.company_name} vacatures`,
-              limit: 10,
+              limit: searchResultLimit,
               lang: 'nl',
               country: 'nl',
             }),
@@ -975,7 +996,7 @@ Deno.serve(async (req) => {
 
             if (searchData.success && searchData.data?.length > 0) {
               const urls = searchData.data.map((result: { url: string }) => result.url);
-              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website, skipValidation);
 
               if (bestUrl) {
                 const score = scoreCareerUrl(bestUrl, careerPatterns, company.company_name, company.website);
@@ -1007,7 +1028,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               query: `werken bij ${company.company_name} vacatures`,
-              limit: 10,
+              limit: searchResultLimit,
               lang: 'nl',
               country: 'nl',
             }),
@@ -1018,7 +1039,7 @@ Deno.serve(async (req) => {
 
             if (searchData.success && searchData.data?.length > 0) {
               const urls = searchData.data.map((result: { url: string }) => result.url);
-              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website, skipValidation);
 
               if (bestUrl) {
                 const score = scoreCareerUrl(bestUrl, careerPatterns, company.company_name, company.website);
@@ -1044,7 +1065,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               query: `${company.company_name} careers opportunities apply jobs`,
-              limit: 15,
+              limit: searchResultLimit,
               lang: 'en',
             }),
           });
@@ -1055,7 +1076,7 @@ Deno.serve(async (req) => {
             if (searchData.success && searchData.data?.length > 0) {
               // Find the best career URL from search results
               const urls = searchData.data.map((result: { url: string }) => result.url);
-              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website);
+              const bestUrl = await findBestCareerUrl(urls, careerPatterns, apiKey, company.company_name, company.website, skipValidation);
 
               if (bestUrl) {
                 const score = scoreCareerUrl(bestUrl, careerPatterns, company.company_name, company.website);
