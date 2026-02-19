@@ -14,6 +14,12 @@ import { CompanyScrapeSettingsModal } from "@/components/CompanyScrapeSettingsMo
 import FindCareerPagesModal from "@/components/FindCareerPagesModal";
 import CareerDiscoveryConfig, { DiscoverySpeedSettings } from "@/components/CareerDiscoveryConfig";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -77,6 +83,7 @@ const Index = () => {
   const [scrapeSettingsCompany, setScrapeSettingsCompany] = useState<CompanyCareerSite | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showFindCareerPages, setShowFindCareerPages] = useState(false);
+  const [discoveryMode, setDiscoveryMode] = useState<'all' | 'missing'>('missing');
   const [discoverySettings, setDiscoverySettings] = useState<DiscoverySpeedSettings>({
     skipValidation: false, probeTimeout: 5000, mapLimit: 50, searchLimit: 10, batchSize: 1, concurrency: 1,
   });
@@ -334,14 +341,22 @@ const Index = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <SearchBar value={search} onChange={setSearch} />
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setShowFindCareerPages(true)}
-              variant="outline"
-              size="sm"
-            >
-              <Search className="w-4 h-4 mr-2" />
-              Find Career Pages
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Search className="w-4 h-4 mr-2" />
+                  Find Career Pages
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover z-50">
+                <DropdownMenuItem onClick={() => { setDiscoveryMode('all'); setShowFindCareerPages(true); }}>
+                  Run all again
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setDiscoveryMode('missing'); setShowFindCareerPages(true); }}>
+                  Run missing only
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <AddCompanyModal onCompanyAdded={() => { refetchCompanies(); refetch(); }} />
             <Button 
               onClick={handleScrape} 
@@ -631,8 +646,8 @@ const Index = () => {
         onClose={() => setShowFindCareerPages(false)}
         companies={(companies || [])
           .filter(c => {
-            // Include companies whose career_url is just their website domain (not yet discovered)
             if (!c.website) return false;
+            if (discoveryMode === 'all') return true;
             try {
               const careerHost = new URL(c.career_url).hostname.replace(/^www\./, '');
               const websiteHost = new URL(c.website).hostname.replace(/^www\./, '');
