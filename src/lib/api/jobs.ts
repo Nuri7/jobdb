@@ -305,17 +305,33 @@ export const jobsApi = {
   },
 
   async getCompanies() {
-    const { data, error } = await supabase
-      .from('company_career_sites')
-      .select('*')
-      .order('company_name');
+    const allData: any[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    let hasMore = true;
 
-    if (error) {
-      console.error('Error fetching companies:', error);
-      throw error;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('company_career_sites')
+        .select('*')
+        .order('company_name')
+        .range(offset, offset + batchSize - 1);
+
+      if (error) {
+        console.error('Error fetching companies:', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        allData.push(...data);
+        offset += batchSize;
+        hasMore = data.length === batchSize;
+      } else {
+        hasMore = false;
+      }
     }
 
-    return data || [];
+    return allData;
   },
 
   async scrapeCompany(companyId: string, careerUrl: string) {
