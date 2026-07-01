@@ -17,15 +17,20 @@ async function resolveOne(db: Db, ctx: Ctx, company: CompanyRow, force: boolean)
   if (!force && company.career_page_status === 'verified' && company.source_type) return null;
   const result = await resolveCompany(company, ctx, db);
   if (!ctx.dryRun) {
+    // dead: retry weekly; ambiguous: monthly (duplicate boards rarely un-duplicate)
+    const defer =
+      result.career_page_status === 'dead'
+        ? { next_check_at: new Date(Date.now() + 7 * 86_400_000).toISOString() }
+        : result.career_page_status === 'ambiguous'
+          ? { next_check_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }
+          : {};
     await updateCompany(db, company.id, {
       career_url: result.career_url ?? company.career_url,
       career_page_status: result.career_page_status,
       source_type: result.source_type,
       source_config: result.source_config,
       website: company.website ?? safeOrigin(company.career_url),
-      ...(result.career_page_status === 'dead'
-        ? { next_check_at: new Date(Date.now() + 7 * 86_400_000).toISOString() }
-        : {}),
+      ...defer,
     });
   }
   return result;
@@ -56,10 +61,7 @@ export async function resolveCommand(opts: ResolveOpts): Promise<void> {
     }
     companies = [one];
   } else {
-    companies = await pickResolvable(db, opts.limit ?? 100_000, opts.onlyBroken);
-    if (!opts.force) {
-      companies = companies.filter((c) => !(c.career_page_status === 'verified' && c.source_type));
-    }
+    companies = await pickResolvable(db, opts.limit ?? 100_000, opts.onlyBroken, opts.force);
   }
   console.log(`Resolving ${companies.length} companies (concurrency ${cfg.COMPANY_CONCURRENCY})…`);
 

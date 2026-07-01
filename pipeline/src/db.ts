@@ -53,6 +53,7 @@ export async function pickResolvable(
   db: Db,
   limit: number,
   onlyBroken: boolean,
+  force = false,
 ): Promise<CompanyRow[]> {
   let query = db
     .from('company_career_sites')
@@ -60,8 +61,12 @@ export async function pickResolvable(
     .eq('is_scrape_enabled', true)
     .order('next_check_at', { ascending: true })
     .limit(limit);
+  // Server-side status filter — client-side filtering starves the picker once
+  // the earliest next_check_at rows are all verified
   if (onlyBroken) {
     query = query.or('career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3');
+  } else if (!force) {
+    query = query.eq('career_page_status', 'unverified');
   }
   const res = await query;
   return unwrap(res, 'pickResolvable') as unknown as CompanyRow[];
