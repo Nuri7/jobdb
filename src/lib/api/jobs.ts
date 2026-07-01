@@ -66,14 +66,19 @@ export const jobsApi = {
       .from('job_opportunities')
       .select(`
         *,
-        company_career_sites (
+        company_career_sites!inner (
           company_name,
           industry,
           career_url,
           is_scrape_enabled
         )
       `, { count: 'exact' })
+      // Filter enabled companies server-side via the join — passing thousands of
+      // company IDs through .in() blows the request URL past its limit
+      .eq('company_career_sites.is_scrape_enabled', true)
+      .eq('status', 'open')
       .order('scraped_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (location && location !== 'all') {
@@ -82,12 +87,11 @@ export const jobsApi = {
 
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
-    } else if (industryCompanyIds !== null) {
-      // Filter by industry companies
+    } else if (industryCompanyIds !== null && industryCompanyIds.length <= 200) {
+      // Filter by industry companies (bounded — large sets would blow the URL)
       query = query.in('company_career_site_id', industryCompanyIds);
-    } else if (enabledCompanyIds && enabledCompanyIds.length > 0) {
-      // When viewing all sources, only show jobs from enabled companies
-      query = query.in('company_career_site_id', enabledCompanyIds);
+    } else if (industryCompanyIds !== null) {
+      query = query.ilike('company_career_sites.industry', `%${industry}%`);
     }
 
     if (jobType && jobType !== 'all') {
@@ -226,14 +230,19 @@ export const jobsApi = {
       .from('job_opportunities')
       .select(`
         *,
-        company_career_sites (
+        company_career_sites!inner (
           company_name,
           industry,
           career_url,
           is_scrape_enabled
         )
       `, { count: 'exact' })
+      // Filter enabled companies server-side via the join — passing thousands of
+      // company IDs through .in() blows the request URL past its limit
+      .eq('company_career_sites.is_scrape_enabled', true)
+      .eq('status', 'open')
       .order('scraped_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (search) {
@@ -246,10 +255,10 @@ export const jobsApi = {
 
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
-    } else if (industryCompanyIds !== null) {
+    } else if (industryCompanyIds !== null && industryCompanyIds.length <= 200) {
       query = query.in('company_career_site_id', industryCompanyIds);
-    } else if (enabledCompanyIds && enabledCompanyIds.length > 0) {
-      query = query.in('company_career_site_id', enabledCompanyIds);
+    } else if (industryCompanyIds !== null) {
+      query = query.ilike('company_career_sites.industry', `%${industry}%`);
     }
 
     if (jobType && jobType !== 'all') {
