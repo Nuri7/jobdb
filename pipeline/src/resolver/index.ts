@@ -46,7 +46,8 @@ function CAREER_HOST(hostname: string): boolean {
 async function fetchCandidate(url: string, ctx: Ctx, companyDomain: string): Promise<Candidate | null> {
   let res;
   try {
-    res = await ctx.fetchText(url, { kind: 'html', timeoutMs: 12_000, retries: 1 });
+    // No retries here: candidates are speculative guesses; a dead host must fail fast
+    res = await ctx.fetchText(url, { kind: 'html', timeoutMs: 8_000, retries: 0 });
   } catch {
     return null;
   }
@@ -126,9 +127,14 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
   let atsFp: AtsFingerprint | null = homeFp;
   let atsFromUrl: string | null = homeFp ? origin : null;
 
+  let deadProbes = 0;
   for (const url of candidateUrls.slice(0, 12)) {
     const c = await fetchCandidate(url, ctx, companyDomain);
-    if (!c) continue;
+    if (!c) {
+      // Everything dead so far → the whole domain is likely gone; stop burning timeouts
+      if (++deadProbes >= 6 && candidates.length === 0) break;
+      continue;
+    }
     // The stored career_url earned trust by being alive — prefer it over wandering
     if (company.career_url && url === new URL(company.career_url).toString()) c.score += 25;
     candidates.push(c);
