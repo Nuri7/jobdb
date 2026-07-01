@@ -13,7 +13,18 @@ import Features from "./pages/Features";
 import NotFound from "./pages/NotFound";
 import { usePWAAnalytics } from "./hooks/usePWAAnalytics";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Don't refetch the whole app every time the window regains focus —
+      // job data changes at most daily. Focus refetch caused a full spinner on every tab switch.
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 min: treat data as fresh, serve from cache on remount
+      gcTime: 30 * 60 * 1000,
+      retry: 1,
+    },
+  },
+});
 
 const PWAAnalyticsWrapper = ({ children }: { children: React.ReactNode }) => {
   usePWAAnalytics();

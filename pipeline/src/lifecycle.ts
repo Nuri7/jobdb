@@ -184,6 +184,23 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
 
     // ---------- Reconcile ----------
     const existing = await listCompanyJobs(db, company.id);
+    const openBefore = existing.filter((j) => j.status === 'open').length;
+
+    // Safety floor: a scrape that returns ZERO jobs for a company that currently has
+    // open ones is almost always an extraction failure (ATS status-vocab change, transient
+    // empty payload, markup change breaking a listing parser) — NOT a genuinely empty board.
+    // Refuse to close everything on such weak evidence; treat as a soft failure so the
+    // company backs off and is retried, and only the staleness sweep (10 failures / 14 days)
+    // may eventually close a board that is truly gone.
+    if (jobs.length === 0 && openBefore > 0) {
+      await completeHistory(db, historyId, {
+        status: 'failed',
+        jobs_found: 0,
+        error_message: `Suspicious empty result: ${openBefore} open jobs but scrape returned 0 — not closing`,
+      });
+      throw new ZeroExtractionError(`empty result with ${openBefore} open jobs — refusing to mass-close`, openBefore);
+    }
+
     const byUrl = new Map(existing.map((j) => [j.job_url, j]));
     const seenUrls = new Set(jobs.map((j) => j.job_url));
 

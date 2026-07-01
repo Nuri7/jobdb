@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useJobs, useCompanies } from "@/hooks/useJobs";
 import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
 import { supabase } from "@/integrations/supabase/client";
@@ -96,8 +97,12 @@ const Index = () => {
   const enabledCompanies = companies?.filter(c => c.is_scrape_enabled === true) || [];
   const enabledCompanyIds = enabledCompanies.map(c => c.id);
 
+  // Debounce so typing doesn't fire a query (and an AI-synonym API call) per keystroke
+  const debouncedSearch = useDebounce(search, 350);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch]);
+
   const { data: jobsData, isLoading, refetch } = useJobs({
-    search,
+    search: debouncedSearch,
     source: activeTab !== "all" ? activeTab : undefined,
     page: currentPage,
     enabledCompanyIds: activeTab === "all" ? enabledCompanyIds : undefined,

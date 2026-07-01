@@ -1336,20 +1336,35 @@ Deno.serve(async (req) => {
     let jobsRemoved = 0;
 
     if (currentJobUrls.length > 0) {
-      const { data: closedJobs, error: closeError } = await supabase
+      // Compare in JS and close by id — never string-build a PostgREST `in(...)` list:
+      // job URLs legitimately contain commas/quotes (query params), which would corrupt
+      // the list and wrongly close a live job or 400 the whole step.
+      const currentSet = new Set(currentJobUrls);
+      const { data: openSameOrigin, error: openErr } = await supabase
         .from('job_opportunities')
-        .update({ status: 'closed', closed_at: new Date().toISOString() })
+        .select('id, job_url')
         .eq('company_career_site_id', companyId)
         .eq('status', 'open')
-        .like('job_url', `${baseUrl}%`)
-        .not('job_url', 'in', `(${currentJobUrls.map(url => `"${url}"`).join(',')})`)
-        .select('id');
+        .like('job_url', `${baseUrl}%`);
 
-      if (closeError) {
-        console.error('Error closing stale jobs:', closeError);
+      if (openErr) {
+        console.error('Error listing open jobs to close:', openErr);
       } else {
-        jobsRemoved = closedJobs?.length || 0;
-        console.log(`Closed ${jobsRemoved} stale jobs that no longer exist on ${baseUrl}`);
+        const staleIds = (openSameOrigin || [])
+          .filter((j: { job_url: string }) => !currentSet.has(j.job_url))
+          .map((j: { id: string }) => j.id);
+        if (staleIds.length > 0) {
+          const { error: closeError } = await supabase
+            .from('job_opportunities')
+            .update({ status: 'closed', closed_at: new Date().toISOString() })
+            .in('id', staleIds);
+          if (closeError) {
+            console.error('Error closing stale jobs:', closeError);
+          } else {
+            jobsRemoved = staleIds.length;
+            console.log(`Closed ${jobsRemoved} stale jobs that no longer exist on ${baseUrl}`);
+          }
+        }
       }
     }
 

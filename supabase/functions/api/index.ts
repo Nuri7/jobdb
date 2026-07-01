@@ -239,8 +239,12 @@ Deno.serve(async (req) => {
     // Route: GET /jobs
     if (path === '/jobs' || path === '/jobs/') {
       const limit = Math.min(parseInt(params.get('limit') || '50'), 100);
-      const offset = parseInt(params.get('offset') || '0');
-      const search = params.get('search');
+      // Cap offset so a caller can't force a multi-million-row scan
+      const offset = Math.max(0, Math.min(parseInt(params.get('offset') || '0') || 0, 50_000));
+      // Strip PostgREST filter metacharacters (, . ( ) " *) so a search term can't break out
+      // of the .or() filter grammar and pivot onto other columns.
+      const rawSearch = params.get('search');
+      const search = rawSearch ? rawSearch.replace(/[,.()"*]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : rawSearch;
       const location = params.get('location');
       const company = params.get('company');
       const jobType = params.get('job_type');
@@ -306,7 +310,12 @@ Deno.serve(async (req) => {
       // Apply intelligent search - OR across all related terms
       // Use word boundary matching for short terms (<=3 chars) to avoid false positives
       if (searchTerms.length > 0) {
-        const searchFilters = searchTerms.map(term => {
+        // Synonym-table and AI-expanded terms also flow into the .or() grammar — strip
+        // PostgREST metacharacters and LIKE wildcards from every term, not just the seed.
+        const safeTerms = searchTerms
+          .map(t => String(t).replace(/[,.()"%_*\\]/g, ' ').replace(/\s+/g, ' ').trim())
+          .filter(t => t.length > 0);
+        const searchFilters = safeTerms.map(term => {
           if (term.length <= 3) {
             // For short terms, require word boundaries (start/end of string or surrounded by spaces)
             // This prevents "po" matching "Corporate" or "pm" matching "Development"
@@ -319,7 +328,7 @@ Deno.serve(async (req) => {
           }
           return `job_title.ilike.%${term}%`;
         }).join(',');
-        query = query.or(searchFilters);
+        if (searchFilters) query = query.or(searchFilters);
       }
       if (location) {
         query = query.ilike('location', `%${location}%`);

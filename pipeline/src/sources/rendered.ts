@@ -20,7 +20,9 @@ async function getBrowser(): Promise<import('playwright').Browser> {
 export async function closeBrowser(): Promise<void> {
   if (browserPromise) {
     try {
-      (await browserPromise).close();
+      // await the close itself — not just the browser handle — so chromium is gone
+      // before the process exits (otherwise the run can leak the browser + its /tmp profile)
+      await (await browserPromise).close();
     } catch {
       /* already gone */
     }
