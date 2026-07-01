@@ -988,7 +988,7 @@ Deno.serve(async (req) => {
   let supabase: any = null;
 
   try {
-    const { companyId, careerUrl } = await req.json();
+    const { companyId, careerUrl: careerUrlParam } = await req.json();
 
     const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!apiKey) {
@@ -1009,14 +1009,24 @@ Deno.serve(async (req) => {
     // Load company-specific scrape config
     const { data: companyData, error: companyError } = await supabase
       .from('company_career_sites')
-      .select('scrape_config')
+      .select('scrape_config, career_url')
       .eq('id', companyId)
       .single();
-    
+
     if (companyError) {
       console.error('Error loading company config:', companyError);
     }
-    
+
+    // Fall back to the stored career_url when the caller doesn't send one
+    // (e.g. the POST /api/companies fire-and-forget trigger)
+    const careerUrl = careerUrlParam || companyData?.career_url;
+    if (!careerUrl) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No careerUrl provided and none stored for company' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const companyConfig = companyData?.scrape_config || {};
     console.log('Company-specific config:', JSON.stringify(companyConfig));
     
@@ -1055,6 +1065,7 @@ Deno.serve(async (req) => {
         company_career_site_id: companyId,
         career_url: careerUrl,
         status: 'running',
+        method: 'edge-firecrawl',
       })
       .select('id')
       .single();
@@ -1298,9 +1309,15 @@ Deno.serve(async (req) => {
           department: job.department,
           description: job.description,
           is_remote: job.is_remote,
+          is_internship: job.is_internship ?? false,
           experience_level: job.experience_level,
           salary_range: job.salary_range,
           scraped_at: new Date().toISOString(),
+          // Lifecycle: a seen job is open again; first_seen_at keeps its column default/old value
+          status: 'open',
+          closed_at: null,
+          miss_count: 0,
+          last_seen_at: new Date().toISOString(),
         }, {
           onConflict: 'job_url',
         });
@@ -1312,25 +1329,36 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Delete jobs that no longer exist on the career page
+    // Close jobs that no longer exist on the career page.
+    // Never hard-delete, and only touch same-origin URLs: the pipeline worker may own
+    // ATS-hosted jobs (jobs.lever.co, *.recruitee.com, ...) this scraper can't see.
     const currentJobUrls = jobs.map(job => job.job_url);
     let jobsRemoved = 0;
-    
+
     if (currentJobUrls.length > 0) {
-      const { data: deletedJobs, error: deleteError } = await supabase
+      const { data: closedJobs, error: closeError } = await supabase
         .from('job_opportunities')
-        .delete()
+        .update({ status: 'closed', closed_at: new Date().toISOString() })
         .eq('company_career_site_id', companyId)
+        .eq('status', 'open')
+        .like('job_url', `${baseUrl}%`)
         .not('job_url', 'in', `(${currentJobUrls.map(url => `"${url}"`).join(',')})`)
         .select('id');
-      
-      if (deleteError) {
-        console.error('Error deleting stale jobs:', deleteError);
+
+      if (closeError) {
+        console.error('Error closing stale jobs:', closeError);
       } else {
-        jobsRemoved = deletedJobs?.length || 0;
-        console.log(`Deleted ${jobsRemoved} stale jobs that no longer exist`);
+        jobsRemoved = closedJobs?.length || 0;
+        console.log(`Closed ${jobsRemoved} stale jobs that no longer exist on ${baseUrl}`);
       }
     }
+
+    // Recompute the company's open-job count (shared semantics with the pipeline worker)
+    const { count: openCount } = await supabase
+      .from('job_opportunities')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_career_site_id', companyId)
+      .eq('status', 'open');
 
     // Mark as complete
     await supabase
@@ -1338,10 +1366,10 @@ Deno.serve(async (req) => {
       .update({
         crawl_status: 'completed',
         last_crawled_at: new Date().toISOString(),
-        jobs_found_count: insertedCount,
+        jobs_found_count: openCount ?? insertedCount,
         scrape_progress_phase: 'complete',
         scrape_progress_pages_scraped: pagesScraped,
-        scrape_progress_jobs_found: insertedCount,
+        scrape_progress_jobs_found: openCount ?? insertedCount,
         scrape_progress_current_page: null,
       })
       .eq('id', companyId);
