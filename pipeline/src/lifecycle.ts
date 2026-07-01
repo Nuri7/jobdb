@@ -1,0 +1,242 @@
+import {
+  closeCompanyJobs,
+  completeHistory,
+  countOpenJobs,
+  insertHistory,
+  listCompanyJobs,
+  incrementMisses,
+  touchJobs,
+  updateCompany,
+  upsertJobs,
+  type Db,
+} from './db.js';
+import { resolveCompany } from './resolver/index.js';
+import { sourceFor } from './sources/registry.js';
+import type { CanonicalJob, CompanyRow, Ctx } from './types.js';
+import { SourceGoneError } from './types.js';
+
+export interface CompanyOutcome {
+  company: string;
+  status: 'ok' | 'nochange' | 'resolved-dead' | 'resolved-ambiguous' | 'failed' | 'dry-run';
+  jobsSeen?: number;
+  inserted?: number;
+  closed?: number;
+  openNow?: number;
+  error?: string;
+}
+
+const MIN_INTERVAL_H = 12;
+const MAX_INTERVAL_H = 72;
+
+function nextInterval(current: number, hadChanges: boolean): number {
+  const cur = current || 24;
+  return hadChanges
+    ? Math.max(MIN_INTERVAL_H, Math.floor(cur / 2))
+    : Math.min(MAX_INTERVAL_H, Math.ceil(cur * 1.5));
+}
+
+function nextCheckAt(hours: number): string {
+  const jitterMs = Math.floor(Math.random() * 30 * 60 * 1000);
+  return new Date(Date.now() + hours * 3_600_000 + jitterMs).toISOString();
+}
+
+function needsResolve(company: CompanyRow): boolean {
+  if (!company.source_type || !company.source_config) return true;
+  if (company.career_page_status !== 'verified') return true;
+  // Dashboard edited career_url since we fingerprinted it → re-resolve
+  if (company.source_config.resolved_url !== company.career_url) return true;
+  return false;
+}
+
+/**
+ * Resolve (when needed) + scrape + reconcile one company. Crash-safe ordering:
+ * failures never close jobs; a killed run leaves the company due.
+ */
+export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Promise<CompanyOutcome> {
+  const name = company.company_name;
+
+  try {
+    // ---------- Resolve when needed ----------
+    if (needsResolve(company)) {
+      const result = await resolveCompany(company, ctx, db);
+      ctx.log(`  resolve: ${result.career_page_status} / ${result.source_type ?? '-'} ${result.evidence[result.evidence.length - 1] ?? ''}`);
+      if (!ctx.dryRun) {
+        await updateCompany(db, company.id, {
+          career_url: result.career_url ?? company.career_url,
+          career_page_status: result.career_page_status,
+          source_type: result.source_type,
+          source_config: result.source_config,
+          website: company.website ?? safeOrigin(company.career_url),
+        });
+      }
+      company = {
+        ...company,
+        career_url: result.career_url ?? company.career_url,
+        career_page_status: result.career_page_status,
+        source_type: result.source_type,
+        source_config: result.source_config,
+      };
+      if (result.career_page_status === 'dead') {
+        if (!ctx.dryRun) {
+          await updateCompany(db, company.id, {
+            crawl_status: 'failed',
+            consecutive_failures: company.consecutive_failures + 1,
+            next_check_at: nextCheckAt(7 * 24),
+          });
+        }
+        return { company: name, status: 'resolved-dead' };
+      }
+      if (result.career_page_status === 'ambiguous') {
+        if (!ctx.dryRun) {
+          await updateCompany(db, company.id, { next_check_at: nextCheckAt(30 * 24) });
+        }
+        return { company: name, status: 'resolved-ambiguous' };
+      }
+    }
+
+    if (!company.source_type) throw new Error('no source_type after resolve');
+    const source = sourceFor(company.source_type);
+    const method = `pipeline:${company.source_type}`;
+
+    // ---------- Change-detection short-circuit ----------
+    if (!ctx.dryRun && source.hasChanged && company.jobs_found_count && company.jobs_found_count > 0) {
+      const changed = await source.hasChanged(company, ctx);
+      if (!changed) {
+        const existing = await listCompanyJobs(db, company.id);
+        const openIds = existing.filter((j) => j.status === 'open').map((j) => j.id);
+        await touchJobs(db, openIds);
+        await finalizeSuccess(db, company, openIds.length, false);
+        const historyId = await insertHistory(db, company.id, company.career_url ?? '', `${method}:nochange`);
+        await completeHistory(db, historyId, {
+          status: 'completed',
+          jobs_found: openIds.length,
+          jobs_inserted: 0,
+          jobs_removed: 0,
+        });
+        return { company: name, status: 'nochange', openNow: openIds.length };
+      }
+    }
+
+    // ---------- Full scrape ----------
+    const historyId = ctx.dryRun ? null : await insertHistory(db, company.id, company.career_url ?? '', method);
+    let jobs: CanonicalJob[];
+    try {
+      jobs = await source.fetchJobs(company, ctx);
+    } catch (err) {
+      if (!ctx.dryRun) {
+        await completeHistory(db, historyId, {
+          status: 'failed',
+          error_message: err instanceof Error ? err.message.slice(0, 500) : String(err),
+        });
+      }
+      throw err;
+    }
+
+    if (ctx.dryRun) {
+      ctx.log(`  dry-run: ${jobs.length} jobs would be written`);
+      for (const j of jobs.slice(0, 5)) ctx.log(`    · ${j.job_title} — ${j.location ?? '?'} — ${j.job_url}`);
+      return { company: name, status: 'dry-run', jobsSeen: jobs.length };
+    }
+
+    // ---------- Reconcile ----------
+    const existing = await listCompanyJobs(db, company.id);
+    const byUrl = new Map(existing.map((j) => [j.job_url, j]));
+    const seenUrls = new Set(jobs.map((j) => j.job_url));
+
+    const unchangedIds: string[] = [];
+    const toWrite: CanonicalJob[] = [];
+    for (const job of jobs) {
+      const prior = byUrl.get(job.job_url);
+      if (prior && prior.content_hash === job.content_hash && prior.status === 'open') {
+        unchangedIds.push(prior.id);
+      } else {
+        toWrite.push(job);
+      }
+    }
+    const missedIds = existing.filter((j) => j.status === 'open' && !seenUrls.has(j.job_url)).map((j) => j.id);
+
+    await upsertJobs(db, company.id, toWrite);
+    await touchJobs(db, unchangedIds);
+    const closedIds = await incrementMisses(db, missedIds);
+
+    const hadChanges = toWrite.length > 0 || closedIds.length > 0;
+    const openNow = await finalizeSuccess(db, company, null, hadChanges);
+    await completeHistory(db, historyId, {
+      status: 'completed',
+      jobs_found: jobs.length,
+      jobs_inserted: toWrite.length,
+      jobs_removed: closedIds.length,
+      pages_scraped: 1,
+    });
+
+    return {
+      company: name,
+      status: 'ok',
+      jobsSeen: jobs.length,
+      inserted: toWrite.length,
+      closed: closedIds.length,
+      openNow,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!ctx.dryRun) {
+      const failures = company.consecutive_failures + 1;
+      const backoffH = Math.min(company.check_interval_hours * 2 ** Math.min(failures, 3), MAX_INTERVAL_H);
+      const patch: Record<string, unknown> = {
+        crawl_status: 'failed',
+        consecutive_failures: failures,
+        next_check_at: nextCheckAt(backoffH),
+      };
+      // A permanently-gone source must be re-resolved next time it's picked up
+      if (err instanceof SourceGoneError) patch.career_page_status = 'unverified';
+      await updateCompany(db, company.id, patch).catch(() => {});
+    }
+    return { company: name, status: 'failed', error: message.slice(0, 200) };
+  }
+}
+
+async function finalizeSuccess(
+  db: Db,
+  company: CompanyRow,
+  knownOpenCount: number | null,
+  hadChanges: boolean,
+): Promise<number> {
+  const openNow = knownOpenCount ?? (await countOpenJobs(db, company.id));
+  const interval = nextInterval(company.check_interval_hours, hadChanges);
+  await updateCompany(db, company.id, {
+    crawl_status: 'completed',
+    last_crawled_at: new Date().toISOString(),
+    last_success_at: new Date().toISOString(),
+    jobs_found_count: openNow,
+    consecutive_failures: 0,
+    check_interval_hours: interval,
+    next_check_at: nextCheckAt(interval),
+    career_page_status: 'verified',
+    source_config: company.source_config, // persists mutated listing_hash / etag / last_full_at
+  });
+  return openNow;
+}
+
+function safeOrigin(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** Close open jobs of companies whose source has been dead too long (never delete). */
+export async function stalenessSweep(db: Db, ctx: Ctx, stale: Array<{ id: string; company_name: string }>): Promise<number> {
+  let closed = 0;
+  for (const company of stale) {
+    if (ctx.dryRun) continue;
+    const n = await closeCompanyJobs(db, company.id);
+    if (n > 0) {
+      ctx.log(`staleness sweep: closed ${n} jobs for ${company.company_name}`);
+      await updateCompany(db, company.id, { jobs_found_count: 0 }).catch(() => {});
+      closed += n;
+    }
+  }
+  return closed;
+}

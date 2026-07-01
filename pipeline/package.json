@@ -1,0 +1,32 @@
+{
+  "name": "jobdb-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Career-page resolution + tiered job ingestion worker for jobdb",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "pipeline": "tsx src/cli.ts",
+    "resolve": "tsx src/cli.ts resolve",
+    "refresh": "tsx src/cli.ts refresh",
+    "stats": "tsx src/cli.ts stats",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.0",
+    "cheerio": "^1.0.0",
+    "fast-xml-parser": "^4.5.0",
+    "p-limit": "^6.1.0",
+    "playwright": "^1.49.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
