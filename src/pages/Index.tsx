@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useJobs, useCompanies } from "@/hooks/useJobs";
@@ -12,18 +12,18 @@ import CompanyEditModal from "@/components/CompanyEditModal";
 import ScrapeHistoryModal from "@/components/ScrapeHistoryModal";
 import { AddCompanyModal } from "@/components/AddCompanyModal";
 import { CompanyScrapeSettingsModal } from "@/components/CompanyScrapeSettingsModal";
-import FindCareerPagesModal from "@/components/FindCareerPagesModal";
-import CareerDiscoveryConfig, { DiscoverySpeedSettings } from "@/components/CareerDiscoveryConfig";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Loader2, 
@@ -35,7 +35,8 @@ import {
   ExternalLink,
   Building2,
   Sliders,
-  Search
+  Search,
+  ChevronsUpDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -83,11 +84,8 @@ const Index = () => {
   const [historyCompany, setHistoryCompany] = useState<{id: string; name: string} | null>(null);
   const [scrapeSettingsCompany, setScrapeSettingsCompany] = useState<CompanyCareerSite | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [showFindCareerPages, setShowFindCareerPages] = useState(false);
-  const [discoveryMode, setDiscoveryMode] = useState<'all' | 'missing'>('missing');
-  const [discoverySettings, setDiscoverySettings] = useState<DiscoverySpeedSettings>({
-    skipValidation: false, probeTimeout: 5000, mapLimit: 50, searchLimit: 10, batchSize: 1, concurrency: 1,
-  });
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
+  const [companyQuery, setCompanyQuery] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -118,6 +116,15 @@ const Index = () => {
 
   // Get currently selected company
   const selectedCompany = activeTab !== "all" ? companies?.find(c => c.id === activeTab) : null;
+
+  // Company picker: filter + cap so we never render 4,700+ DOM nodes at once
+  const filteredCompanies = useMemo(() => {
+    const q = companyQuery.trim().toLowerCase();
+    const list = q
+      ? enabledCompanies.filter(c => c.company_name.toLowerCase().includes(q))
+      : enabledCompanies;
+    return list.slice(0, 50);
+  }, [enabledCompanies, companyQuery]);
 
   const handleScrape = async () => {
     if (!companies || companies.length === 0) {
@@ -346,22 +353,6 @@ const Index = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <SearchBar value={search} onChange={setSearch} />
           <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Search className="w-4 h-4 mr-2" />
-                  Find Career Pages
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover z-50">
-                <DropdownMenuItem onClick={() => { setDiscoveryMode('all'); setShowFindCareerPages(true); }}>
-                  Run all again
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setDiscoveryMode('missing'); setShowFindCareerPages(true); }}>
-                  Run missing only
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
             <AddCompanyModal onCompanyAdded={() => { refetchCompanies(); refetch(); }} />
             <Button 
               onClick={handleScrape} 
@@ -403,23 +394,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Career Discovery Config */}
-        <div className="mb-4">
-          <CareerDiscoveryConfig
-            companiesCount={(companies || []).filter(c => {
-              if (!c.website) return false;
-              try {
-                const careerHost = new URL(c.career_url).hostname.replace(/^www\./, '');
-                const websiteHost = new URL(c.website).hostname.replace(/^www\./, '');
-                return careerHost === websiteHost;
-              } catch {
-                return true;
-              }
-            }).length}
-            onSettingsChange={setDiscoverySettings}
-          />
-        </div>
-
         {/* Scraping Progress */}
         {isScraping && scrapingCompany && (
           <div className="text-sm text-muted-foreground flex items-center gap-2 mb-4">
@@ -430,22 +404,71 @@ const Index = () => {
           </div>
         )}
 
-        {/* Company Tabs */}
+        {/* Company filter: "All" + a searchable picker (avoids rendering a tab per company) */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <ScrollArea className="w-full whitespace-nowrap">
-            <TabsList className="inline-flex h-10 items-center gap-1 p-1 bg-muted/50">
-              <TabsTrigger value="all" className="px-4">
-                All ({totalJobCount})
-              </TabsTrigger>
-              {enabledCompanies.map(company => (
-                <TabsTrigger key={company.id} value={company.id} className="px-4 gap-2">
-                  <CompanyLogo careerUrl={company.career_url} companyName={company.company_name} size="sm" />
-                  {company.company_name} ({company.jobs_found_count || 0})
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant={activeTab === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => handleTabChange("all")}
+            >
+              All ({totalJobCount})
+            </Button>
+            <Popover open={companyPickerOpen} onOpenChange={setCompanyPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={activeTab !== "all" ? "default" : "outline"}
+                  size="sm"
+                  className="justify-between min-w-[240px] gap-2"
+                >
+                  {selectedCompany ? (
+                    <span className="flex items-center gap-2 truncate">
+                      <CompanyLogo careerUrl={selectedCompany.career_url} companyName={selectedCompany.company_name} size="sm" />
+                      <span className="truncate">{selectedCompany.company_name}</span>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Filter by company…</span>
+                  )}
+                  <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[340px]" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder={`Search ${enabledCompanies.length.toLocaleString()} companies…`}
+                    value={companyQuery}
+                    onValueChange={setCompanyQuery}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No companies found.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredCompanies.map(company => (
+                        <CommandItem
+                          key={company.id}
+                          value={company.id}
+                          onSelect={() => {
+                            handleTabChange(company.id);
+                            setCompanyPickerOpen(false);
+                            setCompanyQuery("");
+                          }}
+                          className="gap-2"
+                        >
+                          <CompanyLogo careerUrl={company.career_url} companyName={company.company_name} size="sm" />
+                          <span className="truncate">{company.company_name}</span>
+                          <span className="ml-auto text-xs text-muted-foreground">{company.jobs_found_count || 0}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {activeTab !== "all" && (
+              <Button variant="ghost" size="sm" onClick={() => handleTabChange("all")}>
+                Clear
+              </Button>
+            )}
+          </div>
 
           <TabsContent value={activeTab} className="mt-4">
             {/* Per-Company Actions Bar - Only show for specific company */}
@@ -643,27 +666,6 @@ const Index = () => {
         onClose={() => setScrapeSettingsCompany(null)}
         company={scrapeSettingsCompany}
         onSaved={() => refetchCompanies()}
-      />
-
-      {/* Find Career Pages Modal */}
-      <FindCareerPagesModal
-        isOpen={showFindCareerPages}
-        onClose={() => setShowFindCareerPages(false)}
-        companies={(companies || [])
-          .filter(c => {
-            if (!c.website) return false;
-            if (discoveryMode === 'all') return true;
-            try {
-              const careerHost = new URL(c.career_url).hostname.replace(/^www\./, '');
-              const websiteHost = new URL(c.website).hostname.replace(/^www\./, '');
-              return careerHost === websiteHost;
-            } catch {
-              return true;
-            }
-          })
-          .map(c => ({ id: c.id, company_name: c.company_name, website: c.website }))}
-        onComplete={() => { refetchCompanies(); refetch(); }}
-        speedSettings={discoverySettings}
       />
     </div>
   );

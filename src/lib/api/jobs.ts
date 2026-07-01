@@ -62,8 +62,9 @@ export const jobsApi = {
       industryCompanyIds = industryCompanies?.map(c => c.id) || [];
     }
 
-    let query = supabase
-      .from('job_opportunities')
+    // Cast to any avoids TS2589 (deep generic instantiation) from the long filter
+    // chain below; PostgREST return shape is mapped explicitly anyway.
+    let query: any = (supabase.from('job_opportunities') as any)
       .select(`
         *,
         company_career_sites!inner (
@@ -226,8 +227,9 @@ export const jobsApi = {
       industryCompanyIds = industryCompanies?.map(c => c.id) || [];
     }
 
-    let query = supabase
-      .from('job_opportunities')
+    // Cast to any avoids TS2589 (deep generic instantiation) from the long filter
+    // chain below; PostgREST return shape is mapped explicitly anyway.
+    let query: any = (supabase.from('job_opportunities') as any)
       .select(`
         *,
         company_career_sites!inner (
