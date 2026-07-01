@@ -1,0 +1,73 @@
+name: refresh-jobs
+
+on:
+  schedule:
+    - cron: '15 3 * * *' # daily 03:15 UTC (~05:15 NL)
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max companies this run'
+        required: false
+      budget_min:
+        description: 'Time budget in minutes'
+        required: false
+        default: '50'
+
+concurrency:
+  group: jobdb-pipeline # shared with resolve.yml — runs never overlap
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pipeline/package-lock.json
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('pipeline/package-lock.json') }}
+
+      - name: Install Playwright (browser + deps)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright (deps only, browser cached)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Refresh
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'google/gemini-2.5-flash-lite' }}
+        run: >
+          npx tsx src/cli.ts refresh
+          --budget-min "${{ inputs.budget_min || '50' }}"
+          ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+
+      - name: Stats summary
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: npx tsx src/cli.ts stats --format md >> "$GITHUB_STEP_SUMMARY"

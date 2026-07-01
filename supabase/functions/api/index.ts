@@ -267,6 +267,10 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Job lifecycle filter: default to open jobs; ?status=open|closed|all
+      const statusParam = (params.get('status') || 'open').toLowerCase();
+      const statusFilter = ['open', 'closed', 'all'].includes(statusParam) ? statusParam : 'open';
+
       let query = supabase
         .from('job_opportunities')
         .select(`
@@ -292,7 +296,12 @@ Deno.serve(async (req) => {
         `, { count: 'exact' })
         .eq('company_career_sites.is_scrape_enabled', true)
         .order('scraped_at', { ascending: false })
+        .order('id', { ascending: true })
         .range(offset, offset + limit - 1);
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
 
       // Apply intelligent search - OR across all related terms
       // Use word boundary matching for short terms (<=3 chars) to avoid false positives
@@ -483,7 +492,7 @@ Deno.serve(async (req) => {
                 'Authorization': `Bearer ${supabaseKey}`,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ companyId: newCompany.id }),
+              body: JSON.stringify({ companyId: newCompany.id, careerUrl: newCompany.career_url }),
             }).catch(err => console.error('Scrape trigger error:', err));
             
             scrapeTriggered = true;
@@ -598,7 +607,8 @@ Deno.serve(async (req) => {
       const [jobsResult, companiesResult] = await Promise.all([
         supabase
           .from('job_opportunities')
-          .select('id', { count: 'exact', head: true }),
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open'),
         supabase
           .from('company_career_sites')
           .select('id', { count: 'exact', head: true })
