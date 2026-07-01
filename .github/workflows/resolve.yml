@@ -1,0 +1,58 @@
+name: resolve-career-pages
+
+on:
+  schedule:
+    - cron: '0 2 * * 0' # Sundays 02:00 UTC — re-verify broken/unverified pages
+  workflow_dispatch:
+    inputs:
+      all:
+        description: 'Resolve ALL companies (not just broken/unverified)'
+        type: boolean
+        default: false
+      limit:
+        description: 'Max companies this run'
+        required: false
+
+concurrency:
+  group: jobdb-pipeline # shared with refresh.yml — runs never overlap
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pipeline/package-lock.json
+
+      - run: npm ci
+
+      - name: Resolve
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'google/gemini-2.5-flash-lite' }}
+        run: >
+          npx tsx src/cli.ts resolve
+          ${{ inputs.all == true && ' ' || '--only-broken' }}
+          ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+
+      - name: Stats summary
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: npx tsx src/cli.ts stats --format md >> "$GITHUB_STEP_SUMMARY"

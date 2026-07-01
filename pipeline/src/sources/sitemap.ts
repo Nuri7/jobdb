@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { dedupeJobs } from '../extract/normalize.js';
 import { hasBlockedSegment, jobsViaDetailPages, JOB_PATH_RE, NON_JOB_RE } from './shared.js';
 import type { CanonicalJob, CompanyRow, Ctx, JobSource } from '../types.js';
-import { SourceGoneError } from '../types.js';
+import { SourceGoneError, ZeroExtractionError } from '../types.js';
 
 const parser = new XMLParser({ ignoreAttributes: false });
 
@@ -138,6 +138,10 @@ export const sitemapSource: JobSource = {
       ctx,
       { cap: 250 },
     );
+
+    if (jobs.length === 0 && jobEntries.length >= 3) {
+      throw new ZeroExtractionError(`sitemap saw ${jobEntries.length} job urls but extracted 0`, jobEntries.length);
+    }
 
     // Persist change-detection state via the mutable source_config (lifecycle saves it)
     cfg.listing_hash = hashUrlSet(jobEntries);

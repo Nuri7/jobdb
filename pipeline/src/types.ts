@@ -142,3 +142,17 @@ export class SourceGoneError extends Error {
     this.name = 'SourceGoneError';
   }
 }
+
+/**
+ * Thrown when a source SAW job signals (sitemap entries, listing links) but extracted 0 jobs —
+ * an extraction failure, not an empty board. Triggers tier escalation, never job closures.
+ */
+export class ZeroExtractionError extends Error {
+  constructor(
+    message: string,
+    public readonly signals: number,
+  ) {
+    super(message);
+    this.name = 'ZeroExtractionError';
+  }
+}

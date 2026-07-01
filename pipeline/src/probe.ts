@@ -1,5 +1,5 @@
+import { fetchJobsWithEscalation } from './lifecycle.js';
 import { resolveCompany } from './resolver/index.js';
-import { sourceFor } from './sources/registry.js';
 import { closeBrowser } from './sources/rendered.js';
 import { buildCtx } from './refresh.js';
 import type { CompanyRow } from './types.js';
@@ -52,7 +52,8 @@ export async function probeCommand(url: string, name?: string): Promise<void> {
   };
   console.log('\n— Fetch —');
   try {
-    const jobs = await sourceFor(result.source_type).fetchJobs(scrapeTarget, ctx);
+    const { jobs, usedType } = await fetchJobsWithEscalation(scrapeTarget, ctx);
+    if (usedType !== result.source_type) console.log(`  (escalated to ${usedType})`);
     console.log(`  ${jobs.length} jobs in ${Math.round((Date.now() - started) / 1000)}s`);
     for (const job of jobs.slice(0, 10)) {
       console.log(`  · ${job.job_title}  [${job.location ?? '?'}]  ${job.job_url}`);

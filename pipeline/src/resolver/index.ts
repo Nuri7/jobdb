@@ -3,7 +3,7 @@ import { hasJobPostingLd, jobPostingsFromHtml } from '../sources/jsonld.js';
 import { extractJobLinks } from '../sources/shared.js';
 import { discoverSitemaps, fetchSitemapEntries, filterJobEntries } from '../sources/sitemap.js';
 import type { CompanyRow, Ctx, ResolveResult, SourceConfig, SourceType } from '../types.js';
-import { careerLinksFromHomepage, patternCandidates, registrableDomain } from './candidates.js';
+import { careerLinksFromHomepage, companyNameTokens, patternCandidates, registrableDomain } from './candidates.js';
 import { fingerprintAts, fingerprintHint, type AtsFingerprint } from './fingerprint.js';
 
 const NOT_FOUND_RE = /(pagina niet gevonden|page not found|404 ?- |niet gevonden\b|kan de pagina niet|bestaat niet( meer)?)/i;
@@ -118,7 +118,8 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
   }
 
   // ---- Fingerprint the homepage before crawling candidates (ATS beats scoring) ----
-  const homeFp = homepageHtml ? fingerprintAts(origin, homepageHtml) : null;
+  const fpTokens = [...companyNameTokens(company.company_name), companyDomain.split('.')[0] ?? ''];
+  const homeFp = homepageHtml ? fingerprintAts(origin, homepageHtml, fpTokens) : null;
 
   // ---- Probe candidates ----
   const candidates: Candidate[] = [];
@@ -131,7 +132,7 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
     // The stored career_url earned trust by being alive — prefer it over wandering
     if (company.career_url && url === new URL(company.career_url).toString()) c.score += 25;
     candidates.push(c);
-    const fp = fingerprintAts(c.finalUrl, c.html);
+    const fp = fingerprintAts(c.finalUrl, c.html, fpTokens);
     if (fp && !atsFp) {
       atsFp = fp;
       atsFromUrl = c.finalUrl;
@@ -185,7 +186,14 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
         if (entries.length === 0) continue;
         const jobEntries = filterJobEntries(entries, best.finalUrl);
         if (jobEntries.length >= 3) {
-          evidence.push(`sitemap ${sitemapUrl}: ${jobEntries.length} job urls`);
+          // Sitemaps go stale (all-404 job URLs happen in the wild) — verify one before trusting it
+          const sample = jobEntries[Math.floor(jobEntries.length / 2)]!;
+          const probe = await ctx.fetchText(sample.loc, { kind: 'html', retries: 0, timeoutMs: 10_000 }).catch(() => null);
+          if (!probe || probe.status !== 200) {
+            evidence.push(`sitemap ${sitemapUrl}: ${jobEntries.length} job urls but sample ${probe?.status ?? 'error'} -> distrust`);
+            continue;
+          }
+          evidence.push(`sitemap ${sitemapUrl}: ${jobEntries.length} job urls (sample ok)`);
           const cfg: SourceConfig = { resolved_url: best.finalUrl, sitemap_url: sitemapUrl, ...(hint ? { ats_hint: hint } : {}) };
           return { career_url: best.finalUrl, career_page_status: 'verified', source_type: 'sitemap', source_config: cfg, evidence };
         }

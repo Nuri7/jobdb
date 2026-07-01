@@ -3,7 +3,7 @@ import { dedupeJobs } from '../extract/normalize.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import { extractJobLinks, findNextPage, jobsViaDetailPages, type JobLink } from './shared.js';
 import type { CanonicalJob, CompanyRow, Ctx, JobSource } from '../types.js';
-import { SourceGoneError } from '../types.js';
+import { SourceGoneError, ZeroExtractionError } from '../types.js';
 
 const MAX_LISTING_PAGES = 6;
 
@@ -71,10 +71,15 @@ export const staticHtmlSource: JobSource = {
       if (jobs.length === 0 && inlineWithUrls.length > 0) jobs = inlineWithUrls;
     }
 
+    const result = dedupeJobs(jobs);
+    if (result.length === 0 && links.length >= 3) {
+      throw new ZeroExtractionError(`listing had ${links.length} job links but extracted 0`, links.length);
+    }
+
     if (company.source_config) {
       company.source_config.listing_hash = listingHash;
       company.source_config.last_full_at = new Date().toISOString();
     }
-    return dedupeJobs(jobs);
+    return result;
   },
 };

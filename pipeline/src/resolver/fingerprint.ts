@@ -67,10 +67,12 @@ const HINT_PATTERNS: Array<[AtsHint, RegExp]> = [
 ];
 
 /**
- * Detect an ATS from a URL and/or page HTML. URL match wins (highest confidence),
- * then references inside the HTML (links, scripts, iframes, meta).
+ * Detect an ATS from a URL and/or page HTML. A URL match is definitive; an
+ * HTML-based match needs corroboration (≥2 references, or the board id
+ * resembling the company) — recruitment agencies link to CLIENT boards, and one
+ * stray link must not claim the company.
  */
-export function fingerprintAts(url: string, html?: string): AtsFingerprint | null {
+export function fingerprintAts(url: string, html?: string, companyTokens: string[] = []): AtsFingerprint | null {
   for (const pattern of ATS_PATTERNS) {
     const m = url.match(pattern.re);
     if (m) {
@@ -101,7 +103,13 @@ export function fingerprintAts(url: string, html?: string): AtsFingerprint | nul
   for (const entry of counts.values()) {
     if (!best || entry.n > best.n) best = entry;
   }
-  return best?.fp ?? null;
+  if (!best) return null;
+  const board = best.fp.boardId.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const resembles = companyTokens.some((t) => {
+    const token = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return token.length >= 4 && (board.includes(token) || token.includes(board));
+  });
+  return best.n >= 2 || resembles ? best.fp : null;
 }
 
 export function fingerprintHint(url: string, html?: string): AtsHint | null {

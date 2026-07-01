@@ -12,8 +12,8 @@ import {
 } from './db.js';
 import { resolveCompany } from './resolver/index.js';
 import { sourceFor } from './sources/registry.js';
-import type { CanonicalJob, CompanyRow, Ctx } from './types.js';
-import { SourceGoneError } from './types.js';
+import type { CanonicalJob, CompanyRow, Ctx, SourceType } from './types.js';
+import { SourceGoneError, ZeroExtractionError } from './types.js';
 
 export interface CompanyOutcome {
   company: string;
@@ -38,6 +38,44 @@ function nextInterval(current: number, hadChanges: boolean): number {
 function nextCheckAt(hours: number): string {
   const jitterMs = Math.floor(Math.random() * 30 * 60 * 1000);
   return new Date(Date.now() + hours * 3_600_000 + jitterMs).toISOString();
+}
+
+/** Escalation ladder when a tier sees job signals but extracts nothing. */
+const ESCALATION: Partial<Record<SourceType, SourceType[]>> = {
+  sitemap: ['static', 'rendered'],
+  static: ['rendered'],
+};
+
+export interface EscalatedFetch {
+  jobs: CanonicalJob[];
+  usedType: SourceType;
+}
+
+/**
+ * Fetch jobs via the configured source; on ZeroExtraction, walk down the tier
+ * ladder. Re-throws ZeroExtraction when every tier fails to extract — callers
+ * must treat that as failure (never as "0 open jobs").
+ */
+export async function fetchJobsWithEscalation(company: CompanyRow, ctx: Ctx): Promise<EscalatedFetch> {
+  const primary = company.source_type!;
+  const chain: SourceType[] = [primary, ...(ESCALATION[primary] ?? [])];
+  let lastZero: ZeroExtractionError | null = null;
+
+  for (const type of chain) {
+    try {
+      const jobs = await sourceFor(type).fetchJobs({ ...company, source_type: type }, ctx);
+      if (type !== primary) ctx.log(`  escalated ${primary} -> ${type}: ${jobs.length} jobs`);
+      return { jobs, usedType: type };
+    } catch (err) {
+      if (err instanceof ZeroExtractionError) {
+        lastZero = err;
+        ctx.log(`  ${type}: ${err.message}${type === chain[chain.length - 1] ? '' : ' — escalating'}`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastZero ?? new Error('escalation chain exhausted');
 }
 
 function needsResolve(company: CompanyRow): boolean {
@@ -117,11 +155,17 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
       }
     }
 
-    // ---------- Full scrape ----------
+    // ---------- Full scrape (with tier escalation) ----------
     const historyId = ctx.dryRun ? null : await insertHistory(db, company.id, company.career_url ?? '', method);
     let jobs: CanonicalJob[];
     try {
-      jobs = await source.fetchJobs(company, ctx);
+      const fetched = await fetchJobsWithEscalation(company, ctx);
+      jobs = fetched.jobs;
+      if (fetched.usedType !== company.source_type) {
+        // The lower tier is what actually works — remember it
+        company = { ...company, source_type: fetched.usedType };
+        if (!ctx.dryRun) await updateCompany(db, company.id, { source_type: fetched.usedType });
+      }
     } catch (err) {
       if (!ctx.dryRun) {
         await completeHistory(db, historyId, {
