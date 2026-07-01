@@ -127,12 +127,18 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
   let atsFp: AtsFingerprint | null = homeFp;
   let atsFromUrl: string | null = homeFp ? origin : null;
 
-  let deadProbes = 0;
-  for (const url of candidateUrls.slice(0, 12)) {
+  const deadHosts = new Map<string, number>();
+  let probes = 0;
+  for (const url of candidateUrls) {
+    if (probes >= 12) break;
+    // A host that failed twice is dead — but hosts we haven't tried yet always get their shot
+    // (bol.com blocks bots on the main domain while careers.bol.com is perfectly alive)
+    const host = new URL(url).host;
+    if ((deadHosts.get(host) ?? 0) >= 2) continue;
+    probes++;
     const c = await fetchCandidate(url, ctx, companyDomain);
     if (!c) {
-      // Everything dead so far → the whole domain is likely gone; stop burning timeouts
-      if (++deadProbes >= 6 && candidates.length === 0) break;
+      deadHosts.set(host, (deadHosts.get(host) ?? 0) + 1);
       continue;
     }
     // The stored career_url earned trust by being alive — prefer it over wandering
