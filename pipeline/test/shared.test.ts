@@ -98,12 +98,20 @@ describe('jobFromDetailHtml — apply-affordance gate (AEF + Koskamp)', () => {
     const html = `<main><h1>Accountmanager</h1>${cats}<p>Wij bieden salaris, 32 uur per week, jouw profiel ${'x'.repeat(200)}</p></main>`;
     expect(jobFromDetailHtml(html, 'https://werkenbijkoskamp.nl/vacatures/sales')).toBeNull();
   });
-  it('accepts a real single job with one apply button', () => {
+  it('accepts a real single job with one apply button (verified=true)', () => {
     const html = `<main>${body.replace('{TITLE}', 'Senior Accountmanager Utrecht')}
       <a href="/vacatures/senior-accountmanager/solliciteren">Solliciteer direct</a></main>`;
     const job = jobFromDetailHtml(html, 'https://x.nl/vacatures/senior-accountmanager-utrecht');
     expect(job).not.toBeNull();
     expect(job!.job_title).toBe('Senior Accountmanager Utrecht');
+    expect(job!.verified).toBe(true); // has a real apply element
+  });
+  it('marks prose-only "solliciteer" (no apply element) as verified=false', () => {
+    const html = `<main><h1>Chauffeur</h1><p>Wat ga je doen: rijden. Wij bieden salaris, 32 uur per week,
+      jouw profiel. Solliciteer via de mail. ${'x'.repeat(200)}</p></main>`;
+    const job = jobFromDetailHtml(html, 'https://x.nl/vacatures/chauffeur-b');
+    expect(job).not.toBeNull(); // still created (prose apply)
+    expect(job!.verified).toBe(false); // but not servable — no real apply element
   });
 });
 

@@ -13,13 +13,15 @@ export interface RefreshOpts {
   budgetMin: number;
   dryRun: boolean;
   shard?: { k: number; n: number };
+  force?: boolean;
 }
 
-export function buildCtx(dryRun: boolean): Ctx {
+export function buildCtx(dryRun: boolean, force = false): Ctx {
   const cfg = config();
   return {
     log: (m) => console.log(m),
     dryRun,
+    force,
     fetchText: politeFetchText,
     llm: createLlmClient((m) => console.log(`[llm] ${m}`)),
     robotsAllowed: createRobotsChecker(cfg.ROBOTS_RESPECT),
@@ -29,7 +31,7 @@ export function buildCtx(dryRun: boolean): Ctx {
 export async function refreshCommand(opts: RefreshOpts): Promise<void> {
   const cfg = config();
   const db = createDb({ readOnly: opts.dryRun });
-  const ctx = buildCtx(opts.dryRun);
+  const ctx = buildCtx(opts.dryRun, opts.force);
   const startedAt = Date.now();
   const deadline = startedAt + opts.budgetMin * 60_000;
 

@@ -307,6 +307,13 @@ Deno.serve(async (req) => {
         query = query.eq('status', statusFilter);
       }
 
+      // Confidence gate: serve ONLY verified real vacancies (structured data / ATS / real
+      // apply button). This is what keeps landing/category/blog/dead pages out of applyforme.
+      // ?verified=all bypasses it for debugging only.
+      if ((params.get('verified') || 'true').toLowerCase() !== 'all') {
+        query = query.eq('verified', true);
+      }
+
       // Apply intelligent search - OR across all related terms
       // Use word boundary matching for short terms (<=3 chars) to avoid false positives
       if (searchTerms.length > 0) {
@@ -617,7 +624,8 @@ Deno.serve(async (req) => {
         supabase
           .from('job_opportunities')
           .select('id', { count: 'exact', head: true })
-          .eq('status', 'open'),
+          .eq('status', 'open')
+          .eq('verified', true),
         supabase
           .from('company_career_sites')
           .select('id', { count: 'exact', head: true })

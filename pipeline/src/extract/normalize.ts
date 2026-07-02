@@ -84,7 +84,9 @@ export function capDescription(text: string | undefined): string | undefined {
 }
 
 /** Stable content hash for change detection (title|location|type|desc prefix). */
-export function contentHash(job: Omit<CanonicalJob, 'content_hash'>): string {
+export function contentHash(
+  job: Partial<Omit<CanonicalJob, 'content_hash'>> & { job_title: string },
+): string {
   const basis = [
     job.job_title,
     job.location ?? '',
@@ -146,6 +148,7 @@ export function finalizeJob(
     is_remote: partial.is_remote ?? REMOTE_RE.test(haystack.slice(0, 4000)),
     is_internship: partial.is_internship ?? INTERNSHIP_RE.test(title),
     experience_level: experience,
+    verified: partial.verified ?? false, // callers upgrade to true for structured/apply-verified jobs
   };
   return { ...draft, content_hash: contentHash(draft) };
 }

@@ -212,7 +212,10 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
   const signals = bodyText.match(new RegExp(JOB_SIGNAL_RE.source, 'gi'))?.length ?? 0;
   if (signals < 2) return null;
 
-  return finalizeJob({ job_url: url, job_title: title, description: bodyText }, url);
+  // Verified (servable) only when a real apply ELEMENT is present (a Solliciteer/Apply
+  // button/link), not merely the word in prose — that's what separates a genuine vacancy
+  // from a blog/product/course page that happens to mention "solliciteer".
+  return finalizeJob({ job_url: url, job_title: title, description: bodyText, verified: apply.count > 0 }, url);
 }
 
 /**

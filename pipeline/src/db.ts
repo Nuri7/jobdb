@@ -139,6 +139,7 @@ export interface ExistingJob {
   job_url: string;
   content_hash: string | null;
   status: string;
+  verified: boolean;
 }
 
 export async function listCompanyJobs(db: Db, companyId: string): Promise<ExistingJob[]> {
@@ -147,7 +148,7 @@ export async function listCompanyJobs(db: Db, companyId: string): Promise<Existi
   for (let offset = 0; ; offset += page) {
     const res = await db
       .from('job_opportunities')
-      .select('id, job_url, content_hash, status')
+      .select('id, job_url, content_hash, status, verified')
       .eq('company_career_site_id', companyId)
       .range(offset, offset + page - 1);
     const rows = unwrap(res, 'listCompanyJobs') as unknown as ExistingJob[];
@@ -186,6 +187,7 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       miss_count: 0,
       last_seen_at: now,
       content_hash: j.content_hash,
+      verified: j.verified,
     }));
     const res = await db.from('job_opportunities').upsert(rows, { onConflict: 'job_url' });
     if (res.error) throw new Error(`upsertJobs: ${res.error.message}`);

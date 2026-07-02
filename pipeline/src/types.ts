@@ -48,6 +48,12 @@ export interface CanonicalJob {
   is_internship?: boolean;
   experience_level?: string;
   content_hash: string;
+  /**
+   * True only when we have strong evidence this is a genuine, applyable vacancy:
+   * schema.org JobPosting JSON-LD, an ATS structured adapter, or a heuristic page
+   * with a real apply element. The public API serves ONLY verified jobs.
+   */
+  verified: boolean;
 }
 
 export interface SourceConfig {
@@ -106,6 +112,8 @@ export interface FetchResult {
 export interface Ctx {
   log: (msg: string) => void;
   dryRun: boolean;
+  /** Skip the change-detection short-circuit and re-extract every company (full re-scrape). */
+  force?: boolean;
   /** Fetch with retry + politeness (per-host serialization). */
   fetchText: (url: string, opts?: FetchTextOpts) => Promise<FetchResult>;
   llm: LlmClient | null;

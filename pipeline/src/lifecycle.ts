@@ -64,6 +64,8 @@ export async function fetchJobsWithEscalation(company: CompanyRow, ctx: Ctx): Pr
   for (const type of chain) {
     try {
       const jobs = await sourceFor(type).fetchJobs({ ...company, source_type: type }, ctx);
+      // ATS structured adapters yield genuine, applyable vacancies -> always verified.
+      if (type.startsWith('ats:')) for (const j of jobs) j.verified = true;
       if (type !== primary) ctx.log(`  escalated ${primary} -> ${type}: ${jobs.length} jobs`);
       return { jobs, usedType: type };
     } catch (err) {
@@ -137,7 +139,7 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     const method = `pipeline:${company.source_type}`;
 
     // ---------- Change-detection short-circuit ----------
-    if (!ctx.dryRun && source.hasChanged && company.jobs_found_count && company.jobs_found_count > 0) {
+    if (!ctx.dryRun && !ctx.force && source.hasChanged && company.jobs_found_count && company.jobs_found_count > 0) {
       const changed = await source.hasChanged(company, ctx);
       if (!changed) {
         const existing = await listCompanyJobs(db, company.id);
@@ -208,7 +210,7 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     const toWrite: CanonicalJob[] = [];
     for (const job of jobs) {
       const prior = byUrl.get(job.job_url);
-      if (prior && prior.content_hash === job.content_hash && prior.status === 'open') {
+      if (prior && prior.content_hash === job.content_hash && prior.status === 'open' && prior.verified === job.verified) {
         unchangedIds.push(prior.id);
       } else {
         toWrite.push(job);

@@ -75,6 +75,7 @@ async function main(): Promise<void> {
         budgetMin: Number(values['budget-min']) || 50,
         dryRun: values['dry-run'] ?? false,
         shard,
+        force: values.force ?? false,
       });
       break;
     case 'stats': {
