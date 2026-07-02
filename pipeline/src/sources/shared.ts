@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { dedupeJobs, finalizeJob, htmlToText } from '../extract/normalize.js';
+import { dedupeJobs, finalizeJob, htmlToText, JUNK_TITLE_RE } from '../extract/normalize.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import type { CanonicalJob, Ctx } from '../types.js';
 
@@ -26,6 +26,31 @@ export function hasBlockedSegment(pathname: string): boolean {
     .toLowerCase()
     .split('/')
     .some((segment) => BLOCKED_SEGMENTS.has(segment.replace(/\/$/, '')));
+}
+
+/** Generic career-section words that are landing pages, never a single vacancy. */
+const CAREER_SECTION_WORDS = new Set([
+  'werken-bij', 'werkenbij', 'werken', 'werk', 'vacatures', 'vacature', 'careers', 'career',
+  'jobs', 'job', 'vacancies', 'vacancy', 'openings', 'bareme', 'home', 'index', 'overzicht',
+  'solliciteren', 'sollicitatie', 'kom-werken', 'join-us', 'join', 'work-with-us',
+]);
+
+/**
+ * True when a URL points at a career *section* root (e.g. /werken-bij, /vacatures,
+ * /careers, /werken-bij#vacancies) rather than an individual vacancy. A real job detail
+ * URL has a job-specific slug AFTER the section word (e.g. /vacatures/senior-adviseur).
+ */
+export function isCareerSectionUrl(url: string): boolean {
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return false;
+  }
+  const segs = path.toLowerCase().replace(/\/+$/, '').split('/').filter(Boolean);
+  if (segs.length === 0) return true; // bare domain
+  const last = segs[segs.length - 1]!;
+  return CAREER_SECTION_WORDS.has(last);
 }
 
 /** Body must show real vacancy signals before we accept a heuristic (non-JSON-LD) extraction. */
@@ -62,6 +87,8 @@ export function extractJobLinks(html: string, pageUrl: string): JobLink[] {
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
     const full = u.toString();
     if (NON_JOB_RE.test(u.pathname + u.search) || hasBlockedSegment(u.pathname)) return;
+    // /werken-bij, /vacatures, /careers … are section landing pages, not individual jobs
+    if (isCareerSectionUrl(full)) return;
 
     const sameSite = u.host === page.host;
     if (!sameSite) return; // cross-domain job links are the ATS fingerprint's business, not ours
@@ -119,6 +146,10 @@ export function findNextPage(html: string, pageUrl: string): string | null {
 
 /** Heuristic single-page extraction when a detail page has no JSON-LD. */
 export function jobFromDetailHtml(html: string, url: string, linkText?: string): CanonicalJob | null {
+  // A career-section landing page (/werken-bij, /vacatures) is never a single vacancy,
+  // even though it's full of apply/vacancy words — this is how "Werken bij AEF" slipped in.
+  if (isCareerSectionUrl(url)) return null;
+
   const $ = cheerio.load(html);
   $('script, style, nav, header, footer, noscript, svg, form').remove();
 
@@ -132,6 +163,8 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
     linkText ||
     '';
   if (!title || title.length < 3) return null;
+  // Landing/info page titles ("Werken bij X", "Vacatures", "Home", "Onze arbeidsvoorwaarden")
+  if (JUNK_TITLE_RE.test(title)) return null;
   // A page whose h1 is just the site slogan/name is not a vacancy
   if (siteName && title.toLowerCase().includes(siteName.toLowerCase()) && title.length < siteName.length + 12) {
     return null;

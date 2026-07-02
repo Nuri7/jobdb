@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractJobLinks, findNextPage, hasBlockedSegment, jobFromDetailHtml } from '../src/sources/shared.js';
+import { extractJobLinks, findNextPage, hasBlockedSegment, isCareerSectionUrl, jobFromDetailHtml } from '../src/sources/shared.js';
 import { filterJobEntries } from '../src/sources/sitemap.js';
 
 const listing = `<html><body><main>
@@ -35,6 +35,52 @@ describe('findNextPage', () => {
   });
   it('returns null without pagination', () => {
     expect(findNextPage('<a href="/x">x</a>', 'https://a.nl')).toBeNull();
+  });
+});
+
+describe('isCareerSectionUrl — reject section landing pages', () => {
+  it('flags bare career-section roots', () => {
+    for (const u of [
+      'https://www.aef.nl/werken-bij',
+      'https://www.aef.nl/vacatures',
+      'https://x.nl/careers/',
+      'https://x.nl/werken-bij#vacancies',
+      'https://x.nl/nl/jobs',
+      'https://x.nl',
+    ]) {
+      expect(isCareerSectionUrl(u), u).toBe(true);
+    }
+  });
+  it('keeps real job detail URLs with a slug after the section word', () => {
+    for (const u of [
+      'https://www.aef.nl/vacatures/senior-adviseur-utrecht',
+      'https://x.nl/werken-bij/data-engineer',
+      'https://x.recruitee.com/o/docent-mediamaken',
+      'https://careers.bol.com/en/jobs/data-engineer/8341587002',
+    ]) {
+      expect(isCareerSectionUrl(u), u).toBe(false);
+    }
+  });
+});
+
+describe('AEF-style false positive is rejected', () => {
+  it('does not turn a /werken-bij landing page into a job', () => {
+    const html = `<html><head><meta property="og:site_name" content="AEF">
+      <title>Werken bij AEF</title></head><body><main><h1>Werken bij AEF</h1>
+      <p>Solliciteer op onze vacatures. Wat wij bieden: goede arbeidsvoorwaarden en salaris.
+      ${'x'.repeat(300)}</p></main></body></html>`;
+    // both by URL and by title
+    expect(jobFromDetailHtml(html, 'https://www.aef.nl/werken-bij')).toBeNull();
+    expect(jobFromDetailHtml(html, 'https://www.aef.nl/vacatures/echte-baan')).toBeNull(); // junk title
+  });
+  it('extractJobLinks skips the /werken-bij section link', () => {
+    const listing = `<main>
+      <a href="/werken-bij">Werken bij</a>
+      <a href="/vacatures/senior-adviseur-utrecht">Senior Adviseur</a>
+    </main>`;
+    const urls = extractJobLinks(listing, 'https://www.aef.nl/vacatures').map((l) => l.url);
+    expect(urls.some((u) => u.endsWith('/werken-bij'))).toBe(false);
+    expect(urls).toContain('https://www.aef.nl/vacatures/senior-adviseur-utrecht');
   });
 });
 

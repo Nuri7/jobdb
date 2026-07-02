@@ -55,6 +55,10 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
+/** Titles that are a landing/info page, not a job posting (matched across all tiers). */
+export const JUNK_TITLE_RE =
+  /^(werken bij\b|werk bij\b|werken voor\b|vacatures?\b|home\b|onze\b|over ons\b|careers?\b|jobs?\b|solliciteer\b|kom werken\b|word collega\b|contact\b|welkom\b|overzicht\b)/i;
+
 export const MAX_DESCRIPTION_CHARS = 8_000;
 
 export function capDescription(text: string | undefined): string | undefined {
@@ -99,6 +103,8 @@ export function finalizeJob(
   if (!url) return null;
   const title = partial.job_title.replace(/\s+/g, ' ').trim().slice(0, 200);
   if (title.length < 2) return null;
+  // Global guard (all tiers): landing/info-page titles are not vacancies.
+  if (JUNK_TITLE_RE.test(title)) return null;
 
   const description = capDescription(partial.description);
   const haystack = `${title}\n${description ?? ''}`;
