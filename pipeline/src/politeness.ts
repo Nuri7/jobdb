@@ -1,7 +1,9 @@
 import { fetchTextRaw } from './http.js';
 import type { FetchResult, FetchTextOpts } from './types.js';
 
-const HOST_SPACING: Record<'api' | 'html', number> = { api: 250, html: 1000 };
+// Minimum ms between requests to the same host. 500ms html ≈ 2 req/s — courteous but
+// far faster than 1s for deep, many-job career sites where detail pages share one host.
+const HOST_SPACING: Record<'api' | 'html', number> = { api: 250, html: 500 };
 
 interface HostState {
   chain: Promise<void>;

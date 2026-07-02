@@ -1,6 +1,6 @@
 #!/bin/bash
 cd /Users/admin/Documents/jobdb/pipeline
-export COMPANY_CONCURRENCY=12
+export COMPANY_CONCURRENCY=25
 LOG=backfill.log
 echo "=== BACKFILL start $(date) ===" >> "$LOG"
 for i in $(seq 1 12); do
