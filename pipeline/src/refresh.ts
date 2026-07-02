@@ -48,7 +48,10 @@ export async function refreshCommand(opts: RefreshOpts): Promise<void> {
     let processed = 0;
     const max = opts.limit ?? Infinity;
     while (processed < max && Date.now() < deadline) {
-      const batchSize = Math.min(50, max - processed);
+      // Pull a large batch so the Promise.all barrier only bites once at the very end —
+      // with a small batch, the single slowest company (e.g. a 5,000-URL sitemap) gates
+      // the next batch while most of the concurrency pool sits idle.
+      const batchSize = Math.min(4000, max - processed);
       const due = await pickDueCompanies(db, batchSize);
       if (due.length === 0) break;
       console.log(`Batch: ${due.length} due companies (elapsed ${Math.round((Date.now() - startedAt) / 60000)}m)`);
