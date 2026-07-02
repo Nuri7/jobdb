@@ -5,13 +5,14 @@ cd /Users/admin/Documents/jobdb/pipeline
 export COMPANY_CONCURRENCY=12
 N=4
 LOG=backfill.log
-echo "=== SHARDED BACKFILL start $(date), $N shards x $COMPANY_CONCURRENCY ===" >> "$LOG"
+FORCE_FLAG="${FORCE:+--force}"   # run with FORCE=1 to re-extract every company (bypass change-detection)
+echo "=== SHARDED BACKFILL start $(date), $N shards x $COMPANY_CONCURRENCY ${FORCE_FLAG} ===" >> "$LOG"
 
 run_shard() {
   local k=$1
   for i in $(seq 1 12); do
     echo "[shard $k] chunk $i $(date +%H:%M)" >> "$LOG.$k"
-    npx tsx src/cli.ts refresh --budget-min 50 --shard "$k/$N" >> "$LOG.$k" 2>&1
+    npx tsx src/cli.ts refresh --budget-min 50 --shard "$k/$N" $FORCE_FLAG >> "$LOG.$k" 2>&1
     remaining=$(npx tsx -e "(async()=>{const{createDb,pickDueCompanies}=await import('./src/db.js');const d=createDb({});const r=await pickDueCompanies(d,1,{k:$k,n:$N});console.log(r.length)})()" 2>/dev/null || echo 1)
     echo "[shard $k] remaining due: $remaining" >> "$LOG.$k"
     [ "$remaining" = "0" ] && break
