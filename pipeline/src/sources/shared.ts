@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { dedupeJobs, finalizeJob, htmlToText, JUNK_TITLE_RE } from '../extract/normalize.js';
+import { dedupeJobs, finalizeJob, htmlToText, isJunkTitle } from '../extract/normalize.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import type { CanonicalJob, Ctx } from '../types.js';
 
@@ -164,7 +164,7 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
     '';
   if (!title || title.length < 3) return null;
   // Landing/info page titles ("Werken bij X", "Vacatures", "Home", "Onze arbeidsvoorwaarden")
-  if (JUNK_TITLE_RE.test(title)) return null;
+  if (isJunkTitle(title)) return null;
   // A page whose h1 is just the site slogan/name is not a vacancy
   if (siteName && title.toLowerCase().includes(siteName.toLowerCase()) && title.length < siteName.length + 12) {
     return null;

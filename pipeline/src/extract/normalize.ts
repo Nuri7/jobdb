@@ -55,9 +55,24 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
-/** Titles that are a landing/info page, not a job posting (matched across all tiers). */
-export const JUNK_TITLE_RE =
-  /^(werken bij\b|werk bij\b|werken voor\b|vacatures?\b|home\b|onze\b|over ons\b|careers?\b|jobs?\b|solliciteer\b|kom werken\b|word collega\b|contact\b|welkom\b|overzicht\b)/i;
+// A landing/info page, not a vacancy. Exact-match set + a few reliable prefixes.
+// NOTE: "Vacature <role>" / "Vacatures <team>" are REAL job titles in Dutch, so we must
+// NOT treat a leading "vacature" as junk — only the bare word or clear section phrases.
+const JUNK_TITLE_EXACT = new Set([
+  'home', 'welkom', 'contact', 'overzicht', 'vacatureoverzicht',
+  'vacatures', 'vacature', 'alle vacatures', 'onze vacatures', 'openstaande vacatures',
+  'careers', 'career', 'jobs', 'job', 'careers home',
+  'solliciteren', 'sollicitatie', 'open sollicitatie', 'open sollicitaties', 'initiatiefsollicitatie',
+  'werken bij', 'werken voor', 'over ons', 'over-ons', 'onze arbeidsvoorwaarden',
+]);
+const JUNK_TITLE_PREFIX =
+  /^(werken bij |werk bij |werken voor |kom werken bij |word collega |onze arbeidsvoorwaarden\b)/i;
+
+/** True when a title is a landing/info page rather than a specific vacancy. */
+export function isJunkTitle(title: string): boolean {
+  const s = title.trim().toLowerCase().replace(/\s+/g, ' ');
+  return JUNK_TITLE_EXACT.has(s) || JUNK_TITLE_PREFIX.test(s);
+}
 
 export const MAX_DESCRIPTION_CHARS = 8_000;
 
@@ -104,7 +119,7 @@ export function finalizeJob(
   const title = partial.job_title.replace(/\s+/g, ' ').trim().slice(0, 200);
   if (title.length < 2) return null;
   // Global guard (all tiers): landing/info-page titles are not vacancies.
-  if (JUNK_TITLE_RE.test(title)) return null;
+  if (isJunkTitle(title)) return null;
 
   const description = capDescription(partial.description);
   const haystack = `${title}\n${description ?? ''}`;

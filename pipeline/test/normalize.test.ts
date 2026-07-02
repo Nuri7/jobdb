@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob } from '../src/extract/normalize.js';
+import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob, isJunkTitle } from '../src/extract/normalize.js';
+
+describe('isJunkTitle — landing pages vs real "Vacature <role>" titles', () => {
+  it('flags bare section/landing titles', () => {
+    for (const t of ['Vacatures', 'Vacature', 'Home', 'Careers', 'Werken bij AEF', 'Onze vacatures', 'Onze arbeidsvoorwaarden', 'Werken voor Oosterhout']) {
+      expect(isJunkTitle(t), t).toBe(true);
+    }
+  });
+  it('keeps real Dutch "Vacature <role>" and "Vacatures <team>" job titles', () => {
+    for (const t of ['Vacature junior chemisch analist', 'Vacature Consultant Bouw', 'Vacatures Zorg team West', 'Senior Adviseur', 'Verpleegkundige thuiszorg']) {
+      expect(isJunkTitle(t), t).toBe(false);
+    }
+  });
+});
 
 describe('canonicalizeUrl', () => {
   it('strips tracking params, fragments and trailing slashes', () => {
