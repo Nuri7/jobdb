@@ -12,7 +12,12 @@ let browserPromise: Promise<import('playwright').Browser> | null = null;
 async function getBrowser(): Promise<import('playwright').Browser> {
   if (!pw) pw = await import('playwright');
   if (!browserPromise) {
-    browserPromise = pw.chromium.launch({ args: ['--disable-dev-shm-usage'] });
+    // On launch failure, clear the cache so it isn't a permanently-rejected promise
+    // that poisons every subsequent rendered company in this process.
+    browserPromise = pw.chromium.launch({ args: ['--disable-dev-shm-usage'] }).catch((err) => {
+      browserPromise = null;
+      throw err;
+    });
   }
   return browserPromise;
 }
