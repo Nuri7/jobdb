@@ -144,6 +144,30 @@ export function findNextPage(html: string, pageUrl: string): string | null {
   return found;
 }
 
+const APPLY_TEXT_RE =
+  /(solliciteer|sollicitatieformulier|nu solliciteren|direct solliciteren|reageer op deze vacature|\bapply\b|apply now|apply for this|application form|bewerben|jetzt bewerben)/i;
+const APPLY_HREF_RE = /(sollicit|\/apply|apply\.|application|greenhouse\.io|lever\.co|\.recruitee\.com\/o\/|workable\.com|jobvite|smartrecruiters|mailto:)/i;
+
+/**
+ * Count apply affordances (a real vacancy has one; a category page has several).
+ * Returns total apply elements and the number of DISTINCT apply targets — many distinct
+ * targets means the page lists multiple jobs (a listing/category), not one vacancy.
+ */
+export function applyAffordance($: cheerio.CheerioAPI): { count: number; distinctTargets: number } {
+  const targets = new Set<string>();
+  let count = 0;
+  $('a, button, input[type="submit"], input[type="button"]').each((_i, el) => {
+    const $el = $(el);
+    const text = `${$el.text()} ${$el.attr('value') ?? ''} ${$el.attr('aria-label') ?? ''} ${$el.attr('title') ?? ''}`;
+    const href = $el.attr('href') ?? '';
+    if (APPLY_TEXT_RE.test(text) || (href && APPLY_HREF_RE.test(href))) {
+      count++;
+      targets.add(href || `__btn${count}`); // buttons without href count as their own target
+    }
+  });
+  return { count, distinctTargets: targets.size };
+}
+
 /** Heuristic single-page extraction when a detail page has no JSON-LD. */
 export function jobFromDetailHtml(html: string, url: string, linkText?: string): CanonicalJob | null {
   // A career-section landing page (/werken-bij, /vacatures) is never a single vacancy,
@@ -151,6 +175,16 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
   if (isCareerSectionUrl(url)) return null;
 
   const $ = cheerio.load(html);
+
+  // A real vacancy has an apply affordance. Count BEFORE stripping chrome/forms below.
+  //   3+ distinct apply targets -> a category/listing page (e.g. Koskamp /vacatures/sales,
+  //      which lists several jobs each with its own "Solliciteer") -> not a single job
+  //   no apply element AND no apply text -> landing/info page -> not a job
+  const apply = applyAffordance($);
+  if (apply.distinctTargets >= 3) return null;
+  const hasApply = apply.count > 0 || APPLY_TEXT_RE.test($.root().text());
+  if (!hasApply) return null;
+
   $('script, style, nav, header, footer, noscript, svg, form').remove();
 
   const h1 = $('h1').first().text().replace(/\s+/g, ' ').trim();

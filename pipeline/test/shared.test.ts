@@ -84,6 +84,29 @@ describe('AEF-style false positive is rejected', () => {
   });
 });
 
+describe('jobFromDetailHtml — apply-affordance gate (AEF + Koskamp)', () => {
+  const body = `<h1>{TITLE}</h1><p>Wat ga je doen: rijden. Wij bieden een goed salaris, 32 uur per week.
+    Jouw profiel. ${'x'.repeat(200)}</p>`;
+  it('rejects a page with NO apply button (landing/info page)', () => {
+    const html = `<main>${body.replace('{TITLE}', 'Accountmanager')}</main>`;
+    expect(jobFromDetailHtml(html, 'https://x.nl/vacatures/iets')).toBeNull();
+  });
+  it('rejects a category page with 3+ distinct apply targets (Koskamp /vacatures/sales)', () => {
+    const cats = ['sales', 'logistiek', 'finance', 'ict']
+      .map((c) => `<div><h3>Job ${c}</h3><a href="/vacatures/${c}/apply">Solliciteer</a></div>`)
+      .join('');
+    const html = `<main><h1>Accountmanager</h1>${cats}<p>Wij bieden salaris, 32 uur per week, jouw profiel ${'x'.repeat(200)}</p></main>`;
+    expect(jobFromDetailHtml(html, 'https://werkenbijkoskamp.nl/vacatures/sales')).toBeNull();
+  });
+  it('accepts a real single job with one apply button', () => {
+    const html = `<main>${body.replace('{TITLE}', 'Senior Accountmanager Utrecht')}
+      <a href="/vacatures/senior-accountmanager/solliciteren">Solliciteer direct</a></main>`;
+    const job = jobFromDetailHtml(html, 'https://x.nl/vacatures/senior-accountmanager-utrecht');
+    expect(job).not.toBeNull();
+    expect(job!.job_title).toBe('Senior Accountmanager Utrecht');
+  });
+});
+
 describe('jobFromDetailHtml — vacancy signal gate', () => {
   it('accepts a page with real vacancy signals', () => {
     const html = `<html><head><title>Chauffeur | Acme</title></head><body><main><h1>Chauffeur B</h1>

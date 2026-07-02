@@ -130,10 +130,19 @@ async function llmJobsFromListing(
       },
       listingUrl,
     );
-    // Refuse synthetic fragment URLs — they'd pollute the job_url conflict key
-    if (job && !job.job_url.includes('#')) jobs.push(job);
+    // Refuse synthetic fragment URLs and the listing page itself — they'd pollute job_url
+    if (job && !job.job_url.includes('#') && job.job_url !== listingUrl) jobs.push(job);
   }
-  return jobs;
+
+  // Category-flattening guard: on a department/category site (e.g. Koskamp) the only links
+  // are category pages, so the LLM maps many job titles onto a few shared URLs. Real jobs
+  // have DISTINCT urls — drop any url claimed by more than one job (it's a listing, not a job).
+  const perUrl = new Map<string, number>();
+  for (const j of jobs) perUrl.set(j.job_url, (perUrl.get(j.job_url) ?? 0) + 1);
+  const unique = jobs.filter((j) => perUrl.get(j.job_url) === 1);
+  const dropped = jobs.length - unique.length;
+  if (dropped > 0) ctx.log(`  dropped ${dropped} LLM jobs sharing category URLs (not real detail pages)`);
+  return unique;
 }
 
 export const renderedSource: JobSource = {
