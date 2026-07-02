@@ -37,15 +37,32 @@ function unwrap<T>(res: { data: T | null; error: { message: string } | null }, w
 // Companies
 // ---------------------------------------------------------------------------
 
-export async function pickDueCompanies(db: Db, limit: number): Promise<CompanyRow[]> {
-  const res = await db
+export interface Shard {
+  k: number; // 0-indexed shard number
+  n: number; // total shards
+}
+
+/** Disjoint uuid range for a shard (uuids are uniformly random, so first-hex-char ranges partition evenly). */
+function shardRange(shard: Shard): { lo: string; hi: string | null } {
+  const loChar = Math.floor((shard.k * 16) / shard.n);
+  const hiChar = Math.floor(((shard.k + 1) * 16) / shard.n);
+  const uuid = (c: number) => `${c.toString(16)}0000000-0000-0000-0000-000000000000`;
+  return { lo: uuid(loChar), hi: hiChar >= 16 ? null : uuid(hiChar) };
+}
+
+export async function pickDueCompanies(db: Db, limit: number, shard?: Shard): Promise<CompanyRow[]> {
+  let query = db
     .from('company_career_sites')
     .select(COMPANY_COLUMNS)
     .eq('is_scrape_enabled', true)
     .neq('career_page_status', 'ambiguous')
-    .lte('next_check_at', new Date().toISOString())
-    .order('next_check_at', { ascending: true })
-    .limit(limit);
+    .lte('next_check_at', new Date().toISOString());
+  if (shard && shard.n > 1) {
+    const { lo, hi } = shardRange(shard);
+    query = query.gte('id', lo);
+    if (hi) query = query.lt('id', hi);
+  }
+  const res = await query.order('next_check_at', { ascending: true }).limit(limit);
   return unwrap(res, 'pickDueCompanies') as unknown as CompanyRow[];
 }
 

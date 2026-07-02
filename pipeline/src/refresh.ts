@@ -12,6 +12,7 @@ export interface RefreshOpts {
   company?: string;
   budgetMin: number;
   dryRun: boolean;
+  shard?: { k: number; n: number };
 }
 
 export function buildCtx(dryRun: boolean): Ctx {
@@ -52,7 +53,7 @@ export async function refreshCommand(opts: RefreshOpts): Promise<void> {
       // with a small batch, the single slowest company (e.g. a 5,000-URL sitemap) gates
       // the next batch while most of the concurrency pool sits idle.
       const batchSize = Math.min(4000, max - processed);
-      const due = await pickDueCompanies(db, batchSize);
+      const due = await pickDueCompanies(db, batchSize, opts.shard);
       if (due.length === 0) break;
       console.log(`Batch: ${due.length} due companies (elapsed ${Math.round((Date.now() - startedAt) / 60000)}m)`);
       const results = await Promise.all(

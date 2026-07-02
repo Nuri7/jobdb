@@ -27,10 +27,25 @@ async function main(): Promise<void> {
       force: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
       'budget-min': { type: 'string', default: '50' },
+      shard: { type: 'string' }, // "k/n" — process only companies in shard k of n (parallel backfill)
       format: { type: 'string', default: 'text' },
       help: { type: 'boolean', default: false },
     },
   });
+
+  let shard: { k: number; n: number } | undefined;
+  if (values.shard) {
+    const m = /^(\d+)\/(\d+)$/.exec(values.shard);
+    if (!m) {
+      console.error('--shard must be "k/n" (e.g. 0/4)');
+      process.exit(1);
+    }
+    shard = { k: Number(m[1]), n: Number(m[2]) };
+    if (shard.k >= shard.n) {
+      console.error('--shard k must be < n');
+      process.exit(1);
+    }
+  }
 
   const command = positionals[0];
   if (values.help || !command) {
@@ -59,6 +74,7 @@ async function main(): Promise<void> {
         company: values.company,
         budgetMin: Number(values['budget-min']) || 50,
         dryRun: values['dry-run'] ?? false,
+        shard,
       });
       break;
     case 'stats': {
