@@ -82,6 +82,8 @@ export async function fetchJobsWithEscalation(company: CompanyRow, ctx: Ctx): Pr
 
 function needsResolve(company: CompanyRow): boolean {
   if (!company.source_type || !company.source_config) return true;
+  // 'api' is a manual override (bespoke JSON endpoint) — never auto-re-resolve over it.
+  if (company.source_type === 'api') return false;
   if (company.career_page_status !== 'verified') return true;
   // Dashboard edited career_url since we fingerprinted it → re-resolve
   if (company.source_config.resolved_url !== company.career_url) return true;

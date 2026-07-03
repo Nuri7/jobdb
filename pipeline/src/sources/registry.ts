@@ -1,3 +1,4 @@
+import { apiSource } from './api.js';
 import { ashbySource } from './ats/ashby.js';
 import { greenhouseSource } from './ats/greenhouse.js';
 import { homerunSource, joinSource, teamtailorSource } from './ats/listing-based.js';
@@ -22,6 +23,7 @@ const sources: Record<SourceType, JobSource> = {
   'ats:teamtailor': teamtailorSource,
   'ats:homerun': homerunSource,
   'ats:join': joinSource,
+  api: apiSource,
   sitemap: sitemapSource,
   static: staticHtmlSource,
   rendered: renderedSource,

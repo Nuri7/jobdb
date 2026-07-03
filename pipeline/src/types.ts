@@ -30,7 +30,7 @@ export const ATS_HINTS = [
 
 export type AtsHint = (typeof ATS_HINTS)[number];
 
-export type SourceType = `ats:${AtsName}` | 'sitemap' | 'static' | 'rendered';
+export type SourceType = `ats:${AtsName}` | 'api' | 'sitemap' | 'static' | 'rendered';
 
 export type CareerPageStatus = 'unverified' | 'verified' | 'dead' | 'ambiguous';
 
