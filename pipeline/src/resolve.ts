@@ -8,8 +8,7 @@ import type { CompanyRow, Ctx, ResolveResult } from './types.js';
 export interface ResolveOpts {
   limit?: number;
   company?: string;
-  onlyBroken: boolean;
-  force: boolean;
+  mode: 'unverified' | 'broken' | 'stale' | 'all';
   dryRun: boolean;
 }
 
@@ -17,13 +16,14 @@ async function resolveOne(db: Db, ctx: Ctx, company: CompanyRow, force: boolean)
   if (!force && company.career_page_status === 'verified' && company.source_type) return null;
   const result = await resolveCompany(company, ctx, db);
   if (!ctx.dryRun) {
-    // dead: retry weekly; ambiguous: monthly (duplicate boards rarely un-duplicate)
+    // dead: retry weekly; ambiguous: monthly (duplicate boards rarely un-duplicate);
+    // newly (re)verified: make due NOW so the next refresh scrapes the corrected page.
     const defer =
       result.career_page_status === 'dead'
         ? { next_check_at: new Date(Date.now() + 7 * 86_400_000).toISOString() }
         : result.career_page_status === 'ambiguous'
           ? { next_check_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }
-          : {};
+          : { next_check_at: new Date().toISOString() };
     await updateCompany(db, company.id, {
       career_url: result.career_url ?? company.career_url,
       career_page_status: result.career_page_status,
@@ -61,8 +61,10 @@ export async function resolveCommand(opts: ResolveOpts): Promise<void> {
     }
     companies = [one];
   } else {
-    companies = await pickResolvable(db, opts.limit ?? 100_000, opts.onlyBroken, opts.force);
+    companies = await pickResolvable(db, opts.limit ?? 100_000, opts.mode);
   }
+  // 'all'/'stale' re-resolve even already-verified companies; 'broken'/'unverified' skip them.
+  const forceEach = opts.mode === 'all' || opts.mode === 'stale';
   console.log(`Resolving ${companies.length} companies (concurrency ${cfg.COMPANY_CONCURRENCY})…`);
 
   const pool = pLimit(cfg.COMPANY_CONCURRENCY);
@@ -73,7 +75,7 @@ export async function resolveCommand(opts: ResolveOpts): Promise<void> {
     companies.map((company) =>
       pool(async () => {
         try {
-          const result = await resolveOne(db, ctx, company, opts.force || Boolean(opts.company));
+          const result = await resolveOne(db, ctx, company, forceEach || Boolean(opts.company));
           done++;
           if (!result) return;
           const key = `${result.career_page_status}${result.source_type ? `/${result.source_type}` : ''}`;

@@ -45,9 +45,11 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'google/gemini-2.5-flash-lite' }}
+        # Weekly health sweep: re-check broken/moved pages AND verified-but-empty ones
+        # (0 jobs = likely wrong/moved page). Manual dispatch with all:true re-resolves everything.
         run: >
           npx tsx src/cli.ts resolve
-          ${{ inputs.all == true && ' ' || '--only-broken' }}
+          ${{ inputs.all == true && '--all' || '--stale' }}
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
 
       - name: Stats summary

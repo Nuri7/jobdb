@@ -24,6 +24,8 @@ async function main(): Promise<void> {
       limit: { type: 'string' },
       company: { type: 'string' },
       'only-broken': { type: 'boolean', default: false },
+      stale: { type: 'boolean', default: false }, // weekly sweep: broken + verified-but-empty
+      all: { type: 'boolean', default: false }, // full re-resolve of every company
       force: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
       'budget-min': { type: 'string', default: '50' },
@@ -59,15 +61,16 @@ async function main(): Promise<void> {
   }
 
   switch (command) {
-    case 'resolve':
+    case 'resolve': {
+      const mode = values.all || values.force ? 'all' : values.stale ? 'stale' : values['only-broken'] ? 'broken' : 'unverified';
       await resolveCommand({
         limit,
         company: values.company,
-        onlyBroken: values['only-broken'] ?? false,
-        force: values.force ?? false,
+        mode,
         dryRun: values['dry-run'] ?? false,
       });
       break;
+    }
     case 'refresh':
       await refreshCommand({
         limit,

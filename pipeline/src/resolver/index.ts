@@ -28,10 +28,14 @@ function scoreCandidate(c: Omit<Candidate, 'score'>, companyDomain: string): num
 
   if (BAD_HOST_RE.test(u.hostname)) score -= 100;
   if (/(career-advice|interview-tips|how-to|blog|nieuws|news)\b/.test(path)) score -= 50;
+  // Info/marketing pages that merely contain "werk" — this is how a.s.r. got a wellness page
+  if (/(vitaliteit|werk-prive|work-life|balans|financieel-inzicht|eerder-stoppen|minder-werken|pensioen|gezond|welzijn|duurzame-inzet)/.test(path)) score -= 80;
   if (/\/(type|level|regio|region|team|fulltime|parttime|junior|senior|stage)\//.test(path)) score -= 25;
 
   if (/(vacatures?|jobs?|careers?|werken-?bij)\/?$/.test(path) || path === '/') score += 15;
-  if (CAREER_HOST(u.hostname)) score += 40;
+  // Dedicated career domain (werkenbij*.nl, careers.*): trust it even if its jobs are JS-hidden
+  // and thus show few static job-links — that low-link penalty is exactly what mis-ranked a.s.r.
+  if (CAREER_HOST(u.hostname)) score += 70;
   if (registrableDomain(u.hostname) === companyDomain) score += 30;
   score += Math.min(c.jobLinks * 4, 40);
   if (c.hasLd) score += 30;

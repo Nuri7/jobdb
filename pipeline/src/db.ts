@@ -69,8 +69,7 @@ export async function pickDueCompanies(db: Db, limit: number, shard?: Shard): Pr
 export async function pickResolvable(
   db: Db,
   limit: number,
-  onlyBroken: boolean,
-  force = false,
+  mode: 'unverified' | 'broken' | 'stale' | 'all',
 ): Promise<CompanyRow[]> {
   let query = db
     .from('company_career_sites')
@@ -79,12 +78,19 @@ export async function pickResolvable(
     .order('next_check_at', { ascending: true })
     .limit(limit);
   // Server-side status filter — client-side filtering starves the picker once
-  // the earliest next_check_at rows are all verified
-  if (onlyBroken) {
-    query = query.or('career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3');
-  } else if (!force) {
+  // the earliest next_check_at rows are all verified.
+  if (mode === 'unverified') {
     query = query.eq('career_page_status', 'unverified');
+  } else if (mode === 'broken') {
+    query = query.or('career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3');
+  } else if (mode === 'stale') {
+    // Weekly health sweep: broken/failing PLUS verified-but-empty pages (0 jobs = likely
+    // wrong or moved page, e.g. a.s.r.). Healthy job-producing pages are left untouched.
+    query = query.or(
+      'career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3,and(career_page_status.eq.verified,jobs_found_count.eq.0)',
+    );
   }
+  // mode === 'all' → no status filter (full re-resolve)
   const res = await query;
   return unwrap(res, 'pickResolvable') as unknown as CompanyRow[];
 }
