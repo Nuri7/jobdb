@@ -74,6 +74,21 @@ export function isJunkTitle(title: string): boolean {
   return JUNK_TITLE_EXACT.has(s) || JUNK_TITLE_PREFIX.test(s);
 }
 
+/**
+ * True when a title reads like a category/overview listing, not a single vacancy.
+ * Careful: singular "Vacature <role>" IS a real job (common NL pattern) — only the
+ * PLURAL "Vacatures <category>" and "... vacatures in <place>" forms are categories.
+ */
+export function isCategoryTitle(title: string): boolean {
+  const s = title.trim().toLowerCase().replace(/\s+/g, ' ');
+  return (
+    /^vacatures\s+\S/.test(s) || // "vacatures engineering", "vacatures verpleegkundige"
+    /\bvacatures?\s+(in|voor|bij|regio)\b/.test(s) || // "... vacatures in arnhem"
+    /vacatures?\s*[|/]/.test(s) || // "vacatures | toerisme"
+    /^(overzicht|alle vacatures|openstaande vacatures|vacatureoverzicht)\b/.test(s)
+  );
+}
+
 export const MAX_DESCRIPTION_CHARS = 8_000;
 
 export function capDescription(text: string | undefined): string | undefined {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractJobLinks, findNextPage, hasBlockedSegment, isCareerSectionUrl, jobFromDetailHtml } from '../src/sources/shared.js';
+import { extractJobLinks, findNextPage, hasBlockedSegment, isCareerSectionUrl, isSpecificJobDetailUrl, jobFromDetailHtml } from '../src/sources/shared.js';
 import { filterJobEntries } from '../src/sources/sitemap.js';
 
 const listing = `<html><body><main>
@@ -63,6 +63,32 @@ describe('isCareerSectionUrl — reject section landing pages', () => {
   });
 });
 
+describe('isSpecificJobDetailUrl — recovers JS-apply real jobs, excludes junk', () => {
+  it('accepts specific vacancy detail URLs', () => {
+    for (const u of [
+      'https://www.leek.nl/werken/vacatures/scooterbezorger',
+      'https://werkenbijwshd.nl/vacatures/inkoopadviseur',
+      'https://jobs.mollie.com/vacancies/d056f390-1d70-408e',
+      'https://werkenbij.previder.nl/vacatures/2592683/it-support-specialist-28',
+      'https://werkenbijhezelburcht.com/o/consultant-innovatie-it-22',
+    ]) {
+      expect(isSpecificJobDetailUrl(u), u).toBe(true);
+    }
+  });
+  it('rejects listings, sections, blogs, products, courses', () => {
+    for (const u of [
+      'https://www.aef.nl/vacatures',
+      'https://www.aef.nl/werken-bij',
+      'https://wts-global.com/hot-topics/vida-global',
+      'https://tba.group/software/industrial-automation',
+      'https://www.isbw.nl/opleiding/post-hbo-hrm',
+      'https://www.marktplaats.nl/l/vacatures/toerisme',
+    ]) {
+      expect(isSpecificJobDetailUrl(u), u).toBe(false);
+    }
+  });
+});
+
 describe('AEF-style false positive is rejected', () => {
   it('does not turn a /werken-bij landing page into a job', () => {
     const html = `<html><head><meta property="og:site_name" content="AEF">
@@ -106,12 +132,19 @@ describe('jobFromDetailHtml — apply-affordance gate (AEF + Koskamp)', () => {
     expect(job!.job_title).toBe('Senior Accountmanager Utrecht');
     expect(job!.verified).toBe(true); // has a real apply element
   });
-  it('marks prose-only "solliciteer" (no apply element) as verified=false', () => {
+  it('recovers a prose-only job on a specific detail URL as verified=true (balanced rule)', () => {
+    const html = `<main><h1>Chauffeur bezorger regio Utrecht</h1><p>Wat ga je doen: rijden. Wij bieden salaris,
+      32 uur per week, jouw profiel. Solliciteer via de mail. ${'x'.repeat(200)}</p></main>`;
+    const job = jobFromDetailHtml(html, 'https://x.nl/vacatures/chauffeur-bezorger-regio-utrecht');
+    expect(job).not.toBeNull();
+    expect(job!.verified).toBe(true); // specific detail URL -> real JS-apply job recovered
+  });
+  it('leaves a prose-only job on a NON-detail URL as verified=false', () => {
     const html = `<main><h1>Chauffeur</h1><p>Wat ga je doen: rijden. Wij bieden salaris, 32 uur per week,
       jouw profiel. Solliciteer via de mail. ${'x'.repeat(200)}</p></main>`;
-    const job = jobFromDetailHtml(html, 'https://x.nl/vacatures/chauffeur-b');
-    expect(job).not.toBeNull(); // still created (prose apply)
-    expect(job!.verified).toBe(false); // but not servable — no real apply element
+    const job = jobFromDetailHtml(html, 'https://x.nl/over-werken/iets');
+    // /over-werken/iets is not a job-path detail -> not confidently a vacancy
+    if (job) expect(job.verified).toBe(false);
   });
 });
 

@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { dedupeJobs, finalizeJob, htmlToText, isJunkTitle } from '../extract/normalize.js';
+import { dedupeJobs, finalizeJob, htmlToText, isCategoryTitle, isJunkTitle } from '../extract/normalize.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import type { CanonicalJob, Ctx } from '../types.js';
 
@@ -144,6 +144,32 @@ export function findNextPage(html: string, pageUrl: string): string | null {
   return found;
 }
 
+const NON_VACANCY_PATH_RE =
+  /\/(blog|article|artikel|nieuws|news|hot-topics|opleiding|cursus|training|product|software|diensten|service|resources|about|over-ons|functieprofiel|vacaturebank)\/|\/l\/vacatures/i;
+
+/**
+ * True when a URL points at a SPECIFIC vacancy detail page (job-path + a job-specific
+ * slug or numeric id), not a listing/category/blog/product page. Used to verify real
+ * jobs whose apply button is JS-rendered (so applyAffordance can't see it).
+ */
+export function isSpecificJobDetailUrl(rawUrl: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  const path = u.pathname.toLowerCase();
+  if (NON_VACANCY_PATH_RE.test(path)) return false;
+  if (isCareerSectionUrl(rawUrl)) return false; // /vacatures, /werken-bij (no slug)
+  if (!(JOB_PATH_RE.test(path) || /\/o\//.test(path))) return false; // must be a job path
+  const segs = path.replace(/\/+$/, '').split('/').filter(Boolean);
+  const last = segs[segs.length - 1] ?? '';
+  const hasId = /\d{3,}/.test(segs.slice(-2).join('/')); // numeric job id
+  const roleSlug = last.length >= 8 && /[a-z]/.test(last); // a descriptive role slug
+  return hasId || roleSlug;
+}
+
 const APPLY_TEXT_RE =
   /(solliciteer|sollicitatieformulier|nu solliciteren|direct solliciteren|reageer op deze vacature|\bapply\b|apply now|apply for this|application form|bewerben|jetzt bewerben)/i;
 const APPLY_HREF_RE = /(sollicit|\/apply|apply\.|application|greenhouse\.io|lever\.co|\.recruitee\.com\/o\/|workable\.com|jobvite|smartrecruiters|mailto:)/i;
@@ -198,7 +224,8 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
     '';
   if (!title || title.length < 3) return null;
   // Landing/info page titles ("Werken bij X", "Vacatures", "Home", "Onze arbeidsvoorwaarden")
-  if (isJunkTitle(title)) return null;
+  // and category/overview titles ("Vacatures Engineering", "... vacatures in Arnhem")
+  if (isJunkTitle(title) || isCategoryTitle(title)) return null;
   // A page whose h1 is just the site slogan/name is not a vacancy
   if (siteName && title.toLowerCase().includes(siteName.toLowerCase()) && title.length < siteName.length + 12) {
     return null;
@@ -212,10 +239,11 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
   const signals = bodyText.match(new RegExp(JOB_SIGNAL_RE.source, 'gi'))?.length ?? 0;
   if (signals < 2) return null;
 
-  // Verified (servable) only when a real apply ELEMENT is present (a Solliciteer/Apply
-  // button/link), not merely the word in prose — that's what separates a genuine vacancy
-  // from a blog/product/course page that happens to mention "solliciteer".
-  return finalizeJob({ job_url: url, job_title: title, description: bodyText, verified: apply.count > 0 }, url);
+  // Verified (servable to applyforme) when EITHER a real apply element is present, OR the
+  // URL is a specific vacancy detail page (recovers real jobs whose apply button is
+  // JS-rendered). The section/junk/category/signal gates above keep out non-vacancies.
+  const verified = apply.count > 0 || isSpecificJobDetailUrl(url);
+  return finalizeJob({ job_url: url, job_title: title, description: bodyText, verified }, url);
 }
 
 /**

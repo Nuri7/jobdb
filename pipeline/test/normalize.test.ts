@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob, isJunkTitle } from '../src/extract/normalize.js';
+import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob, isCategoryTitle, isJunkTitle } from '../src/extract/normalize.js';
+
+describe('isCategoryTitle — plural category listings vs real singular jobs', () => {
+  it('flags category/overview titles', () => {
+    for (const t of ['Vacatures Engineering', 'Vacatures Verpleegkundige', 'Management Assistant vacatures in Arnhem', 'Vacatures | Toerisme', 'Openstaande vacatures']) {
+      expect(isCategoryTitle(t), t).toBe(true);
+    }
+  });
+  it('keeps real singular "Vacature <role>" and plain role titles', () => {
+    for (const t of ['Vacature junior chemisch analist', 'Scooterbezorger', 'Inkoopadviseur', 'Logistiek Medewerker', 'Docent wiskunde']) {
+      expect(isCategoryTitle(t), t).toBe(false);
+    }
+  });
+});
 
 describe('isJunkTitle — landing pages vs real "Vacature <role>" titles', () => {
   it('flags bare section/landing titles', () => {
