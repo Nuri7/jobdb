@@ -1,73 +1,50 @@
-# Welcome to your Lovable project
+# JobDB — Dutch job-market database
 
-## Project info
+Career pages and live job postings for ~4,700 Dutch companies. A crawling
+pipeline keeps a per-company view of open vacancies; a dashboard browses them;
+a public API serves verified job postings to downstream apps (applyforme).
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Structure
 
-## How can I edit this code?
+| Path | What it is |
+| --- | --- |
+| `src/` | Dashboard SPA — Vite + React + TypeScript + shadcn/ui + Tailwind |
+| `pipeline/` | Standalone Node 22 crawler (resolve career pages → ingest jobs → lifecycle). Run with `tsx`, scheduled by GitHub Actions |
+| `supabase/functions/api/` | Public API edge function (`/jobs`, `/stats`, `/cities`) |
+| `supabase/migrations/` | Postgres schema (companies, job_opportunities, geo function, indexes) |
 
-There are several ways of editing your application.
+Data lives in Supabase (Postgres + edge functions). The dashboard reads it via
+the anon key; the pipeline writes via the service-role key.
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Develop
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm install
+npm run dev        # dashboard on http://localhost:8080
 ```
 
-**Edit a file directly in GitHub**
+Environment (`.env`, committed — it only holds the public anon key):
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_PUBLISHABLE_KEY=...   # anon key — safe for the browser
+```
 
-**Use GitHub Codespaces**
+## Pipeline
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```sh
+cd pipeline
+npm install
+npx tsx src/cli.ts resolve --limit 50      # verify/fix career URLs
+npx tsx src/cli.ts refresh --company bol    # ingest one company's jobs
+npx tsx src/cli.ts stats                     # coverage summary
+```
 
-## What technologies are used for this project?
+See `pipeline/.env.example` for the crawler's environment.
 
-This project is built with:
+## Deploy
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+The dashboard is a static Vite build hosted on **Vercel** — every push to
+`main` auto-deploys. `vercel.json` rewrites all routes to `index.html` for
+client-side routing. The API and database are on Supabase (deploy functions
+with `supabase functions deploy`, apply schema with `supabase db push`).

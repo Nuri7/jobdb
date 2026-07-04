@@ -1,0 +1,8 @@
+# The Vercel build only needs the Vite dashboard. Keep the crawler, edge
+# functions, and CI out of the deploy upload.
+# NOTE: leading slash anchors to repo root — a bare "supabase" would also match
+# src/integrations/supabase/ and break the build.
+/pipeline
+/supabase
+/.github
+/MIGRATION.md
