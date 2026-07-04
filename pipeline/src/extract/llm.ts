@@ -2,8 +2,8 @@ import { config } from '../config.js';
 import type { LlmClient } from '../types.js';
 
 /**
- * Minimal OpenAI-compatible chat client (works with the Lovable AI gateway,
- * OpenRouter, direct Gemini-OpenAI endpoint, etc.). JSON-only responses.
+ * Minimal OpenAI-compatible chat client (works with Anthropic's OpenAI-compatible
+ * endpoint, OpenRouter, direct OpenAI/Gemini endpoints, etc.). JSON-only responses.
  */
 export function createLlmClient(log: (m: string) => void): LlmClient | null {
   const cfg = config();

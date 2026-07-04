@@ -7,9 +7,9 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(''),
   SUPABASE_ANON_KEY: z.string().optional().default(''),
-  LLM_BASE_URL: z.string().optional().default('https://ai.gateway.lovable.dev/v1'),
+  LLM_BASE_URL: z.string().optional().default('https://api.anthropic.com/v1'),
   LLM_API_KEY: z.string().optional().default(''),
-  LLM_MODEL: z.string().optional().default('google/gemini-2.5-flash-lite'),
+  LLM_MODEL: z.string().optional().default('claude-haiku-4-5-20251001'),
   LLM_MAX_CALLS: z.coerce.number().int().positive().optional().default(500),
   COMPANY_CONCURRENCY: z.coerce.number().int().min(1).max(30).optional().default(10),
   ROBOTS_RESPECT: z

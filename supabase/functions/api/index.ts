@@ -48,15 +48,19 @@ function getSynonymsFromGroups(searchTerm: string, synonymGroups: string[][]): s
 
 // AI-powered semantic expansion for terms not covered by synonyms
 async function getAIExpandedTerms(searchTerm: string): Promise<string[]> {
+  const apiKey = Deno.env.get('LLM_API_KEY');
+  if (!apiKey) return []; // AI expansion is optional — skip cleanly when no key is configured
+  const baseUrl = (Deno.env.get('LLM_BASE_URL') ?? 'https://api.anthropic.com/v1').replace(/\/$/, '');
+  const model = Deno.env.get('LLM_MODEL') ?? 'claude-haiku-4-5-20251001';
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite',
+        model,
         messages: [
           {
             role: 'system',
@@ -297,7 +301,11 @@ Deno.serve(async (req) => {
             career_url,
             is_scrape_enabled
           )
-        `, { count: 'exact' })
+        `,
+        // 'estimated': an exact count over this filtered+joined set on a large,
+        // growing table blew the statement_timeout. The planner estimate is
+        // fast and close enough for a jobs listing's total/has_more.
+        { count: 'estimated' })
         .eq('company_career_sites.is_scrape_enabled', true)
         .order('scraped_at', { ascending: false })
         .order('id', { ascending: true })
