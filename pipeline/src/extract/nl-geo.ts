@@ -56,14 +56,18 @@ export function normalizeCity(location: string | undefined): string | null {
   return city;
 }
 
-/** Province for a location: from an explicit province in the string, else the city lookup. */
+/**
+ * Province for a location. The city→province lookup is authoritative (clean); an explicit
+ * province name in the string is only a fallback for cities we don't know — scanning the
+ * whole string is noisy for multi-location postings ("Amsterdam / Rotterdam, Zuid-Holland").
+ */
 export function provinceOf(location: string | undefined, city: string | null): string | null {
+  if (city && CITY_PROVINCE[city]) return CITY_PROVINCE[city];
   if (location) {
     for (const part of location.split(/[,|]/)) {
       const p = PROVINCE_ALIASES[part.trim().toLowerCase()];
       if (p) return p;
     }
   }
-  if (city && CITY_PROVINCE[city]) return CITY_PROVINCE[city];
   return null;
 }

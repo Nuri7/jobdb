@@ -643,6 +643,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Route: GET /cities — verified open jobs grouped by city and province (for maps)
+    if (path === '/cities' || path === '/cities/') {
+      const { data, error } = await supabase.rpc('job_geo_counts');
+      if (error) {
+        console.error('cities rpc error:', error.message);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch city counts' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+      return new Response(JSON.stringify({ data }), { headers: corsHeaders });
+    }
+
     // Route: GET /synonyms
     if (path === '/synonyms' || path === '/synonyms/') {
       const { data, error } = await supabase
