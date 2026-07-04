@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useJobs, useCompanies } from "@/hooks/useJobs";
@@ -36,7 +37,9 @@ import {
   Building2,
   Sliders,
   Search,
-  ChevronsUpDown
+  ChevronsUpDown,
+  MapPin,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -97,10 +100,15 @@ const Index = () => {
 
   // Debounce so typing doesn't fire a query (and an AI-synonym API call) per keystroke
   const debouncedSearch = useDebounce(search, 350);
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch]);
+
+  // ?location=<city> — set by the Map page when you click a city
+  const [searchParams, setSearchParams] = useSearchParams();
+  const locationFilter = searchParams.get("location") || undefined;
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, locationFilter]);
 
   const { data: jobsData, isLoading, refetch } = useJobs({
     search: debouncedSearch,
+    location: locationFilter,
     source: activeTab !== "all" ? activeTab : undefined,
     page: currentPage,
     enabledCompanyIds: activeTab === "all" ? enabledCompanyIds : undefined,
@@ -393,6 +401,20 @@ const Index = () => {
             </Button>
           </div>
         </div>
+
+        {/* Location filter chip (set by clicking a city on the Map page) */}
+        {locationFilter && (
+          <div className="mb-4">
+            <button
+              onClick={() => setSearchParams((prev) => { prev.delete("location"); return prev; }, { replace: true })}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary text-sm px-3 py-1 hover:bg-primary/20 transition-colors"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span className="capitalize">{locationFilter}</span>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Scraping Progress */}
         {isScraping && scrapingCompany && (
