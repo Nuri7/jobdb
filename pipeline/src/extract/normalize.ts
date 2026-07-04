@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { CanonicalJob } from '../types.js';
+import { normalizeCity, provinceOf } from './nl-geo.js';
 
 const TRACKING_PARAMS = new Set([
   'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
@@ -151,10 +152,14 @@ export function finalizeJob(
     }
   }
 
+  const locationStr = partial.location?.replace(/\s+/g, ' ').trim().slice(0, 150) || undefined;
+  const city = normalizeCity(locationStr);
   const draft: Omit<CanonicalJob, 'content_hash'> = {
     job_url: url,
     job_title: title,
-    location: partial.location?.replace(/\s+/g, ' ').trim().slice(0, 150) || undefined,
+    location: locationStr,
+    city: city ?? undefined,
+    province: provinceOf(locationStr, city) ?? undefined,
     employment_type: partial.employment_type?.trim().slice(0, 80) || undefined,
     department: partial.department?.trim().slice(0, 120) || undefined,
     salary_range: partial.salary_range?.trim().slice(0, 100) || undefined,

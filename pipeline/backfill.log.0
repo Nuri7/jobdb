@@ -4500,3 +4500,1240 @@ Batch: 2 due companies (elapsed 35m)
 Done in 2213s — 430 companies: ok=380, failed=50 | upserted 3232, open tracked 13036 | llm calls 90
 [shard 0] remaining due: 0
 [shard 0] DONE Fri Jul  3 21:55:10 CEST 2026
+[shard 0] chunk 1 02:12
+Batch: 258 due companies (elapsed 0m)
+  sitemap: 2180 urls, 66 job-like
+  sitemap: 398 urls, 73 job-like
+  sitemap: 843 urls, 21 job-like
+  sitemap: 22 urls, 17 job-like
+  sitemap: 5001 urls, 17 job-like
+  sitemap: 5001 urls, 13 job-like
+  static: 3 links, 0 inline JSON-LD jobs
+  sitemap: 2424 urls, 347 job-like
+[ok] wcc: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 4602 urls, 29 job-like
+  sitemap: 1157 urls, 5 job-like
+  sitemap: 672 urls, 361 job-like
+  sitemap: 395 urls, 188 job-like
+  3/3 detail pages without JSON-LD
+[ok] l1 radio-tv: 2 seen, +2 upserted, -0 closed, 2 open
+  sitemap: 391 urls, 16 job-like
+  5/5 detail pages without JSON-LD
+  sitemap: sitemap saw 5 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] gemeente hoorn: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 871 urls, 5 job-like
+  5/5 detail pages without JSON-LD
+  sitemap: sitemap saw 5 job urls but extracted 0 — escalating
+  static: 25 links, 0 inline JSON-LD jobs
+  13/13 detail pages without JSON-LD
+  sitemap: sitemap saw 13 job urls but extracted 0 — escalating
+  static: 187 links, 0 inline JSON-LD jobs
+  5/16 detail pages without JSON-LD
+  17/17 detail pages without JSON-LD
+[ok] broshuis: 13 seen, +13 upserted, -0 closed, 13 open
+  17/17 detail pages without JSON-LD
+  sitemap: sitemap saw 17 job urls but extracted 0 — escalating
+[ok] athlon car lease: 17 seen, +17 upserted, -0 closed, 17 open
+  sitemap: 2045 urls, 8 job-like
+  static: 13 links, 0 inline JSON-LD jobs
+  29/29 detail pages without JSON-LD
+  sitemap: sitemap saw 29 job urls but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  21/21 detail pages without JSON-LD
+  rendered: 0 links after render
+[ok] centraal planbureau: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] veiligheidsregio utrecht: 2 seen, +2 upserted, -0 closed, 2 open
+  sitemap: 4136 urls, 109 job-like
+  rendered: LLM extracted 0 jobs
+  8/8 detail pages without JSON-LD
+  sitemap: sitemap saw 8 job urls but extracted 0 — escalating
+  sitemap: 647 urls, 474 job-like
+[ok] gemeente steenbergen: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 8 links, 0 inline JSON-LD jobs
+  25/25 detail pages without JSON-LD
+  static: listing had 25 job links but extracted 0 — escalating
+  13/13 detail pages without JSON-LD
+  static: listing had 13 job links but extracted 0 — escalating
+  8/8 detail pages without JSON-LD
+  static: listing had 8 job links but extracted 0 — escalating
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 25 links after render
+[ok] turien & co. assuradeuren: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 13 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 8 links after render
+[ok] vvaa: 0 seen, +0 upserted, -0 closed, 0 open
+  8/8 detail pages without JSON-LD
+  rendered: 0 links after render
+  13/13 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  66/66 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] leger des heils: 1 seen, +1 upserted, -0 closed, 1 open
+[ok] svh: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] koninklijk instituut van ingenieurs (kivi): 0 seen, +0 upserted, -0 closed, 0 open
+[ok] ubbink nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 5001 urls, 75 job-like
+  static: 33 links, 0 inline JSON-LD jobs
+  25/25 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] hago nederland b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 4 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] talis: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  4/4 detail pages without JSON-LD
+[ok] nebest adviesgroep: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] berden mode & wonen: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 2 links after render
+  rendered: LLM extracted 0 jobs
+[ok] de bibliotheek eindhoven: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  3/73 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[failed] zilveren kruis: upsertJobs: TypeError: fetch failed
+[ok] gemeente hoogeveen: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] roc van twente: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 11 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] visser & smit bouw bv: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] wilhelmina ziekenhuis assen: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] dierenpark amersfoort: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 3 links, 0 inline JSON-LD jobs
+  rendered: 1 links after render
+  rendered: 0 links after render
+  1/1 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] hfm: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] woonwaard noordkennemerland: 0 seen, +0 upserted, -0 closed, 0 open
+  3/3 detail pages without JSON-LD
+  static: listing had 3 job links but extracted 0 — escalating
+  sitemap: 168 urls, 86 job-like
+  1/11 detail pages without JSON-LD
+[ok] blue circle: 11 seen, +11 upserted, -0 closed, 11 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] biblionet drenthe: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] aedes vereniging van woningcorporaties: 0 seen, +0 upserted, -0 closed, 0 open
+  33/33 detail pages without JSON-LD
+  static: listing had 33 job links but extracted 0 — escalating
+  rendered: 15 links after render
+  rendered: 0 links after render
+  rendered: 33 links after render
+  rendered: LLM extracted 0 jobs
+[ok] dhl express nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] rederij groen: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] het nationale theater: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] adelante zorggroep: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  15/15 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[ok] ravu: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 1 links after render
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  static: 26 links, 0 inline JSON-LD jobs
+[ok] de meerwaarde: 0 seen, +0 upserted, -0 closed, 0 open
+  1/1 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[ok] stratech software solutions: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 8 links, 0 inline JSON-LD jobs
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] gemeente steenwijkerland: 0 seen, +0 upserted, -0 closed, 0 open
+  109/109 detail pages without JSON-LD
+  sitemap: sitemap saw 109 job urls but extracted 0 — escalating
+  rendered: 0 links after render
+  static: 3 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+[ok] the talent institute: 0 seen, +0 upserted, -0 closed, 0 open
+  75/75 detail pages without JSON-LD
+  sitemap: sitemap saw 75 job urls but extracted 0 — escalating
+  static: 6 links, 0 inline JSON-LD jobs
+  3/3 detail pages without JSON-LD
+  static: listing had 3 job links but extracted 0 — escalating
+  8/8 detail pages without JSON-LD
+  static: listing had 8 job links but extracted 0 — escalating
+  rendered: 0 links after render
+  6/6 detail pages without JSON-LD
+  escalated sitemap -> static: 1 jobs
+  33/33 detail pages without JSON-LD
+  26/26 detail pages without JSON-LD
+  static: listing had 26 job links but extracted 0 — escalating
+  rendered: LLM extracted 0 jobs
+[ok] accres apeldoorn b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] nedgraphics: 1 seen, +1 upserted, -0 closed, 1 open
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  rendered: 8 links after render
+  rendered: 3 links after render
+[ok] ziekenhuis st jansdal harderwijk: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 58 links, 0 inline JSON-LD jobs
+  3/3 detail pages without JSON-LD
+  rendered: 26 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 2 jobs
+  escalated sitemap -> rendered: 2 jobs
+  rendered: LLM extracted 0 jobs
+[ok] seniorweb: 2 seen, +2 upserted, -0 closed, 2 open
+[ok] libanon lyceum: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 1 links after render
+  1/1 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[ok] boni supermarkt: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] gemeente wijchen: 0 seen, +0 upserted, -0 closed, 0 open
+  8/8 detail pages without JSON-LD
+  rendered: 3 links after render
+  sitemap: 6871 urls, 9 job-like
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  rendered: 0 links after render
+[ok] quadraam, gelderse onderwijs groep: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] meyn poultry processing solutions: 0 seen, +0 upserted, -0 closed, 0 open
+  3/3 detail pages without JSON-LD
+[ok] tros: 2 seen, +2 upserted, -0 closed, 2 open
+  static: 3 links, 0 inline JSON-LD jobs
+  static: 6 links, 0 inline JSON-LD jobs
+  static: 5 links, 0 inline JSON-LD jobs
+  3/3 detail pages without JSON-LD
+  static: listing had 3 job links but extracted 0 — escalating
+  26/26 detail pages without JSON-LD
+  5/5 detail pages without JSON-LD
+  static: listing had 5 job links but extracted 0 — escalating
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] gemeente sliedrecht: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 3 links, 0 inline JSON-LD jobs
+  rendered: 3 links after render
+  rendered: 5 links after render
+  3/3 detail pages without JSON-LD
+  static: listing had 3 job links but extracted 0 — escalating
+  2/3 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] mgg: 0 seen, +0 upserted, -0 closed, 0 open
+  9/9 detail pages without JSON-LD
+  sitemap: sitemap saw 9 job urls but extracted 0 — escalating
+  6/6 detail pages without JSON-LD
+  static: listing had 6 job links but extracted 0 — escalating
+  5/5 detail pages without JSON-LD
+  rendered: 14 links after render
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  static: 7 links, 0 inline JSON-LD jobs
+[ok] gemeente de ronde venen: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 6 links after render
+[ok] natuur & milieu: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 19 links, 0 inline JSON-LD jobs
+  sitemap: 1043 urls, 3 job-like
+  14/14 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+[ok] prénatal moeder en kind b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  7/7 detail pages without JSON-LD
+  static: listing had 7 job links but extracted 0 — escalating
+  sitemap: 583 urls, 32 job-like
+  static: 3 links, 0 inline JSON-LD jobs
+  3/3 detail pages without JSON-LD
+  static: listing had 3 job links but extracted 0 — escalating
+  6/6 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] bar-organisatie: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 3 links after render
+  58/58 detail pages without JSON-LD
+  static: listing had 58 job links but extracted 0 — escalating
+  3/3 detail pages without JSON-LD
+  rendered: 58 links after render
+  18/19 detail pages without JSON-LD
+  static: listing had 19 job links but extracted 0 — escalating
+  rendered: 101 links after render
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] mikrocentrum: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 22 links, 0 inline JSON-LD jobs
+  rendered: 19 links after render
+[ok] zorgspectrum: 86 seen, +86 upserted, -0 closed, 86 open
+  rendered: 7 links after render
+[ok] vdl steelweld: 250 seen, +250 upserted, -0 closed, 250 open
+  static: 7 links, 0 inline JSON-LD jobs
+  static: listing had 7 job links but extracted 0 — escalating
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] jan arentsz: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 686 urls, 3 job-like
+  rendered: 7 links after render
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  static: 12 links, 0 inline JSON-LD jobs
+[ok] technische unie: 0 seen, +0 upserted, -0 closed, 0 open
+  32/32 detail pages without JSON-LD
+  sitemap: sitemap saw 32 job urls but extracted 0 — escalating
+  7/7 detail pages without JSON-LD
+  static: 4 links, 0 inline JSON-LD jobs
+  18/19 detail pages without JSON-LD
+  static: 4 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] ktv - kennisnet voor taal en vakopleidingen: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 10 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] mastermate: 0 seen, +0 upserted, -0 closed, 0 open
+  4/4 detail pages without JSON-LD
+  static: listing had 4 job links but extracted 0 — escalating
+  4/4 detail pages without JSON-LD
+  static: listing had 4 job links but extracted 0 — escalating
+  sitemap: 9254 urls, 4 job-like
+  12/12 detail pages without JSON-LD
+  static: listing had 12 job links but extracted 0 — escalating
+  rendered: 4 links after render
+  22/22 detail pages without JSON-LD
+  static: listing had 22 job links but extracted 0 — escalating
+  4/4 detail pages without JSON-LD
+  sitemap: sitemap saw 4 job urls but extracted 0 — escalating
+  rendered: 4 links after render
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] ammeraal beltech: 0 seen, +0 upserted, -0 closed, 0 open
+  4/4 detail pages without JSON-LD
+  10/10 detail pages without JSON-LD
+  static: listing had 10 job links but extracted 0 — escalating
+  4/4 detail pages without JSON-LD
+  rendered: 22 links after render
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] obvion: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  sitemap: 1215 urls, 45 job-like
+  rendered: 16 jobs from captured JSON API
+  escalated sitemap -> rendered: 16 jobs
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] ace ingenieurs- & adviesbureau: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] aef: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] rousselot: 16 seen, +16 upserted, -0 closed, 16 open
+  static: 1 links, 0 inline JSON-LD jobs
+  rendered: 10 links after render
+  58/58 detail pages without JSON-LD
+  rendered: 0 links after render
+  1/1 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] tnt innight: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] rode kruis ziekenhuis: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] stout groep: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 5001 urls, 3 job-like
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  10/10 detail pages without JSON-LD
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  rendered: 0 links after render
+[ok] cmo: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 3 jobs from captured JSON API
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] de waal autogroep b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] xtra welzijn: 3 seen, +3 upserted, -0 closed, 3 open
+[ok] pharmacie & welzijn b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  dropped 2 LLM jobs sharing category URLs (not real detail pages)
+  rendered: LLM extracted 0 jobs
+  static: 2 links, 0 inline JSON-LD jobs
+[ok] language partners: 0 seen, +0 upserted, -0 closed, 0 open
+  2/2 detail pages without JSON-LD
+  rendered: 0 links after render
+[ok] prodeba b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+  sitemap: 1537 urls, 14 job-like
+[ok] student 2.0: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] messagebird: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] condor: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] nabuurs - supply chain solutions: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] worldskills international: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+  rendered: 0 links after render
+[ok] de groene amsterdammer: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] spirotech: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] wps parking solutions: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  static: 21 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+  14/14 detail pages without JSON-LD
+  sitemap: sitemap saw 14 job urls but extracted 0 — escalating
+[ok] maaswaal college wijchen: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 4 links, 0 inline JSON-LD jobs
+  static: 21 links, 0 inline JSON-LD jobs
+  22/22 detail pages without JSON-LD
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] opvoedpoli: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] groenhorst: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  static: 2 links, 0 inline JSON-LD jobs
+[ok] cps: 0 seen, +0 upserted, -0 closed, 0 open
+  4/4 detail pages without JSON-LD
+  static: listing had 4 job links but extracted 0 — escalating
+  2/2 detail pages without JSON-LD
+[ok] kamera express: 0 seen, +0 upserted, -0 closed, 0 open
+  45/45 detail pages without JSON-LD
+  sitemap: sitemap saw 45 job urls but extracted 0 — escalating
+  static: 11 links, 0 inline JSON-LD jobs
+  rendered: 0 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] vds: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] annatommie mc: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 4 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] eriks: 0 seen, +0 upserted, -0 closed, 0 open
+  4/4 detail pages without JSON-LD
+  21/21 detail pages without JSON-LD
+  static: listing had 21 job links but extracted 0 — escalating
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  rendered: 0 links after render
+[ok] nyenrode business universiteit: 0 seen, +0 upserted, -0 closed, 0 open
+  11/11 detail pages without JSON-LD
+  static: listing had 11 job links but extracted 0 — escalating
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] hoekstra & van eck makelaars: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] pzc: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] gemeente hillegom: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] stertil: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 11 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] gemeente sint-michielsgestel: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] waterschap groot salland: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: 0 links after render
+  static: 2 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+[ok] snv: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] dsw zorgverzekeraar: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  2/2 detail pages without JSON-LD
+[ok] unicef nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  11/11 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[ok] minkels: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] politieacademie: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 415 urls, 29 job-like
+  rendered: 0 links after render
+  rendered: 0 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  sitemap: 613 urls, 4 job-like
+  rendered: LLM extracted 1 jobs
+[ok] sq: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] intersafe holding: 1 seen, +1 upserted, -0 closed, 1 open
+  sitemap: 1375 urls, 7 job-like
+[ok] gemeente dordrecht: 0 seen, +0 upserted, -0 closed, 0 open
+  21/21 detail pages without JSON-LD
+  static: listing had 21 job links but extracted 0 — escalating
+  185/187 detail pages without JSON-LD
+  escalated sitemap -> static: 1 jobs
+  rendered: 5 jobs from captured JSON API
+[ok] kwik-fit: 1 seen, +1 upserted, -0 closed, 1 open
+[ok] king nederland bv: 5 seen, +5 upserted, -0 closed, 5 open
+  rendered: 0 links after render
+  3/4 detail pages without JSON-LD
+  sitemap: sitemap saw 4 job urls but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+  rendered: 21 links after render
+[ok] dobla: 0 seen, +0 upserted, -0 closed, 0 open
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  rendered: 21 links after render
+[ok] rijnbrink: 0 seen, +0 upserted, -0 closed, 0 open
+  7/7 detail pages without JSON-LD
+  sitemap: sitemap saw 7 job urls but extracted 0 — escalating
+  rendered: 0 links after render
+  static: 5 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+[ok] zehnder group nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  ats:homerun: 0 job links on listing
+  sitemap: 150 urls, 38 job-like
+[ok] paradiso: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] kredietbank nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 2 links, 0 inline JSON-LD jobs
+  5/5 detail pages without JSON-LD
+  static: listing had 5 job links but extracted 0 — escalating
+  rendered: LLM extracted 0 jobs
+[ok] struyk verwo infra: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] tuvalu media: 0 seen, +0 upserted, -0 closed, 0 open
+  2/2 detail pages without JSON-LD
+[ok] streekziekenhuis koningin beatrix: 0 seen, +0 upserted, -0 closed, 0 open
+  21/21 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] zorggroep maas & waal: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  21/21 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[ok] koninklijke verkade nv: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  rendered: 5 links after render
+  static: 1 links, 0 inline JSON-LD jobs
+[ok] kinderopvang ludens te utrecht: 0 seen, +0 upserted, -0 closed, 0 open
+[failed] gemeente almere: sitemap empty/gone: https://www.almere.nl/sitemap.xml
+  1/1 detail pages without JSON-LD
+  rendered: 0 links after render
+[ok] oost nl: 0 seen, +0 upserted, -0 closed, 0 open
+  101/101 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[ok] only for men: 101 seen, +101 upserted, -0 closed, 101 open
+[ok] stayokay: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  sitemap: 5307 urls, 10 job-like
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] aidsfonds: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] big bazar b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 1769 urls, 1382 job-like
+  rendered: 0 links after render
+  rendered: 0 links after render
+  5/5 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] blendle: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] gx software: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 9 urls, 7 job-like
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  rendered: 0 links after render
+[ok] levgroep: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] igm resins: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] eigen kracht centrale: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] ! pet hoogeveen: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 522 urls, 507 job-like
+  7/7 detail pages without JSON-LD
+  sitemap: sitemap saw 7 job urls but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  rendered: 0 links after render
+[ok] b&c raamdecoratie: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] csg prins maurits middelharnis: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 7 urls, 7 job-like
+  rendered: LLM extracted 0 jobs
+[ok] dictu: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] gemeente alphen aan den rijn: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] vpro: 0 seen, +0 upserted, -0 closed, 0 open
+  7/7 detail pages without JSON-LD
+  sitemap: sitemap saw 7 job urls but extracted 0 — escalating
+  static: 3 links, 0 inline JSON-LD jobs
+  sitemap: 870 urls, 8 job-like
+  3/3 detail pages without JSON-LD
+  static: listing had 3 job links but extracted 0 — escalating
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: 0 links after render
+[ok] ziekenhuis rivierenland tiel: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] wavin group: 0 seen, +0 upserted, -0 closed, 0 open
+  10/10 detail pages without JSON-LD
+  sitemap: sitemap saw 10 job urls but extracted 0 — escalating
+  static: 2 links, 0 inline JSON-LD jobs
+  rendered: 0 links after render
+  rendered: 3 links after render
+  rendered: LLM extracted 0 jobs
+[ok] handicare stairlifts b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  8/8 detail pages without JSON-LD
+  sitemap: sitemap saw 8 job urls but extracted 0 — escalating
+  static: 2 links, 0 inline JSON-LD jobs
+  3/3 detail pages without JSON-LD
+  static: 1 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  rendered: 0 links after render
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+[ok] fmo - dutch development bank: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+[ok] gemeente beesel: 0 seen, +0 upserted, -0 closed, 0 open
+  2/2 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  2/2 detail pages without JSON-LD
+[ok] adelbert college: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] nederlandse voedsel en warenautoriteit - nvwa: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] bouwmaat: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  sitemap: 21 urls, 5 job-like
+  rendered: 0 links after render
+  1/1 detail pages without JSON-LD
+[ok] elver: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  static: 43 links, 0 inline JSON-LD jobs
+[ok] nim: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 5 jobs from captured JSON API
+  rendered: 0 links after render
+[ok] martin schilder automobielbedrijven: 5 seen, +5 upserted, -0 closed, 5 open
+  rendered: LLM extracted 0 jobs
+[ok] de woenselse poort: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 857 urls, 12 job-like
+  static: 1 links, 0 inline JSON-LD jobs
+  rendered: 2 links after render
+  1/1 detail pages without JSON-LD
+[ok] vrieling adviesgroep: 0 seen, +0 upserted, -0 closed, 0 open
+  5/5 detail pages without JSON-LD
+  sitemap: sitemap saw 5 job urls but extracted 0 — escalating
+  sitemap: 2021 urls, 23 job-like
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] deltares: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 2161 urls, 4 job-like
+  38/38 detail pages without JSON-LD
+  sitemap: sitemap saw 38 job urls but extracted 0 — escalating
+  178/250 detail pages without JSON-LD
+[ok] mainfreight europe: 87 seen, +87 upserted, -0 closed, 87 open
+  static: 10 links, 0 inline JSON-LD jobs
+  12/12 detail pages without JSON-LD
+  sitemap: sitemap saw 12 job urls but extracted 0 — escalating
+  static: 7 links, 0 inline JSON-LD jobs
+  4/4 detail pages without JSON-LD
+  sitemap: sitemap saw 4 job urls but extracted 0 — escalating
+  2/2 detail pages without JSON-LD
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  29/29 detail pages without JSON-LD
+[ok] msm: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] thetford europe: 2 seen, +2 upserted, -0 closed, 2 open
+[ok] otto work force: 1 seen, +1 upserted, -0 closed, 1 open
+  rendered: 0 links after render
+  sitemap: 1862 urls, 5 job-like
+  rendered: LLM extracted 0 jobs
+  7/7 detail pages without JSON-LD
+  static: listing had 7 job links but extracted 0 — escalating
+[ok] meelunie b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 418 urls, 9 job-like
+  sitemap: 6000 urls, 12 job-like
+  rendered: 0 links after render
+  5/5 detail pages without JSON-LD
+  sitemap: sitemap saw 5 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] omroep brabant: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] flevomeer bibliotheek: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 7 links after render
+  static: 1 links, 0 inline JSON-LD jobs
+  10/10 detail pages without JSON-LD
+  static: listing had 10 job links but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+[ok] vereniging hogescholen: 0 seen, +0 upserted, -0 closed, 0 open
+  1/1 detail pages without JSON-LD
+[ok] verwey vastgoed bv: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 10 links, 0 inline JSON-LD jobs
+  sitemap: 8956 urls, 53 job-like
+  7/7 detail pages without JSON-LD
+  23/23 detail pages without JSON-LD
+  sitemap: sitemap saw 23 job urls but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  rendered: 10 links after render
+[ok] rotterdam school of management, erasmus university: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 13 links, 0 inline JSON-LD jobs
+  12/12 detail pages without JSON-LD
+  sitemap: sitemap saw 12 job urls but extracted 0 — escalating
+  113/250 detail pages without JSON-LD
+  9/9 detail pages without JSON-LD
+  sitemap: sitemap saw 9 job urls but extracted 0 — escalating
+  static: 40 links, 0 inline JSON-LD jobs
+[ok] omring: 113 seen, +113 upserted, -0 closed, 113 open
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  10/10 detail pages without JSON-LD
+[ok] textkernel - machine intelligence for people and jobs: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 30 links, 0 inline JSON-LD jobs
+  43/43 detail pages without JSON-LD
+  static: listing had 43 job links but extracted 0 — escalating
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] ktba people in food: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 4 links after render
+  rendered: LLM extracted 38 jobs
+  escalated sitemap -> rendered: 38 jobs
+[ok] besi netherlands b.v.: 38 seen, +38 upserted, -0 closed, 38 open
+  4/4 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+[ok] stichting 1np: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] esri nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 155 urls, 4 job-like
+[ok] zzg zorggroep: 0 seen, +0 upserted, -0 closed, 0 open
+  10/10 detail pages without JSON-LD
+  static: listing had 10 job links but extracted 0 — escalating
+  13/13 detail pages without JSON-LD
+  static: listing had 13 job links but extracted 0 — escalating
+  static: 32 links, 0 inline JSON-LD jobs
+  4/4 detail pages without JSON-LD
+  sitemap: sitemap saw 4 job urls but extracted 0 — escalating
+  rendered: 10 links after render
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  sitemap: 1853 urls, 4 job-like
+  rendered: 13 links after render
+[ok] diamant-groep: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+[ok] gemeente oude ijsselstreek: 0 seen, +0 upserted, -0 closed, 0 open
+  4/4 detail pages without JSON-LD
+[ok] century autogroep: 2 seen, +2 upserted, -0 closed, 2 open
+  sitemap: 705 urls, 4 job-like
+  sitemap: 346 urls, 10 job-like
+  10/10 detail pages without JSON-LD
+  rendered: 43 links after render
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] hilverzorg: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 11 links, 0 inline JSON-LD jobs
+  4/4 detail pages without JSON-LD
+  sitemap: sitemap saw 4 job urls but extracted 0 — escalating
+  30/30 detail pages without JSON-LD
+  static: listing had 30 job links but extracted 0 — escalating
+  53/53 detail pages without JSON-LD
+  sitemap: sitemap saw 53 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  static: 4 links, 0 inline JSON-LD jobs
+[ok] design academy eindhoven: 0 seen, +0 upserted, -0 closed, 0 open
+  10/10 detail pages without JSON-LD
+  sitemap: sitemap saw 10 job urls but extracted 0 — escalating
+  13/13 detail pages without JSON-LD
+  rendered: 30 links after render
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] synthon: 0 seen, +0 upserted, -0 closed, 0 open
+  11/11 detail pages without JSON-LD
+  static: listing had 11 job links but extracted 0 — escalating
+[ok] gemeente groningen: 0 seen, +0 upserted, -0 closed, 0 open
+  4/4 detail pages without JSON-LD
+  static: listing had 4 job links but extracted 0 — escalating
+  rendered: 0 links after render
+  sitemap: 148 urls, 58 job-like
+  rendered: 11 links after render
+  rendered: 8 links after render
+  rendered: 4 links after render
+  4/4 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] openbaar ministerie: 0 seen, +0 upserted, -0 closed, 0 open
+  11/11 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] bayer cropscience vegetable seeds: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  static: 1 links, 0 inline JSON-LD jobs
+  dropped 3 template-duplicate heuristic pages
+  8/8 detail pages without JSON-LD
+[ok] spgprints b.v.: 2 seen, +2 upserted, -0 closed, 2 open
+  static: 63 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+[ok] fier: 0 seen, +0 upserted, -0 closed, 0 open
+  1/1 detail pages without JSON-LD
+[ok] dsi: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+[ok] zoa: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 27 jobs
+[ok] kersten hulpmiddelenspecialist: 27 seen, +27 upserted, -0 closed, 27 open
+  static: 2 links, 0 inline JSON-LD jobs
+  30/30 detail pages without JSON-LD
+  43/43 detail pages without JSON-LD
+  sitemap: 1339 urls, 5 job-like
+  2/2 detail pages without JSON-LD
+[ok] manutan nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  sitemap: 1465 urls, 994 job-like
+[ok] gemeente renkum: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] kwintes: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 2234 urls, 1678 job-like
+  ats:homerun: 0 job links on listing
+[ok] njr: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 2655 urls, 3 job-like
+  31/32 detail pages without JSON-LD
+  static: listing had 32 job links but extracted 0 — escalating
+  4/5 detail pages without JSON-LD
+  sitemap: sitemap saw 5 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+[ok] conservatorium van amsterdam: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+[ok] incluzio: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 1107 urls, 7 job-like
+  static: 8 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+[ok] anbo: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 32 links after render
+  8/8 detail pages without JSON-LD
+  static: listing had 8 job links but extracted 0 — escalating
+  4/7 detail pages without JSON-LD
+  sitemap: sitemap saw 7 job urls but extracted 0 — escalating
+  rendered: 0 links after render
+  static: 1 links, 0 inline JSON-LD jobs
+  rendered: LLM extracted 0 jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+[ok] candea college: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] de la salle: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 71 urls, 42 job-like
+  rendered: 8 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 5 jobs
+  8/8 detail pages without JSON-LD
+[ok] samenwerking a2 gemeenten: 5 seen, +5 upserted, -0 closed, 5 open
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] ferm werk: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  39/40 detail pages without JSON-LD
+  static: listing had 40 job links but extracted 0 — escalating
+[ok] gemeente hilvarenbeek: 0 seen, +0 upserted, -0 closed, 0 open
+  63/63 detail pages without JSON-LD
+  static: listing had 63 job links but extracted 0 — escalating
+  rendered: 0 links after render
+  rendered: 40 links after render
+  rendered: LLM extracted 0 jobs
+[ok] maintec: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 2011 urls, 3 job-like
+  dropped 9 template-duplicate heuristic pages
+  58/58 detail pages without JSON-LD
+  rendered: 63 links after render
+[ok] hollander techniek: 49 seen, +49 upserted, -0 closed, 49 open
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  sitemap: 417 urls, 3 job-like
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+[ok] brightsight bv: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  250/250 detail pages without JSON-LD
+  sitemap: sitemap saw 1382 job urls but extracted 0 — escalating
+[ok] europeesche verzekeringen: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 6 links, 0 inline JSON-LD jobs
+  sitemap: 238 urls, 3 job-like
+  6/6 detail pages without JSON-LD
+  static: listing had 6 job links but extracted 0 — escalating
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  rendered: 0 links after render
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+  rendered: LLM extracted 0 jobs
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] groninger museum: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] rsg slingerbos-levant: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] star study association rotterdam school of management: 0 seen, +0 upserted, -0 closed, 0 open
+  ats:homerun: 0 job links on listing
+  static: 32 links, 0 inline JSON-LD jobs
+[ok] the valley: 0 seen, +0 upserted, -0 closed, 0 open
+  42/42 detail pages without JSON-LD
+  sitemap: sitemap saw 42 job urls but extracted 0 — escalating
+[ok] youwe: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 2 links, 0 inline JSON-LD jobs
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] hltsamen: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  2/2 detail pages without JSON-LD
+  1/1 detail pages without JSON-LD
+[ok] eurol bv: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] het assink lyceum: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 12 links, 0 inline JSON-LD jobs
+  static: 2 links, 0 inline JSON-LD jobs
+  static: 31 links, 0 inline JSON-LD jobs
+[ok] hamiplant bv: 0 seen, +0 upserted, -0 closed, 0 open
+  40/40 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  31/32 detail pages without JSON-LD
+[ok] zonmw: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] ultimaker: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 6 links after render
+  6/6 detail pages without JSON-LD
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] vancis b.v.: 0 seen, +0 upserted, -0 closed, 0 open
+  12/12 detail pages without JSON-LD
+  static: listing had 12 job links but extracted 0 — escalating
+[ok] ing: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 910 urls, 3 job-like
+  rendered: 0 links after render
+  rendered: 0 links after render
+  rendered: LLM extracted 0 jobs
+  rendered: LLM extracted 0 jobs
+[ok] justpremium: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] servatius: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 12 links after render
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  sitemap: 568 urls, 3 job-like
+  static: 1 links, 0 inline JSON-LD jobs
+  31/31 detail pages without JSON-LD
+  static: listing had 31 job links but extracted 0 — escalating
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  sitemap: 1652 urls, 9 job-like
+[ok] chassé theater: 0 seen, +0 upserted, -0 closed, 0 open
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] psyq: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 814 urls, 10 job-like
+  rendered: 31 links after render
+  63/63 detail pages without JSON-LD
+  9/9 detail pages without JSON-LD
+  sitemap: sitemap saw 9 job urls but extracted 0 — escalating
+  sitemap: 4112 urls, 36 job-like
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  static: 7 links, 0 inline JSON-LD jobs
+[ok] libra revalidatie & audiologie: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 1056 urls, 4 job-like
+  4/4 detail pages without JSON-LD
+  sitemap: sitemap saw 4 job urls but extracted 0 — escalating
+  1/1 detail pages without JSON-LD
+  static: 1 links, 0 inline JSON-LD jobs
+[ok] traffic service nederland: 0 seen, +0 upserted, -0 closed, 0 open
+  7/7 detail pages without JSON-LD
+  static: listing had 7 job links but extracted 0 — escalating
+  static: 6 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  12/12 detail pages without JSON-LD
+[ok] ncd: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] cdg: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 4 links, 0 inline JSON-LD jobs
+  static: 74 links, 0 inline JSON-LD jobs
+  static: listing had 6 job links but extracted 0 — escalating
+  rendered: 7 links after render
+  1/4 detail pages without JSON-LD
+  static: listing had 4 job links but extracted 0 — escalating
+  10/10 detail pages without JSON-LD
+  sitemap: sitemap saw 10 job urls but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  rendered: 6 links after render
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+[ok] rijksmuseum van oudheden: 0 seen, +0 upserted, -0 closed, 0 open
+  7/7 detail pages without JSON-LD
+  rendered: 1 links after render
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] mors smitt: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 283 urls, 8 job-like
+  31/31 detail pages without JSON-LD
+  1/1 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] stichting zorggroep pasana: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] winnock: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+[ok] mbo amersfoort: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  static: 1 links, 0 inline JSON-LD jobs
+[ok] gemeente waadhoeke: 0 seen, +0 upserted, -0 closed, 0 open
+  1/1 detail pages without JSON-LD
+[ok] -belife-: 0 seen, +0 upserted, -0 closed, 0 open
+[failed] a.vogel (biohorma b.v.): sitemap empty/gone: https://www.avogel.nl/sitemap.xml
+  8/8 detail pages without JSON-LD
+  sitemap: sitemap saw 8 job urls but extracted 0 — escalating
+  rendered: 0 links after render
+  static: 9 links, 0 inline JSON-LD jobs
+  static: 2 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+[ok] kaj munk college: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: 0 links after render
+  2/2 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  sitemap: 26 urls, 7 job-like
+[ok] qredits-coach: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  dropped 10 LLM jobs sharing category URLs (not real detail pages)
+  rendered: LLM extracted 0 jobs
+[ok] stichting doras: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+[ok] i4talent: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 595 urls, 3 job-like
+  ats:homerun: 0 job links on listing
+[ok] de correspondent: 0 seen, +0 upserted, -0 closed, 0 open
+  1/1 detail pages without JSON-LD
+[ok] pinewood: 0 seen, +0 upserted, -0 closed, 0 open
+  3/3 detail pages without JSON-LD
+  sitemap: sitemap saw 3 job urls but extracted 0 — escalating
+  9/9 detail pages without JSON-LD
+  static: listing had 9 job links but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] rino groep: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 15 links, 0 inline JSON-LD jobs
+  sitemap: 4015 urls, 284 job-like
+  sitemap: 520 urls, 32 job-like
+  rendered: 9 links after render
+  9/9 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] knab: 0 seen, +0 upserted, -0 closed, 0 open
+  7/7 detail pages without JSON-LD
+  sitemap: sitemap saw 7 job urls but extracted 0 — escalating
+  static: 57 links, 0 inline JSON-LD jobs
+  8/36 detail pages without JSON-LD
+  sitemap: sitemap saw 36 job urls but extracted 0 — escalating
+  static: 6 links, 0 inline JSON-LD jobs
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] onderzoeksraad voor veiligheid: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 2 links, 0 inline JSON-LD jobs
+  2/2 detail pages without JSON-LD
+[ok] artiflex - people - projects - solutions: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 14 links, 0 inline JSON-LD jobs
+  6/6 detail pages without JSON-LD
+  static: listing had 6 job links but extracted 0 — escalating
+  15/15 detail pages without JSON-LD
+  static: listing had 15 job links but extracted 0 — escalating
+  71/74 detail pages without JSON-LD
+  static: listing had 74 job links but extracted 0 — escalating
+  32/32 detail pages without JSON-LD
+  static: listing had 32 job links but extracted 0 — escalating
+  rendered: 15 links after render
+  rendered: 6 links after render
+  rendered: 74 links after render
+  14/14 detail pages without JSON-LD
+[ok] gemeente breda: 4 seen, +4 upserted, -0 closed, 4 open
+  rendered: 32 links after render
+  sitemap: 454 urls, 3 job-like
+  2/3 detail pages without JSON-LD
+  6/6 detail pages without JSON-LD
+[ok] domesta wooncorporatie: 1 seen, +1 upserted, -0 closed, 1 open
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+  sitemap: 17 urls, 5 job-like
+[ok] de zorgcirkel: 0 seen, +0 upserted, -0 closed, 0 open
+  32/32 detail pages without JSON-LD
+  sitemap: sitemap saw 32 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] petrogas: 0 seen, +0 upserted, -0 closed, 0 open
+  sitemap: 5706 urls, 12 job-like
+  5/5 detail pages without JSON-LD
+  sitemap: sitemap saw 5 job urls but extracted 0 — escalating
+  static: 2 links, 0 inline JSON-LD jobs
+  15/15 detail pages without JSON-LD
+  sitemap: 1674 urls, 582 job-like
+  2/2 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+  57/57 detail pages without JSON-LD
+  static: listing had 57 job links but extracted 0 — escalating
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] tecnotion - the linear motor company: 0 seen, +0 upserted, -0 closed, 0 open
+[ok] vivent: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 2 links, 0 inline JSON-LD jobs
+  static: 1 links, 0 inline JSON-LD jobs
+  250/250 detail pages without JSON-LD
+  sitemap: sitemap saw 994 job urls but extracted 0 — escalating
+  rendered: 57 links after render
+  1/1 detail pages without JSON-LD
+  static: 9 links, 0 inline JSON-LD jobs
+[ok] amsterdam university college: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 5 links, 0 inline JSON-LD jobs
+  2/2 detail pages without JSON-LD
+[ok] justitiële informatiedienst: 0 seen, +0 upserted, -0 closed, 0 open
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  32/32 detail pages without JSON-LD
+[ok] un1ek onderwijs en opvang: 0 seen, +0 upserted, -0 closed, 0 open
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+  sitemap: 2208 urls, 117 job-like
+[ok] arn: 0 seen, +0 upserted, -0 closed, 0 open
+  9/9 detail pages without JSON-LD
+  static: listing had 9 job links but extracted 0 — escalating
+  5/5 detail pages without JSON-LD
+  static: listing had 5 job links but extracted 0 — escalating
+  rendered: 5 links after render
+  rendered: 10 jobs from captured JSON API
+  escalated sitemap -> rendered: 10 jobs
+[ok] studentalent: 10 seen, +10 upserted, -0 closed, 10 open
+  5/5 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] academie van bouwkunst amsterdam: 0 seen, +0 upserted, -0 closed, 0 open
+  12/12 detail pages without JSON-LD
+  sitemap: sitemap saw 12 job urls but extracted 0 — escalating
+  static: 242 links, 0 inline JSON-LD jobs
+  71/74 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] herbert vissers college: 0 seen, +0 upserted, -0 closed, 0 open
+  57/57 detail pages without JSON-LD
+[llm] LLM returned unparseable JSON (attempt 1)
+[llm] LLM returned unparseable JSON (attempt 2)
+  rendered: LLM extracted 0 jobs
+  escalated static -> rendered: 0 jobs
+[ok] van den heuvel infrastructuur voor water & energie: 0 seen, +0 upserted, -0 closed, 0 open
+  116/117 detail pages without JSON-LD
+  sitemap: sitemap saw 117 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] newmotion: 0 seen, +0 upserted, -0 closed, 0 open
+  229/250 detail pages without JSON-LD
+  sitemap: sitemap saw 507 job urls but extracted 0 — escalating
+  static: 1 links, 0 inline JSON-LD jobs
+  1/1 detail pages without JSON-LD
+  escalated sitemap -> static: 0 jobs
+[ok] tennet: 0 seen, +0 upserted, -0 closed, 0 open
+  250/250 detail pages without JSON-LD
+  sitemap: sitemap saw 284 job urls but extracted 0 — escalating
+  static: 0 links, 0 inline JSON-LD jobs
+  escalated sitemap -> static: 0 jobs
+[ok] mercedes-benz nl: 0 seen, +0 upserted, -0 closed, 0 open
+  33/250 detail pages without JSON-LD
+[ok] marsh netherlands: 212 seen, +212 upserted, -0 closed, 212 open
+  239/250 detail pages without JSON-LD
+  sitemap: sitemap saw 582 job urls but extracted 0 — escalating
+  static: 12 links, 0 inline JSON-LD jobs
+[failed] alliander: upsertJobs: TypeError: fetch failed
+  12/12 detail pages without JSON-LD
+  static: listing had 12 job links but extracted 0 — escalating
+  rendered: 12 links after render
+  12/12 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] klaver giant groep: 0 seen, +0 upserted, -0 closed, 0 open
+  193/200 detail pages without JSON-LD
+  static: listing had 242 job links but extracted 0 — escalating
+  rendered: 243 links after render
+  143/150 detail pages without JSON-LD
+  rendered: LLM extracted 0 jobs
+  escalated sitemap -> rendered: 0 jobs
+[ok] social deal: 0 seen, +0 upserted, -0 closed, 0 open
+
+Done in 1233s — 258 companies: failed=4, ok=254 | upserted 1072, open tracked 1072 | llm calls 156
+[shard 0] remaining due: 0
+[shard 0] DONE Sat Jul  4 02:33:13 CEST 2026

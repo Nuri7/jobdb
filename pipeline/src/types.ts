@@ -47,6 +47,9 @@ export interface CanonicalJob {
   is_remote?: boolean;
   is_internship?: boolean;
   experience_level?: string;
+  /** Normalized city + province derived from `location` (for maps / filtering). */
+  city?: string;
+  province?: string;
   content_hash: string;
   /**
    * True only when we have strong evidence this is a genuine, applyable vacancy:
