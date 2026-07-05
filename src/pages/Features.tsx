@@ -94,7 +94,7 @@ const Features = () => {
             Progressive Web App
           </Badge>
           <h1 className="text-4xl font-bold text-foreground mb-4">
-            JobDB Features
+            FairJobs Features
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             A comprehensive job market intelligence platform for the Dutch market, with AI-powered scraping and intelligent search.
@@ -137,10 +137,10 @@ const Features = () => {
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-foreground mb-2 flex items-center justify-center gap-3">
               <Download className="h-8 w-8 text-primary" />
-              Install JobDB
+              Install FairJobs
             </h2>
             <p className="text-muted-foreground">
-              Install JobDB on your device for quick access and offline support
+              Install FairJobs on your device for quick access and offline support
             </p>
           </div>
 

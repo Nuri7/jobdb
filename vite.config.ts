@@ -15,8 +15,8 @@ export default defineConfig(() => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt"],
       manifest: {
-        name: "JobDB - Dutch Job Market",
-        short_name: "JobDB",
+        name: "FairJobs - Dutch Job Market",
+        short_name: "FairJobs",
         description: "Discover job opportunities across the Dutch market",
         theme_color: "#3b82f6",
         background_color: "#ffffff",

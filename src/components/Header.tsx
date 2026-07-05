@@ -14,7 +14,7 @@ const Header = () => {
       <div className="container max-w-7xl flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2 hover-scale">
           <TrendingUp className="w-6 h-6 text-primary" />
-          <span className="font-bold text-lg text-foreground">JobMarketNetherlands</span>
+          <span className="font-bold text-lg text-foreground">FairJobs</span>
         </Link>
 
         <nav className="flex items-center gap-6">
