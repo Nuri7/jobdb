@@ -14,17 +14,17 @@ const Header = () => {
       <div className="container max-w-7xl flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2 hover-scale">
           <TrendingUp className="w-6 h-6 text-primary" />
-          <span className="font-bold text-lg text-foreground">MarketNL</span>
+          <span className="font-bold text-lg text-foreground">JobMarketNetherlands</span>
         </Link>
 
         <nav className="flex items-center gap-6">
-          <Link to="/" className={navLinkClass(pathname === "/" || pathname === "/jobs")}>
-            <Briefcase className="w-4 h-4" />
-            Jobs
-          </Link>
-          <Link to="/map" className={navLinkClass(pathname === "/map")}>
+          <Link to="/" className={navLinkClass(pathname === "/" || pathname === "/map")}>
             <MapPin className="w-4 h-4" />
             Map
+          </Link>
+          <Link to="/jobs" className={navLinkClass(pathname === "/jobs")}>
+            <Briefcase className="w-4 h-4" />
+            Jobs
           </Link>
         </nav>
       </div>
