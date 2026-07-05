@@ -31,6 +31,14 @@ export function useLocations() {
   });
 }
 
+export function useCities() {
+  return useQuery({
+    queryKey: ['cities'],
+    queryFn: () => jobsApi.getCities(),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 export function useIndustries() {
   return useQuery({
     queryKey: ['industries'],

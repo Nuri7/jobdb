@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useJobs, useCompanies } from "@/hooks/useJobs";
+import { useJobs, useCompanies, useCities } from "@/hooks/useJobs";
 import { jobsApi, CompanyCareerSite } from "@/lib/api/jobs";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
@@ -38,8 +38,7 @@ import {
   Sliders,
   Search,
   ChevronsUpDown,
-  MapPin,
-  X
+  MapPin
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -89,6 +88,8 @@ const Index = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
   const [companyQuery, setCompanyQuery] = useState("");
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [locationQuery, setLocationQuery] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -133,6 +134,19 @@ const Index = () => {
       : enabledCompanies;
     return list.slice(0, 50);
   }, [enabledCompanies, companyQuery]);
+
+  // Location picker: clean normalized cities (same source as the Map), filtered + capped
+  const { data: cities = [] } = useCities();
+  const filteredLocations = useMemo(() => {
+    const q = locationQuery.trim().toLowerCase();
+    const list = q ? cities.filter(c => c.city.includes(q)) : cities;
+    return list.slice(0, 100);
+  }, [cities, locationQuery]);
+
+  const setLocation = (city: string) =>
+    setSearchParams(prev => { prev.set("location", city); return prev; }, { replace: true });
+  const clearLocation = () =>
+    setSearchParams(prev => { prev.delete("location"); return prev; }, { replace: true });
 
   const handleScrape = async () => {
     if (!companies || companies.length === 0) {
@@ -402,20 +416,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Location filter chip (set by clicking a city on the Map page) */}
-        {locationFilter && (
-          <div className="mb-4">
-            <button
-              onClick={() => setSearchParams((prev) => { prev.delete("location"); return prev; }, { replace: true })}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary text-sm px-3 py-1 hover:bg-primary/20 transition-colors"
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              <span className="capitalize">{locationFilter}</span>
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
         {/* Scraping Progress */}
         {isScraping && scrapingCompany && (
           <div className="text-sm text-muted-foreground flex items-center gap-2 mb-4">
@@ -487,6 +487,68 @@ const Index = () => {
             </Popover>
             {activeTab !== "all" && (
               <Button variant="ghost" size="sm" onClick={() => handleTabChange("all")}>
+                Clear
+              </Button>
+            )}
+
+            {/* Location filter — mirrors the company picker; also set by clicking a city on the Map */}
+            <Popover open={locationPickerOpen} onOpenChange={setLocationPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={locationFilter ? "default" : "outline"}
+                  size="sm"
+                  className="justify-between min-w-[200px] gap-2"
+                >
+                  {locationFilter ? (
+                    <span className="flex items-center gap-2 truncate">
+                      <MapPin className="h-4 w-4 shrink-0" />
+                      <span className="truncate capitalize">{locationFilter}</span>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Filter by location…
+                    </span>
+                  )}
+                  <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[300px]" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Search cities…"
+                    value={locationQuery}
+                    onValueChange={setLocationQuery}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No cities found.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredLocations.map(c => (
+                        <CommandItem
+                          key={c.city}
+                          value={c.city}
+                          onSelect={() => {
+                            setLocation(c.city);
+                            setLocationPickerOpen(false);
+                            setLocationQuery("");
+                          }}
+                          className="gap-2"
+                        >
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate capitalize">{c.city}</span>
+                          {c.province && (
+                            <span className="text-xs text-muted-foreground truncate">{c.province}</span>
+                          )}
+                          <span className="ml-auto text-xs text-muted-foreground">{c.count.toLocaleString()}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {locationFilter && (
+              <Button variant="ghost" size="sm" onClick={clearLocation}>
                 Clear
               </Button>
             )}

@@ -442,4 +442,15 @@ export const jobsApi = {
       .sort((a, b) => b[1] - a[1])
       .map(([location]) => location.charAt(0).toUpperCase() + location.slice(1));
   },
+
+  // Clean, server-aggregated city list (normalized city + province + open-job count),
+  // same source the Map uses. Cities are lowercase; the ?location= filter matches them.
+  async getCities(): Promise<{ city: string; province: string | null; count: number }[]> {
+    const { data, error } = await (supabase as any).rpc('job_geo_counts');
+    if (error) {
+      console.error('Error fetching cities:', error);
+      throw error;
+    }
+    return (data?.cities ?? []) as { city: string; province: string | null; count: number }[];
+  },
 };
