@@ -82,3 +82,21 @@ export function provinceOf(location: string | undefined, city: string | null): s
   }
   return null;
 }
+
+// Whole-word matchers for known NL cities, longest name first. Short names (<4 chars) and a few
+// that collide with common words are skipped to avoid false positives when scanning free text.
+const AMBIGUOUS_CITY = new Set(['ede', 'oss', 'goes', 'weert']);
+const CITY_MATCHERS = Object.keys(CITY_PROVINCE)
+  .filter((c) => c.length >= 4 && !AMBIGUOUS_CITY.has(c))
+  .sort((a, b) => b.length - a.length)
+  .map((c) => ({ city: c, re: new RegExp(`(?:^|[^a-zà-ÿ])${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[^a-zà-ÿ]|$)`, 'i') }));
+
+/**
+ * Find the first known NL city named in free text (a job title or body) — used to recover a
+ * location when a page has no structured location field. High-precision (known cities only).
+ */
+export function findKnownCity(text: string | undefined): string | null {
+  if (!text) return null;
+  for (const { city, re } of CITY_MATCHERS) if (re.test(text)) return city;
+  return null;
+}

@@ -132,6 +132,24 @@ describe('jobFromDetailHtml — apply-affordance gate (AEF + Koskamp)', () => {
     expect(job!.job_title).toBe('Senior Accountmanager Utrecht');
     expect(job!.verified).toBe(true); // has a real apply element
   });
+  it('extracts location from a "Locatie:" label and populates city/province', () => {
+    const html = `<main><h1>Verpleegkundige</h1>
+      <p>Locatie: Amersfoort. Wat ga je doen: zorgen. Wij bieden salaris, 32 uur per week, jouw profiel. ${'x'.repeat(200)}</p>
+      <a href="/apply">Solliciteer direct</a></main>`;
+    const job = jobFromDetailHtml(html, 'https://x.nl/vacatures/verpleegkundige');
+    expect(job).not.toBeNull();
+    expect(job!.location).toBe('Amersfoort');
+    expect(job!.city).toBe('amersfoort');
+    expect(job!.province).toBe('Utrecht');
+  });
+  it('recovers location from a known NL city in the job title', () => {
+    const html = `<main><h1>GZ Psycholoog ziekenhuis Rotterdam</h1>
+      <p>Wat ga je doen: behandelen. Wij bieden salaris, 36 uur per week, jouw profiel. ${'x'.repeat(200)}</p>
+      <a href="/apply">Solliciteer</a></main>`;
+    const job = jobFromDetailHtml(html, 'https://x.nl/vacatures/gz-psycholoog-rotterdam');
+    expect(job!.city).toBe('rotterdam');
+    expect(job!.province).toBe('Zuid-Holland');
+  });
   it('recovers a prose-only job on a specific detail URL as verified=true (balanced rule)', () => {
     const html = `<main><h1>Chauffeur bezorger regio Utrecht</h1><p>Wat ga je doen: rijden. Wij bieden salaris,
       32 uur per week, jouw profiel. Solliciteer via de mail. ${'x'.repeat(200)}</p></main>`;

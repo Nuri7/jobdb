@@ -20,6 +20,11 @@ describe('isJunkTitle — landing pages vs real "Vacature <role>" titles', () =>
       expect(isJunkTitle(t), t).toBe(true);
     }
   });
+  it('flags info/story pages that slip through as jobs', () => {
+    for (const t of ['Waarom werken bij Loetje?', 'Envida als werkgever', 'Het verhaal van Marcel Bisselink', 'Stap voor stap naar je nieuwe baan', 'Werken in Nederland']) {
+      expect(isJunkTitle(t), t).toBe(true);
+    }
+  });
   it('keeps real Dutch "Vacature <role>" and "Vacatures <team>" job titles', () => {
     for (const t of ['Vacature junior chemisch analist', 'Vacature Consultant Bouw', 'Vacatures Zorg team West', 'Senior Adviseur', 'Verpleegkundige thuiszorg']) {
       expect(isJunkTitle(t), t).toBe(false);

@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCity, provinceOf } from '../src/extract/nl-geo.js';
+import { findKnownCity, normalizeCity, provinceOf } from '../src/extract/nl-geo.js';
+
+describe('findKnownCity', () => {
+  it('finds a known NL city named in free text (e.g. a job title)', () => {
+    expect(findKnownCity('GZ Psycholoog ziekenhuis Rotterdam')).toBe('rotterdam');
+    expect(findKnownCity('Projectmanager Eindhoven (parttime)')).toBe('eindhoven');
+    expect(findKnownCity('Standplaats: Den Haag')).toBe('den haag');
+  });
+  it('returns null when no known city appears', () => {
+    expect(findKnownCity('Senior Backend Developer')).toBeNull();
+    expect(findKnownCity('ANIOS Interne Geneeskunde Hardenberg')).toBeNull(); // small town, not in table
+    expect(findKnownCity(undefined)).toBeNull();
+  });
+  it('does not false-match short/ambiguous names inside words', () => {
+    expect(findKnownCity('The process goes on')).toBeNull(); // "goes" is ambiguous
+    expect(findKnownCity('Bedelaarsstraat')).toBeNull(); // no "ede" whole-word match
+  });
+});
 
 describe('normalizeCity', () => {
   it('resolves city==province names to the city (previously dropped)', () => {
