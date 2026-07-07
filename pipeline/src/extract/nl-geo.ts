@@ -45,15 +45,26 @@ const NON_CITY = new Set([
   '', 'onbekend', 'unknown', 'nvt', 'n.v.t.',
 ]);
 
-/** Clean a location string into a lowercase city name, or null if it isn't a city. */
+/**
+ * Clean a location string into a lowercase city name, or null if it isn't a city.
+ * Scans every comma/pipe/slash segment (not just the first) so "province-first" strings
+ * ("Noord-Brabant, Eindhoven") and leading-comma strings (", Wassenaar, Zuid-Holland")
+ * still resolve, and prefers a segment that is a known city so names shared with a
+ * province (Utrecht, Groningen — both cities and provinces) resolve to the city.
+ */
 export function normalizeCity(location: string | undefined): string | null {
   if (!location) return null;
-  let city = location.split(',')[0]!.split('|')[0]!.split('(')[0]!.toLowerCase().trim();
-  city = city.replace(/\s+/g, ' ').replace(/\.$/, '').trim();
-  if (NON_CITY.has(city) || city.length < 2 || city.length > 40) return null;
-  if (/^\d+$/.test(city)) return null; // postcode-only
-  if (PROVINCE_ALIASES[city]) return null; // it's a province, not a city
-  return city;
+  const segments = location
+    .split(/[,|/]/)
+    .map((s) => s.split('(')[0]!.toLowerCase().replace(/\s+/g, ' ').replace(/\.$/, '').trim())
+    .filter(Boolean);
+  const plausible = (s: string): boolean =>
+    s.length >= 2 && s.length <= 40 && !/^\d+$/.test(s) && !NON_CITY.has(s);
+  // 1. A segment that is a known NL city wins (handles province-first order + Utrecht/Groningen).
+  for (const s of segments) if (plausible(s) && CITY_PROVINCE[s]) return s;
+  // 2. Otherwise the first plausible segment that isn't purely a province name.
+  for (const s of segments) if (plausible(s) && !PROVINCE_ALIASES[s]) return s;
+  return null;
 }
 
 /**
