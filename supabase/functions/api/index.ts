@@ -112,6 +112,22 @@ async function hashApiKey(key: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Canonical filter value -> the messy real-world variants in the data (employment_type /
+// experience_level are inconsistent: "full-time" vs "fulltime" vs "voltijds", "senior" vs
+// "management" vs "principal", etc.). Each canonical choice OR-matches all its patterns.
+const JOB_TYPE_PATTERNS: Record<string, string[]> = {
+  fulltime: ['full-time', 'fulltime', 'voltijd'],
+  parttime: ['part-time', 'parttime', 'deeltijd'],
+  internship: ['internship', 'intern', 'stage', 'stagiair', 'werkstudent'],
+  contract: ['contract', 'temporary', 'tijdelijk', 'fixed-term', 'interim'],
+};
+const EXPERIENCE_PATTERNS: Record<string, string[]> = {
+  junior: ['junior', 'entry', 'instap', 'starter', 'graduate', 'student', 'stagiair'],
+  medior: ['medior', 'experienced', 'medewerker', 'professional', 'ervaren'],
+  senior: ['senior', 'lead', 'principal', 'staff', 'management', 'manager', 'director', 'directeur', 'expert'],
+};
+const sanitizeLike = (s: string) => s.replace(/[,.()"%_*\\]/g, ' ').replace(/\s+/g, ' ').trim();
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -269,6 +285,12 @@ Deno.serve(async (req) => {
       const internship = params.get('internship');
       // Recency: only jobs first seen within the last N days (freshness — our honest edge)
       const postedWithin = parseInt(params.get('posted_within') || '', 10);
+      // Radius search: jobs in cities within N km of `near` (resolved against city_coords below).
+      const near = params.get('near');
+      const radiusKm = Math.min(Math.max(parseFloat(params.get('radius_km') || '') || 0, 0), 300);
+      const industry = params.get('industry');
+      const hasSalary = (params.get('has_salary') || '').toLowerCase() === 'true';
+      const easyApply = (params.get('easy_apply') || '').toLowerCase() === 'true';
 
       // Build search terms per phrase - combine synonyms + AI expansion, then OR everything.
       // The .or() becomes a set of leading-wildcard ILIKEs; too many (or ultra-short ones that
@@ -381,23 +403,73 @@ Deno.serve(async (req) => {
         }).join(',');
         if (searchFilters) query = query.or(searchFilters);
       }
-      if (location) {
-        query = query.ilike('location', `%${location}%`);
+      // Location — a radius search (near + radius_km) resolves to the set of cities within range
+      // via city_coords and takes precedence; otherwise fall back to a plain location substring.
+      let radiusResolved = false;
+      if (near && radiusKm > 0) {
+        const nearNorm = near.toLowerCase().replace(/\s+/g, ' ').trim();
+        const { data: center } = await supabase
+          .from('city_coords').select('lat,lng').eq('city', nearNorm).maybeSingle();
+        if (center) {
+          const dLat = radiusKm / 111.0;
+          const dLng = radiusKm / (111.0 * Math.max(Math.cos(center.lat * Math.PI / 180), 0.01));
+          const { data: box } = await supabase
+            .from('city_coords').select('city,lat,lng')
+            .gte('lat', center.lat - dLat).lte('lat', center.lat + dLat)
+            .gte('lng', center.lng - dLng).lte('lng', center.lng + dLng)
+            .limit(5000);
+          const hav = (la1: number, lo1: number, la2: number, lo2: number) => {
+            const R = 6371, p = Math.PI / 180;
+            const a = Math.sin((la2 - la1) * p / 2) ** 2 +
+              Math.cos(la1 * p) * Math.cos(la2 * p) * Math.sin((lo2 - lo1) * p / 2) ** 2;
+            return 2 * R * Math.asin(Math.sqrt(a));
+          };
+          // Nearest-first, capped so the .in() list stays a bounded URL.
+          const inRange = (box || [])
+            .map((c: { city: string; lat: number; lng: number }) =>
+              ({ city: c.city, d: hav(center.lat, center.lng, c.lat, c.lng) }))
+            .filter((c) => c.d <= radiusKm)
+            .sort((a, b) => a.d - b.d)
+            .slice(0, 600)
+            .map((c) => c.city);
+          // '__no_match__' guarantees an empty result if nothing is in range (never a real city).
+          query = query.in('city', inRange.length > 0 ? inRange : ['__no_match__']);
+          radiusResolved = true;
+          console.log(`Radius: ${inRange.length} cities within ${radiusKm}km of "${nearNorm}"`);
+        } else {
+          console.log(`Radius: no coords for "${nearNorm}" — falling back to substring match`);
+        }
+      }
+      if (!radiusResolved && (near || location)) {
+        // No radius (or unknown center city) → plain substring match on the location text
+        query = query.ilike('location', `%${near || location}%`);
       }
       if (company) {
         query = query.ilike('company_career_sites.company_name', `%${company}%`);
       }
+      if (industry) {
+        query = query.ilike('company_career_sites.industry', `%${industry}%`);
+      }
       if (jobType) {
-        query = query.ilike('employment_type', `%${jobType}%`);
+        const pats = JOB_TYPE_PATTERNS[jobType.toLowerCase()] || [sanitizeLike(jobType)];
+        query = query.or(pats.filter(Boolean).map(p => `employment_type.ilike.%${p}%`).join(','));
       }
       if (experienceLevel) {
-        query = query.ilike('experience_level', `%${experienceLevel}%`);
+        const pats = EXPERIENCE_PATTERNS[experienceLevel.toLowerCase()] || [sanitizeLike(experienceLevel)];
+        query = query.or(pats.filter(Boolean).map(p => `experience_level.ilike.%${p}%`).join(','));
       }
       if (remote === 'true') {
         query = query.eq('is_remote', true);
       }
       if (internship === 'true') {
         query = query.eq('is_internship', true);
+      }
+      if (easyApply) {
+        // easy_apply in the response is derived from an ATS source_type (see mapping below)
+        query = query.ilike('company_career_sites.source_type', 'ats:%');
+      }
+      if (hasSalary) {
+        query = query.not('salary_range', 'is', null);
       }
       if (Number.isFinite(postedWithin) && postedWithin > 0) {
         const since = new Date(Date.now() - postedWithin * 86_400_000).toISOString();
