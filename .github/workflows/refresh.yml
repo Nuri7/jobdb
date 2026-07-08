@@ -2,7 +2,8 @@ name: refresh-jobs
 
 on:
   schedule:
-    - cron: '15 3 * * *' # daily 03:15 UTC (~05:15 NL)
+    - cron: '15 3 * * *' # 03:15 UTC (~05:15 NL)
+    - cron: '15 15 * * *' # 15:15 UTC — second daily pass (Actions is free on a public repo)
   workflow_dispatch:
     inputs:
       limit:
@@ -11,7 +12,7 @@ on:
       budget_min:
         description: 'Time budget in minutes'
         required: false
-        default: '50'
+        default: '75'
 
 concurrency:
   group: jobdb-pipeline # shared with resolve.yml — runs never overlap
@@ -23,7 +24,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 110
     defaults:
       run:
         working-directory: pipeline
@@ -60,9 +61,10 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-haiku-4-5-20251001' }}
+          COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
         run: >
           npx tsx src/cli.ts refresh
-          --budget-min "${{ inputs.budget_min || '50' }}"
+          --budget-min "${{ inputs.budget_min || '75' }}"
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
 
       - name: Stats summary

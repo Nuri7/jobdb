@@ -45,6 +45,7 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-haiku-4-5-20251001' }}
+          COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
         # Weekly health sweep: re-check broken/moved pages AND verified-but-empty ones
         # (0 jobs = likely wrong/moved page). Manual dispatch with all:true re-resolves everything.
         run: >
