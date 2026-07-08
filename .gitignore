@@ -28,3 +28,5 @@ migration-data/
 # Local env (never commit real secrets; see .env.example)
 .env
 .env.local
+
+deno.lock

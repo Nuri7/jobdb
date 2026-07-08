@@ -31,18 +31,22 @@ async function fetchSynonymGroups(supabase: any): Promise<string[][]> {
   }
 }
 
-// Get all related terms for a search query using database synonyms
+// Get all related terms for a search query using database synonyms.
+// Matches a group only when the WHOLE phrase equals one of its terms (normalized). Substring
+// matching used to expand a multi-word title like "ai engineer" into the generic "engineer"
+// group, flooding results with every developer/engineer role. The phrase is the unit; broader
+// related titles come from AI expansion, not from word-level substring hits.
 function getSynonymsFromGroups(searchTerm: string, synonymGroups: string[][]): string[] {
-  const lowerSearch = searchTerm.toLowerCase();
+  const norm = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+  const lowerSearch = norm(searchTerm);
   const synonyms: Set<string> = new Set([searchTerm]);
-  
+
   for (const group of synonymGroups) {
-    // Check if any term in the group matches the search
-    if (group.some(term => lowerSearch.includes(term) || term.includes(lowerSearch))) {
+    if (group.some(term => norm(term) === lowerSearch)) {
       group.forEach(term => synonyms.add(term));
     }
   }
-  
+
   return Array.from(synonyms);
 }
 
@@ -245,10 +249,18 @@ Deno.serve(async (req) => {
       const limit = Math.min(parseInt(params.get('limit') || '50'), 100);
       // Cap offset so a caller can't force a multi-million-row scan
       const offset = Math.max(0, Math.min(parseInt(params.get('offset') || '0') || 0, 50_000));
-      // Strip PostgREST filter metacharacters (, . ( ) " *) so a search term can't break out
-      // of the .or() filter grammar and pivot onto other columns.
+      // Split the raw search on commas into distinct title phrases; EACH phrase is matched as a
+      // whole ("ai engineer" stays one unit — commas are the only thing that splits a search into
+      // separate titles). Per phrase we strip PostgREST metacharacters and LIKE wildcards so a term
+      // can't break out of the .or() grammar and pivot onto other columns.
       const rawSearch = params.get('search');
-      const search = rawSearch ? rawSearch.replace(/[,.()"*]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : rawSearch;
+      const phrases = rawSearch
+        ? rawSearch.split(',')
+            .map(p => p.replace(/[.()"*%_\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80))
+            .filter(p => p.length > 0)
+            .slice(0, 6) // cap: at most 6 distinct title phrases per request
+        : [];
+      const search = phrases.length > 0 ? phrases.join(', ') : null; // display/log value
       const location = params.get('location');
       const company = params.get('company');
       const jobType = params.get('job_type');
@@ -258,23 +270,38 @@ Deno.serve(async (req) => {
       // Recency: only jobs first seen within the last N days (freshness — our honest edge)
       const postedWithin = parseInt(params.get('posted_within') || '', 10);
 
-      // Build search terms - combine synonyms + AI expansion
+      // Build search terms per phrase - combine synonyms + AI expansion, then OR everything.
+      // The .or() becomes a set of leading-wildcard ILIKEs; too many (or ultra-short ones that
+      // the trigram index can't serve, like "po"/"pm") make the query fall back to full scans and
+      // time out on the growing table. So: keep the user's own phrases first (always), add only
+      // synonyms/AI terms of length >= 3, and cap the total OR breadth.
+      const normTerm = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+      const MAX_SEARCH_TERMS = 8;
       let searchTerms: string[] = [];
-      if (search) {
-        // Fetch synonym groups from database
+      if (phrases.length > 0) {
+        // Fetch synonym groups from database (once for all phrases)
         const synonymGroups = await fetchSynonymGroups(supabase);
-        
-        // First, get synonym-based terms (fast, predictable)
-        searchTerms = getSynonymsFromGroups(search, synonymGroups);
-        
-        // If synonyms only returned the original term, try AI expansion
-        if (searchTerms.length <= 1) {
-          const aiTerms = await getAIExpandedTerms(search);
-          searchTerms = [...new Set([search, ...aiTerms])];
-          console.log(`AI expanded "${search}" to:`, searchTerms);
-        } else {
-          console.log(`Synonym match for "${search}":`, searchTerms);
+        const primary: string[] = [];            // the user's own title phrases — always kept
+        const secondary = new Set<string>();     // curated synonyms + AI-expanded related titles
+
+        for (const phrase of phrases) {
+          primary.push(phrase);
+          // Curated synonyms first (fast, predictable) — matched against the whole phrase
+          const syn = getSynonymsFromGroups(phrase, synonymGroups);
+          if (syn.length <= 1) {
+            // No curated hit → semantic AI expansion of the whole phrase (related job titles)
+            const aiTerms = await getAIExpandedTerms(phrase);
+            aiTerms.forEach(t => secondary.add(t));
+            console.log(`AI expanded "${phrase}" to:`, aiTerms);
+          } else {
+            syn.forEach(t => { if (normTerm(t) !== normTerm(phrase)) secondary.add(t); });
+            console.log(`Synonym match for "${phrase}":`, syn);
+          }
         }
+
+        // Drop ultra-short synonym noise (e.g. "po", "pm"); the original phrases are exempt.
+        const extras = [...secondary].filter(t => t.trim().length >= 3);
+        searchTerms = [...new Set([...primary, ...extras])].slice(0, MAX_SEARCH_TERMS);
       }
 
       // Job lifecycle filter: default to open jobs; ?status=open|closed|all
