@@ -45,15 +45,26 @@ const NON_CITY = new Set([
   '', 'onbekend', 'unknown', 'nvt', 'n.v.t.',
 ]);
 
-/** Clean a location string into a lowercase city name, or null if it isn't a city. */
+/**
+ * Clean a location string into a lowercase city name, or null if it isn't a city.
+ * Scans every comma/pipe/slash segment (not just the first) so "province-first" strings
+ * ("Noord-Brabant, Eindhoven") and leading-comma strings (", Wassenaar, Zuid-Holland")
+ * still resolve, and prefers a segment that is a known city so names shared with a
+ * province (Utrecht, Groningen — both cities and provinces) resolve to the city.
+ */
 export function normalizeCity(location: string | undefined): string | null {
   if (!location) return null;
-  let city = location.split(',')[0]!.split('|')[0]!.split('(')[0]!.toLowerCase().trim();
-  city = city.replace(/\s+/g, ' ').replace(/\.$/, '').trim();
-  if (NON_CITY.has(city) || city.length < 2 || city.length > 40) return null;
-  if (/^\d+$/.test(city)) return null; // postcode-only
-  if (PROVINCE_ALIASES[city]) return null; // it's a province, not a city
-  return city;
+  const segments = location
+    .split(/[,|/]/)
+    .map((s) => s.split('(')[0]!.toLowerCase().replace(/\s+/g, ' ').replace(/\.$/, '').trim())
+    .filter(Boolean);
+  const plausible = (s: string): boolean =>
+    s.length >= 2 && s.length <= 40 && !/^\d+$/.test(s) && !NON_CITY.has(s);
+  // 1. A segment that is a known NL city wins (handles province-first order + Utrecht/Groningen).
+  for (const s of segments) if (plausible(s) && CITY_PROVINCE[s]) return s;
+  // 2. Otherwise the first plausible segment that isn't purely a province name.
+  for (const s of segments) if (plausible(s) && !PROVINCE_ALIASES[s]) return s;
+  return null;
 }
 
 /**
@@ -69,5 +80,23 @@ export function provinceOf(location: string | undefined, city: string | null): s
       if (p) return p;
     }
   }
+  return null;
+}
+
+// Whole-word matchers for known NL cities, longest name first. Short names (<4 chars) and a few
+// that collide with common words are skipped to avoid false positives when scanning free text.
+const AMBIGUOUS_CITY = new Set(['ede', 'oss', 'goes', 'weert']);
+const CITY_MATCHERS = Object.keys(CITY_PROVINCE)
+  .filter((c) => c.length >= 4 && !AMBIGUOUS_CITY.has(c))
+  .sort((a, b) => b.length - a.length)
+  .map((c) => ({ city: c, re: new RegExp(`(?:^|[^a-zà-ÿ])${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[^a-zà-ÿ]|$)`, 'i') }));
+
+/**
+ * Find the first known NL city named in free text (a job title or body) — used to recover a
+ * location when a page has no structured location field. High-precision (known cities only).
+ */
+export function findKnownCity(text: string | undefined): string | null {
+  if (!text) return null;
+  for (const { city, re } of CITY_MATCHERS) if (re.test(text)) return city;
   return null;
 }

@@ -4,8 +4,9 @@ import type { CanonicalJob, CompanyRow, Ctx, JobSource, SourceType } from '../..
 import { SourceGoneError } from '../../types.js';
 
 /**
- * Teamtailor / Homerun / Join host career sites without a public JSON API, but
- * every job page carries schema.org JobPosting JSON-LD — so: listing → links → LD.
+ * Teamtailor / Join host career sites without a public JSON API, but every job page
+ * carries schema.org JobPosting JSON-LD — so: listing → links → LD.
+ * (Homerun moved to its own feed-based adapter; its listing is JS-rendered.)
  */
 function makeListingLdSource(
   type: SourceType,
@@ -34,12 +35,6 @@ export const teamtailorSource = makeListingLdSource(
   'ats:teamtailor',
   (b) => `https://${b}.teamtailor.com/jobs`,
   (url) => /\/jobs\/\d/.test(url),
-);
-
-export const homerunSource = makeListingLdSource(
-  'ats:homerun',
-  (b) => `https://${b}.homerun.co/`,
-  (url) => new URL(url).pathname.replace(/\/$/, '').length > 1,
 );
 
 export const joinSource = makeListingLdSource(

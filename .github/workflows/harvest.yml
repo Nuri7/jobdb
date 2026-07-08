@@ -1,0 +1,68 @@
+name: harvest-companies
+
+on:
+  schedule:
+    - cron: '0 4 * * 1' # Mondays 04:00 UTC — discover newly-onboarded ATS boards, then log metrics
+  workflow_dispatch:
+    inputs:
+      ats:
+        description: 'Comma-separated ATS platforms'
+        required: false
+        default: 'recruitee,homerun,personio'
+      limit:
+        description: 'Max new boards to validate per platform'
+        required: false
+      min_nl:
+        description: 'Min NL jobs to keep a board'
+        required: false
+        default: '1'
+      dry_run:
+        description: 'Validate only, insert nothing'
+        type: boolean
+        default: false
+
+concurrency:
+  group: jobdb-pipeline # shared with refresh.yml / resolve.yml — runs never overlap
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pipeline/package-lock.json
+
+      - run: npm ci
+
+      # Discover + validate + insert new NL-hiring boards. Dedup skips boards already stored,
+      # so after the initial backfill each weekly run only handles genuinely new companies.
+      - name: Harvest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: >
+          npx tsx src/cli.ts harvest
+          --ats "${{ inputs.ats || 'recruitee,homerun,personio' }}"
+          --min-nl "${{ inputs.min_nl || '1' }}"
+          ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+          ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      # Record the weekly metrics row (companies/jobs added + removed) — runs even if harvest fails.
+      - name: Snapshot metrics
+        if: ${{ always() && inputs.dry_run != true }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx src/cli.ts snapshot | tee -a "$GITHUB_STEP_SUMMARY"

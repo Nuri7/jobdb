@@ -1,19 +1,26 @@
 import { parseArgs } from 'node:util';
+import { harvestableAts, harvestCommand } from './harvest/index.js';
 import { probeCommand } from './probe.js';
 import { refreshCommand } from './refresh.js';
 import { resolveCommand } from './resolve.js';
+import { snapshotCommand } from './snapshot.js';
 import { statsCommand } from './stats.js';
+import { ATS_NAMES, type AtsName } from './types.js';
 
 const HELP = `jobdb pipeline
 
 Usage:
   tsx src/cli.ts resolve  [--limit N] [--company <uuid|name>] [--only-broken] [--force] [--dry-run]
   tsx src/cli.ts refresh  [--limit N] [--company <uuid|name>] [--budget-min 50] [--dry-run]
+  tsx src/cli.ts harvest  [--ats recruitee,homerun] [--limit N] [--min-nl 1] [--dry-run]
+  tsx src/cli.ts snapshot [--dry-run]
   tsx src/cli.ts stats    [--format text|md|json]
   tsx src/cli.ts probe <url> [name]      (DB-less: resolve + fetch one company, write nothing)
 
 resolve  Verify career pages + fingerprint job sources (writes company rows only)
 refresh  Scrape due companies via their fingerprinted source + reconcile job lifecycle
+harvest  Discover new NL-hiring companies from ATS platforms (Common Crawl → validate → insert)
+snapshot Record a company/job metrics row (weekly add/remove log) + print week-over-week deltas
 stats    Coverage / freshness / failure summary
 `;
 
@@ -30,6 +37,9 @@ async function main(): Promise<void> {
       'dry-run': { type: 'boolean', default: false },
       'budget-min': { type: 'string', default: '50' },
       shard: { type: 'string' }, // "k/n" — process only companies in shard k of n (parallel backfill)
+      ats: { type: 'string' }, // harvest: comma-separated ATS names (default: all harvestable)
+      'min-nl': { type: 'string', default: '1' }, // harvest: min NL jobs to keep a board
+      'cc-indexes': { type: 'string' }, // harvest: # of monthly Common Crawl indexes to union
       format: { type: 'string', default: 'text' },
       help: { type: 'boolean', default: false },
     },
@@ -80,6 +90,37 @@ async function main(): Promise<void> {
         shard,
         force: values.force ?? false,
       });
+      break;
+    case 'harvest': {
+      const names = (values.ats ? values.ats.split(',') : harvestableAts())
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const bad = names.filter((n) => !ATS_NAMES.includes(n as AtsName));
+      if (bad.length > 0) {
+        console.error(`Unknown ATS: ${bad.join(', ')}. Harvestable: ${harvestableAts().join(', ')}`);
+        process.exit(1);
+      }
+      const minNl = Number(values['min-nl']);
+      if (!Number.isInteger(minNl) || minNl < 0) {
+        console.error('--min-nl must be a non-negative integer');
+        process.exit(1);
+      }
+      const ccIndexes = values['cc-indexes'] ? Number(values['cc-indexes']) : undefined;
+      if (ccIndexes !== undefined && (!Number.isInteger(ccIndexes) || ccIndexes < 1)) {
+        console.error('--cc-indexes must be a positive integer');
+        process.exit(1);
+      }
+      await harvestCommand({
+        ats: names as AtsName[],
+        limit,
+        minNl,
+        ccIndexes,
+        dryRun: values['dry-run'] ?? false,
+      });
+      break;
+    }
+    case 'snapshot':
+      await snapshotCommand({ dryRun: values['dry-run'] ?? false });
       break;
     case 'stats': {
       const format = values.format === 'md' ? 'md' : values.format === 'json' ? 'json' : 'text';

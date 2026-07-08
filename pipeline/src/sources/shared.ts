@@ -1,7 +1,44 @@
 import * as cheerio from 'cheerio';
+import { findKnownCity } from '../extract/nl-geo.js';
 import { dedupeJobs, finalizeJob, htmlToText, isCategoryTitle, isJunkTitle } from '../extract/normalize.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import type { CanonicalJob, Ctx } from '../types.js';
+
+// "Standplaats: Utrecht", "Locatie: Amsterdam", "Werklocatie – Den Haag", etc.
+const LOCATION_LABEL_RE =
+  /(?:standplaats|werklocatie|werk-?locatie|locatie|plaats van tewerkstelling|vestiging(?:splaats)?|standort|arbeidsplaats|werkgebied|regio)\s*[:–-]\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '-]{1,38})/i;
+
+/**
+ * Best-effort location for a detail page that has NO JobPosting JSON-LD (the heuristic path):
+ * schema.org microdata (passed in) → a "Locatie/Standplaats:" label → a known NL city named in
+ * the title or body. Returns undefined when nothing location-like is present (remote/nationwide).
+ */
+export function heuristicLocation(bodyText: string, title: string, microLoc?: string): string | undefined {
+  if (microLoc && microLoc.length >= 2 && microLoc.length <= 60) return microLoc;
+  const m = LOCATION_LABEL_RE.exec(bodyText);
+  if (m?.[1]) {
+    const v = m[1]
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\s+(?:en|and|of|\/|,).*$/i, '')
+      .replace(/[.,;:]+$/, '')
+      .trim();
+    if (v.length >= 2 && v.length <= 38) return v;
+  }
+  return findKnownCity(title) ?? findKnownCity(bodyText.slice(0, 3000)) ?? undefined;
+}
+
+/** Extract a location from a full detail-page HTML: JSON-LD address first, then heuristics. */
+export function locationFromDetailHtml(html: string, url: string): string | undefined {
+  const ld = jobPostingsFromHtml(html, url).find((j) => j.location)?.location;
+  if (ld) return ld;
+  const $ = cheerio.load(html);
+  const micro = $('[itemprop="addressLocality"]').first().text().replace(/\s+/g, ' ').trim();
+  const title = ($('h1').first().text() || $('title').first().text()).replace(/\s+/g, ' ').trim();
+  $('script, style, nav, header, footer, noscript, svg').remove();
+  const bodyText = htmlToText($('main, article, body').first().html() ?? '').slice(0, 8000);
+  return heuristicLocation(bodyText, title, micro);
+}
 
 /** Path fragments that strongly suggest a job detail URL. */
 export const JOB_PATH_RE =
@@ -19,6 +56,7 @@ const BLOCKED_SEGMENTS = new Set([
   'sollicitatie-tips', 'early-careers', 'young-professional', 'studenten', 'events', 'event',
   'contact', 'over-ons', 'about', 'about-us', 'teams', 'team', 'afdelingen', 'departments',
   'locaties', 'locations', 'kantoren', 'offices', 'voorwaarden', 'recruiters', 'recruitment',
+  'expertises', 'expertise', 'ons-verhaal', 'verhalen', 'als-werkgever',
 ]);
 
 export function hasBlockedSegment(pathname: string): boolean {
@@ -211,6 +249,8 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
   const hasApply = apply.count > 0 || APPLY_TEXT_RE.test($.root().text());
   if (!hasApply) return null;
 
+  // Capture address microdata before the chrome (incl. footer) is stripped below.
+  const microLoc = $('[itemprop="addressLocality"]').first().text().replace(/\s+/g, ' ').trim();
   $('script, style, nav, header, footer, noscript, svg, form').remove();
 
   const h1 = $('h1').first().text().replace(/\s+/g, ' ').trim();
@@ -243,7 +283,8 @@ export function jobFromDetailHtml(html: string, url: string, linkText?: string):
   // URL is a specific vacancy detail page (recovers real jobs whose apply button is
   // JS-rendered). The section/junk/category/signal gates above keep out non-vacancies.
   const verified = apply.count > 0 || isSpecificJobDetailUrl(url);
-  return finalizeJob({ job_url: url, job_title: title, description: bodyText, verified }, url);
+  const location = heuristicLocation(bodyText, title, microLoc);
+  return finalizeJob({ job_url: url, job_title: title, description: bodyText, location, verified }, url);
 }
 
 /**

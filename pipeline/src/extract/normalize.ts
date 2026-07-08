@@ -69,10 +69,15 @@ const JUNK_TITLE_EXACT = new Set([
 const JUNK_TITLE_PREFIX =
   /^(werken bij |werk bij |werken voor |kom werken bij |word collega |onze arbeidsvoorwaarden\b)/i;
 
+// Info/story/landing pages that slip through as "jobs" — they have no location because they
+// are not vacancies: "Waarom werken bij X", "X als werkgever", "Het verhaal van …", "Stap voor stap …".
+const JUNK_TITLE_RE =
+  /(^(waarom (werken|kiezen)|over werken bij|het verhaal (van|achter)|ons verhaal|stap voor stap|werken in nederland)\b|\bals werkgever$)/i;
+
 /** True when a title is a landing/info page rather than a specific vacancy. */
 export function isJunkTitle(title: string): boolean {
   const s = title.trim().toLowerCase().replace(/\s+/g, ' ');
-  return JUNK_TITLE_EXACT.has(s) || JUNK_TITLE_PREFIX.test(s);
+  return JUNK_TITLE_EXACT.has(s) || JUNK_TITLE_PREFIX.test(s) || JUNK_TITLE_RE.test(s);
 }
 
 /**

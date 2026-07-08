@@ -118,6 +118,59 @@ export async function updateCompany(
   if (res.error) throw new Error(`updateCompany: ${res.error.message}`);
 }
 
+/** All board_ids already stored for a source type — the harvester's dedupe key. */
+export async function existingBoardIds(db: Db, sourceType: SourceType): Promise<Set<string>> {
+  const ids = new Set<string>();
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const res = await db
+      .from('company_career_sites')
+      .select('source_config')
+      .eq('source_type', sourceType)
+      .range(offset, offset + page - 1);
+    const rows = unwrap(res, 'existingBoardIds') as unknown as Array<{ source_config: SourceConfig | null }>;
+    for (const r of rows) {
+      const b = r.source_config?.board_id;
+      if (b) ids.add(b);
+    }
+    if (rows.length < page) break;
+  }
+  return ids;
+}
+
+export interface NewCompany {
+  company_name: string;
+  career_url: string;
+  website: string;
+  source_type: SourceType;
+  source_config: SourceConfig;
+}
+
+/** Insert freshly-harvested, already-verified companies. Returns rows written. */
+export async function insertCompanies(db: Db, companies: NewCompany[]): Promise<number> {
+  const now = new Date().toISOString();
+  let written = 0;
+  for (const batch of chunk(companies, 200)) {
+    const rows = batch.map((c) => ({
+      company_name: c.company_name,
+      career_url: c.career_url,
+      website: c.website,
+      source_type: c.source_type,
+      source_config: c.source_config,
+      career_page_status: 'verified',
+      is_scrape_enabled: true, // default is false for new rows — must opt in or refresh skips it
+      is_active: true,
+      consecutive_failures: 0,
+      check_interval_hours: 24,
+      next_check_at: now, // due immediately so the next refresh scrapes it
+    }));
+    const res = await db.from('company_career_sites').insert(rows);
+    if (res.error) throw new Error(`insertCompanies: ${res.error.message}`);
+    written += batch.length;
+  }
+  return written;
+}
+
 /** Duplicate-board detection: does another company already own this board identity? */
 export async function findBoardOwner(
   db: Db,

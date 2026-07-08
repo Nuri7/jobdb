@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { dedupeJobs, finalizeJob } from '../extract/normalize.js';
 import { jobsFromApiBodies } from '../extract/json-jobs.js';
 import { jobPostingsFromHtml } from './jsonld.js';
-import { extractJobLinks, jobsViaDetailPages } from './shared.js';
+import { extractJobLinks, jobsViaDetailPages, locationFromDetailHtml } from './shared.js';
 import type { CanonicalJob, CompanyRow, Ctx, JobSource } from '../types.js';
 import { SourceGoneError } from '../types.js';
 
@@ -186,6 +186,8 @@ async function llmJobsFromListing(
     'You extract job vacancies from career-page text. Return a JSON array of objects: ' +
       '{"title": string, "url": string (absolute or relative, from the [LINK ...] markers if available), ' +
       '"location": string?, "employment_type": string?, "department": string?}. ' +
+      'For "location", give the job\'s city/place — read a "Standplaats/Locatie/Plaats/Werklocatie" ' +
+      'label or the city named in the job title; omit only if truly none is shown. ' +
       'Only actual job vacancies — no navigation, benefits, or category links. Empty array if none.',
     `Career page: ${listingUrl}\n\n${text}`,
     3000,
@@ -219,6 +221,32 @@ async function llmJobsFromListing(
   return unique;
 }
 
+/**
+ * Jobs from the captured JSON API and the LLM listing reader often lack a location (a listing
+ * page rarely shows the per-job city). Fetch their detail pages and read the location there —
+ * JSON-LD address first, then heuristics. Capped to stay within the per-company budget.
+ */
+async function enrichLocations(jobs: CanonicalJob[], ctx: Ctx): Promise<CanonicalJob[]> {
+  const need = jobs.filter((j) => !j.location && /^https?:\/\//.test(j.job_url) && !j.job_url.includes('#'));
+  if (need.length === 0) return jobs;
+  const byUrl = new Map(jobs.map((j) => [j.job_url, j]));
+  let filled = 0;
+  for (const j of need.slice(0, 60)) {
+    if (!(await ctx.robotsAllowed(j.job_url))) continue;
+    const res = await ctx.fetchText(j.job_url, { kind: 'html', retries: 0, timeoutMs: 10_000 }).catch(() => null);
+    if (!res || res.status !== 200) continue;
+    const loc = locationFromDetailHtml(res.text, res.finalUrl);
+    if (!loc) continue;
+    const upgraded = finalizeJob({ ...j, location: loc }, j.job_url);
+    if (upgraded) {
+      byUrl.set(j.job_url, upgraded);
+      filled++;
+    }
+  }
+  if (filled > 0) ctx.log(`  rendered: enriched ${filled} jobs with a location from detail pages`);
+  return [...byUrl.values()];
+}
+
 export const renderedSource: JobSource = {
   type: 'rendered',
 
@@ -231,7 +259,7 @@ export const renderedSource: JobSource = {
     const apiJobs = jobsFromApiBodies(apiBodies, base).filter((j) => j.job_url !== company.career_url);
     if (apiJobs.length >= 2) {
       ctx.log(`  rendered: ${apiJobs.length} jobs from captured JSON API`);
-      return dedupeJobs(apiJobs);
+      return dedupeJobs(await enrichLocations(apiJobs, ctx));
     }
 
     // 1) JSON-LD that only materializes after rendering
@@ -254,6 +282,6 @@ export const renderedSource: JobSource = {
     // 3) LLM reads the listing
     const llmJobs = await llmJobsFromListing(html, company.career_url, ctx);
     ctx.log(`  rendered: LLM extracted ${llmJobs.length} jobs`);
-    return dedupeJobs([...llmJobs, ...inline]);
+    return dedupeJobs([...(await enrichLocations(llmJobs, ctx)), ...inline]);
   },
 };
