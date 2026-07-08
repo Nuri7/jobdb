@@ -13,6 +13,9 @@ export interface Job {
   is_internship: boolean | null;
   experience_level: string | null;
   scraped_at: string;
+  first_seen_at?: string | null;
+  closing_date?: string | null;
+  easy_apply?: boolean;
   company_name?: string;
   company_career_url?: string | null;
   industry?: string | null;
@@ -71,6 +74,7 @@ export const jobsApi = {
           company_name,
           industry,
           career_url,
+          source_type,
           is_scrape_enabled
         )
       `, { count: 'exact' })
@@ -120,6 +124,7 @@ export const jobsApi = {
         company_name: job.company_career_sites?.company_name || 'Unknown Company',
         company_career_url: job.company_career_sites?.career_url || null,
         industry: job.company_career_sites?.industry || null,
+        easy_apply: (job.company_career_sites?.source_type || '').startsWith('ats:'),
       })) || [],
       totalCount: count || 0,
     };
@@ -190,6 +195,9 @@ export const jobsApi = {
           is_internship: job.is_internship,
           experience_level: job.experience_level,
           scraped_at: job.scraped_at,
+          first_seen_at: job.first_seen_at,
+          closing_date: job.closing_date,
+          easy_apply: job.easy_apply,
           // Map from API's nested company object
           company_name: job.company?.name || job.company_name || 'Unknown Company',
           company_career_url: job.company?.career_url || job.company_career_url || null,
@@ -236,6 +244,7 @@ export const jobsApi = {
           company_name,
           industry,
           career_url,
+          source_type,
           is_scrape_enabled
         )
       `, { count: 'exact' })
@@ -288,6 +297,7 @@ export const jobsApi = {
         company_name: job.company_career_sites?.company_name || 'Unknown Company',
         company_career_url: job.company_career_sites?.career_url || null,
         industry: job.company_career_sites?.industry || null,
+        easy_apply: (job.company_career_sites?.source_type || '').startsWith('ats:'),
       })) || [],
       totalCount: count || 0,
     };

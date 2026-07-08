@@ -112,6 +112,7 @@ export function contentHash(
     job.job_title,
     job.location ?? '',
     job.employment_type ?? '',
+    job.closing_date ?? '',
     (job.description ?? '').slice(0, 2000),
   ].join('|');
   return createHash('sha256').update(basis).digest('hex').slice(0, 32);
@@ -170,6 +171,7 @@ export function finalizeJob(
     salary_range: partial.salary_range?.trim().slice(0, 100) || undefined,
     description,
     posted_date: normalizeDate(partial.posted_date),
+    closing_date: normalizeDate(partial.closing_date),
     is_remote: partial.is_remote ?? REMOTE_RE.test(haystack.slice(0, 4000)),
     is_internship: partial.is_internship ?? INTERNSHIP_RE.test(title),
     experience_level: experience,

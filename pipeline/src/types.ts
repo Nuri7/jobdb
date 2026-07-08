@@ -44,6 +44,7 @@ export interface CanonicalJob {
   salary_range?: string;
   description?: string;
   posted_date?: string; // ISO date (YYYY-MM-DD)
+  closing_date?: string; // ISO date — application deadline (schema.org validThrough)
   is_remote?: boolean;
   is_internship?: boolean;
   experience_level?: string;

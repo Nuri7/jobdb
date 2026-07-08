@@ -255,6 +255,8 @@ Deno.serve(async (req) => {
       const experienceLevel = params.get('experience_level');
       const remote = params.get('remote');
       const internship = params.get('internship');
+      // Recency: only jobs first seen within the last N days (freshness — our honest edge)
+      const postedWithin = parseInt(params.get('posted_within') || '', 10);
 
       // Build search terms - combine synonyms + AI expansion
       let searchTerms: string[] = [];
@@ -286,6 +288,8 @@ Deno.serve(async (req) => {
           job_title,
           job_url,
           location,
+          city,
+          province,
           employment_type,
           department,
           salary_range,
@@ -293,12 +297,17 @@ Deno.serve(async (req) => {
           is_remote,
           is_internship,
           experience_level,
+          posted_date,
+          closing_date,
+          first_seen_at,
+          status,
           scraped_at,
           company_career_sites!inner (
             id,
             company_name,
             industry,
             career_url,
+            source_type,
             is_scrape_enabled
           )
         `,
@@ -363,6 +372,10 @@ Deno.serve(async (req) => {
       if (internship === 'true') {
         query = query.eq('is_internship', true);
       }
+      if (Number.isFinite(postedWithin) && postedWithin > 0) {
+        const since = new Date(Date.now() - postedWithin * 86_400_000).toISOString();
+        query = query.gte('first_seen_at', since);
+      }
 
       const { data, error, count } = await query;
 
@@ -393,12 +406,17 @@ Deno.serve(async (req) => {
           company_name: string;
           industry: string | null;
           career_url: string;
+          source_type: string | null;
         };
+        const sourceType = company?.source_type ?? null;
+        const isAts = typeof sourceType === 'string' && sourceType.startsWith('ats:');
         return {
           id: job.id,
           title: job.job_title,
           url: job.job_url,
           location: job.location,
+          city: job.city,
+          province: job.province,
           employment_type: job.employment_type,
           department: job.department,
           salary_range: job.salary_range,
@@ -406,6 +424,13 @@ Deno.serve(async (req) => {
           is_remote: job.is_remote,
           is_internship: job.is_internship,
           experience_level: job.experience_level,
+          posted_date: job.posted_date,
+          closing_date: job.closing_date,
+          first_seen_at: job.first_seen_at,
+          status: job.status,
+          // Apply method: ATS-backed boards support structured/1-click apply (FairApply)
+          easy_apply: isAts,
+          ats: isAts ? sourceType!.slice(4) : null,
           scraped_at: job.scraped_at,
           company_logo: getCompanyLogoUrl(company?.career_url),
           company: {
@@ -626,27 +651,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Route: GET /stats
+    // Route: GET /stats — hiring pulse (totals + new/closed + province/city/type/seniority breakdowns)
     if (path === '/stats' || path === '/stats/') {
-      const [jobsResult, companiesResult] = await Promise.all([
-        supabase
-          .from('job_opportunities')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'open')
-          .eq('verified', true),
-        supabase
-          .from('company_career_sites')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_scrape_enabled', true),
-      ]);
-
+      const { data, error } = await supabase.rpc('job_stats');
+      if (error) {
+        console.error('Stats RPC error:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch stats', details: error.message }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
       return new Response(
-        JSON.stringify({
-          data: {
-            total_jobs: jobsResult.count || 0,
-            total_companies: companiesResult.count || 0,
-          },
-        }),
+        JSON.stringify({ data }),
         { headers: corsHeaders }
       );
     }

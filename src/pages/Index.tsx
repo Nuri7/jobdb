@@ -708,6 +708,9 @@ const Index = () => {
                       companyCareerUrl={job.company_career_url}
                       isInternship={job.is_internship || false}
                       industry={job.industry}
+                      firstSeenAt={job.first_seen_at}
+                      easyApply={job.easy_apply}
+                      closingDate={job.closing_date}
                       description={job.description}
                     />
                   ))}
