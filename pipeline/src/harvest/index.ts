@@ -3,8 +3,17 @@ import { config } from '../config.js';
 import { createDb, existingBoardIds, insertCompanies, type NewCompany } from '../db.js';
 import { buildCtx } from '../refresh.js';
 import type { AtsName, Ctx } from '../types.js';
-import { ccTokens } from './commoncrawl.js';
-import { validateHomerun, validatePersonio, validateRecruitee, type HarvestCandidate } from './validators.js';
+import { ccPathTokens, ccTokens } from './commoncrawl.js';
+import {
+  validateGreenhouse,
+  validateHomerun,
+  validatePersonio,
+  validateRecruitee,
+  validateTeamtailor,
+  type HarvestCandidate,
+} from './validators.js';
+
+const GREENHOUSE_HOSTS = ['boards.greenhouse.io', 'job-boards.greenhouse.io'];
 
 export interface HarvestOpts {
   ats: AtsName[];
@@ -31,6 +40,12 @@ const DISCOVERERS: Partial<Record<AtsName, Discoverer>> = {
     discover: (ctx, n) => ccTokens('jobs.personio.com', ctx, { indexes: n }),
     validate: validatePersonio,
     normalizeKnown: (b) => b.split('.')[0] ?? b,
+  },
+  teamtailor: { discover: (ctx, n) => ccTokens('teamtailor.com', ctx, { indexes: n }), validate: validateTeamtailor },
+  // Greenhouse is path-based (boards.greenhouse.io/<token>), so discover from URL paths.
+  greenhouse: {
+    discover: (ctx, n) => ccPathTokens('greenhouse.io', ctx, GREENHOUSE_HOSTS, { indexes: n }),
+    validate: validateGreenhouse,
   },
 };
 

@@ -70,21 +70,47 @@ async function ccNumPages(indexId: string, baseDomain: string, ctx: Ctx): Promis
   }
 }
 
-async function ccPageTokens(indexId: string, baseDomain: string, page: number, ctx: Ctx): Promise<string[]> {
+/**
+ * Extract path-based tenant tokens (e.g. Greenhouse `boards.greenhouse.io/<token>`,
+ * Lever `jobs.lever.co/<token>`): the first path segment on one of the given host(s). Pure.
+ */
+export function tokensFromCcPaths(lines: string[], hosts: string[]): string[] {
+  const hostSet = new Set(hosts.map((h) => h.toLowerCase()));
+  const tokens = new Set<string>();
+  for (const line of lines) {
+    let raw: string;
+    try {
+      raw = (JSON.parse(line) as { url?: string }).url ?? '';
+    } catch {
+      continue;
+    }
+    let u: URL;
+    try {
+      u = new URL(raw);
+    } catch {
+      continue;
+    }
+    if (!hostSet.has(u.hostname.toLowerCase())) continue;
+    const seg = u.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
+    if (!seg || INFRA.has(seg) || seg === 'embed') continue;
+    if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(seg)) continue;
+    tokens.add(seg);
+  }
+  return [...tokens];
+}
+
+async function ccPage(indexId: string, baseDomain: string, page: number, ctx: Ctx): Promise<string[]> {
   const url = `${HOST}/${indexId}-index?url=${encodeURIComponent(baseDomain)}&matchType=domain&output=json&fl=url&page=${page}`;
   const res = await ctx.fetchText(url, { kind: 'api', retries: 2, timeoutMs: 60_000 });
   if (res.status !== 200) return [];
-  return tokensFromCcLines(res.text.trim().split('\n').filter(Boolean), baseDomain);
+  return res.text.trim().split('\n').filter(Boolean);
 }
 
-/**
- * Union of tenant tokens for `baseDomain` across the newest `indexes` monthly crawls.
- * Each monthly index captures a somewhat different subset, so unioning a few widens coverage.
- */
-export async function ccTokens(
+async function ccUnion(
   baseDomain: string,
   ctx: Ctx,
-  opts: { indexes?: number; maxPages?: number } = {},
+  extract: (lines: string[]) => string[],
+  opts: { indexes?: number; maxPages?: number },
 ): Promise<string[]> {
   const indexes = await ccLatestIndexes(ctx, opts.indexes ?? 2);
   const maxPages = opts.maxPages ?? 30;
@@ -92,9 +118,19 @@ export async function ccTokens(
   for (const indexId of indexes) {
     const pages = Math.min(await ccNumPages(indexId, baseDomain, ctx), maxPages);
     for (let p = 0; p < pages; p++) {
-      for (const t of await ccPageTokens(indexId, baseDomain, p, ctx)) all.add(t);
+      for (const t of extract(await ccPage(indexId, baseDomain, p, ctx))) all.add(t);
     }
     ctx.log(`  cc ${indexId}: ${pages} page(s) → ${all.size} unique tokens so far`);
   }
   return [...all];
+}
+
+/** Union of subdomain tenant tokens (`<token>.baseDomain`) across the newest monthly crawls. */
+export function ccTokens(baseDomain: string, ctx: Ctx, opts: { indexes?: number; maxPages?: number } = {}): Promise<string[]> {
+  return ccUnion(baseDomain, ctx, (lines) => tokensFromCcLines(lines, baseDomain), opts);
+}
+
+/** Union of path tenant tokens (`<host>/<token>`) across the newest monthly crawls. */
+export function ccPathTokens(baseDomain: string, ctx: Ctx, hosts: string[], opts: { indexes?: number; maxPages?: number } = {}): Promise<string[]> {
+  return ccUnion(baseDomain, ctx, (lines) => tokensFromCcPaths(lines, hosts), opts);
 }

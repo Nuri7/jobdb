@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { normalizeCity, provinceOf } from '../extract/nl-geo.js';
 import { homerunFeedUrl, parseHomerunFeed } from '../sources/ats/homerun.js';
 import { jobPostingsFromHtml } from '../sources/jsonld.js';
+import { extractJobLinks } from '../sources/shared.js';
 import type { Ctx, SourceType } from '../types.js';
 
 /** A validated, live, NL-hiring ATS board ready to be inserted as a company. */
@@ -232,6 +233,93 @@ export async function validatePersonio(token: string, ctx: Ctx): Promise<Harvest
     website: `https://${host}`,
     companyName: titleize(token),
     totalJobs: positions.length,
+    nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Greenhouse — public JSON API at boards-api.greenhouse.io/v1/boards/<token>/jobs,
+// with a location.name per job. One cheap request per board. (Global platform — most
+// boards are non-NL, so the NL filter drops the majority; the absolute NL yield still counts.)
+// ---------------------------------------------------------------------------
+
+interface GreenhouseJob {
+  title?: string;
+  location?: { name?: string };
+}
+
+export async function validateGreenhouse(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  let res;
+  try {
+    res = await ctx.fetchText(`https://boards-api.greenhouse.io/v1/boards/${token}/jobs`, {
+      kind: 'api',
+      retries: 1,
+      timeoutMs: 15_000,
+    });
+  } catch {
+    return null;
+  }
+  if (res.status !== 200) return null;
+
+  let data: { jobs?: GreenhouseJob[] };
+  try {
+    data = JSON.parse(res.text) as typeof data;
+  } catch {
+    return null;
+  }
+  const jobs = (data.jobs ?? []).filter((j) => j.title);
+  if (jobs.length === 0) return null;
+
+  let nlJobs = 0;
+  for (const j of jobs) if (isNlLocation(j.location?.name)) nlJobs++;
+
+  return {
+    sourceType: 'ats:greenhouse',
+    boardId: token,
+    careerUrl: `https://boards.greenhouse.io/${token}`,
+    website: `https://boards.greenhouse.io/${token}`,
+    companyName: titleize(token),
+    totalJobs: jobs.length,
+    nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Teamtailor — career site with a static /jobs listing (unlike Homerun); each job page
+// carries schema.org JobPosting JSON-LD. Confirm liveness from the listing links, then
+// sample a few detail pages for the authoritative NL location.
+// ---------------------------------------------------------------------------
+
+export async function validateTeamtailor(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  const careerUrl = `https://${token}.teamtailor.com`;
+  let res;
+  try {
+    res = await ctx.fetchText(`${careerUrl}/jobs`, { kind: 'html', retries: 1, timeoutMs: 15_000 });
+  } catch {
+    return null;
+  }
+  if (res.status !== 200) return null;
+
+  const links = extractJobLinks(res.text, res.finalUrl).filter((l) => /\/jobs\/\d/.test(l.url));
+  if (links.length === 0) return null;
+
+  let nlJobs = 0;
+  for (const l of links.slice(0, 4)) {
+    const d = await ctx.fetchText(l.url, { kind: 'html', retries: 0, timeoutMs: 12_000 }).catch(() => null);
+    if (!d || d.status !== 200) continue;
+    if (jobPostingsFromHtml(d.text, d.finalUrl).some((p) => isNlLocation(p.location))) {
+      nlJobs = links.length; // board hires in NL
+      break;
+    }
+  }
+
+  return {
+    sourceType: 'ats:teamtailor',
+    boardId: token,
+    careerUrl,
+    website: careerUrl,
+    companyName: cleanCompanyName(feedTitle(res.text) || titleize(token)),
+    totalJobs: links.length,
     nlJobs,
   };
 }

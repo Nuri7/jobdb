@@ -8,7 +8,7 @@ on:
       ats:
         description: 'Comma-separated ATS platforms'
         required: false
-        default: 'recruitee,homerun,personio'
+        default: 'recruitee,homerun,personio,greenhouse'
       limit:
         description: 'Max new boards to validate per platform'
         required: false
@@ -54,7 +54,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: >
           npx tsx src/cli.ts harvest
-          --ats "${{ inputs.ats || 'recruitee,homerun,personio' }}"
+          --ats "${{ inputs.ats || 'recruitee,homerun,personio,greenhouse' }}"
           --min-nl "${{ inputs.min_nl || '1' }}"
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
           ${{ inputs.dry_run == true && '--dry-run' || '' }}
