@@ -5,6 +5,7 @@ import { buildCtx } from '../refresh.js';
 import type { AtsName, Ctx } from '../types.js';
 import { ccPathTokens, ccTokens } from './commoncrawl.js';
 import {
+  validateAshby,
   validateGreenhouse,
   validateHomerun,
   validatePersonio,
@@ -46,6 +47,10 @@ const DISCOVERERS: Partial<Record<AtsName, Discoverer>> = {
   greenhouse: {
     discover: (ctx, n) => ccPathTokens('greenhouse.io', ctx, GREENHOUSE_HOSTS, { indexes: n }),
     validate: validateGreenhouse,
+  },
+  ashby: {
+    discover: (ctx, n) => ccPathTokens('ashbyhq.com', ctx, ['jobs.ashbyhq.com'], { indexes: n }),
+    validate: validateAshby,
   },
 };
 
