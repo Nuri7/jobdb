@@ -285,6 +285,56 @@ export async function validateGreenhouse(token: string, ctx: Ctx): Promise<Harve
 }
 
 // ---------------------------------------------------------------------------
+// Ashby — public JSON API at api.ashbyhq.com/posting-api/job-board/<token>, with a
+// `location` (+ secondaryLocations) per job. Same shape as the ats:ashby adapter.
+// ---------------------------------------------------------------------------
+
+interface AshbyJob {
+  title?: string;
+  location?: string;
+  secondaryLocations?: Array<{ location?: string }>;
+}
+
+export async function validateAshby(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  let res;
+  try {
+    res = await ctx.fetchText(`https://api.ashbyhq.com/posting-api/job-board/${token}`, {
+      kind: 'api',
+      retries: 1,
+      timeoutMs: 15_000,
+    });
+  } catch {
+    return null;
+  }
+  if (res.status !== 200) return null;
+
+  let data: { jobs?: AshbyJob[] };
+  try {
+    data = JSON.parse(res.text) as typeof data;
+  } catch {
+    return null;
+  }
+  const jobs = (data.jobs ?? []).filter((j) => j.title);
+  if (jobs.length === 0) return null;
+
+  let nlJobs = 0;
+  for (const j of jobs) {
+    const locs = [j.location, ...(j.secondaryLocations?.map((s) => s.location) ?? [])];
+    if (locs.some((l) => isNlLocation(l ?? undefined))) nlJobs++;
+  }
+
+  return {
+    sourceType: 'ats:ashby',
+    boardId: token,
+    careerUrl: `https://jobs.ashbyhq.com/${token}`,
+    website: `https://jobs.ashbyhq.com/${token}`,
+    companyName: titleize(token),
+    totalJobs: jobs.length,
+    nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Teamtailor — career site with a static /jobs listing (unlike Homerun); each job page
 // carries schema.org JobPosting JSON-LD. Confirm liveness from the listing links, then
 // sample a few detail pages for the authoritative NL location.
