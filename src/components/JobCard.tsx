@@ -19,12 +19,21 @@ interface JobCardProps {
   companyCareerUrl?: string | null;
   isInternship?: boolean;
   industry?: string | null;
+  firstSeenAt?: string | null;
+  easyApply?: boolean;
+  closingDate?: string | null;
   onClick?: () => void;
 }
 
-const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, industry, onClick }: JobCardProps) => {
+const DAY = 86_400_000;
+
+const JobCard = ({ title, location, dateRange, source, startDate, description, jobUrl, experienceLevel, salaryRange, companyCareerUrl, isInternship, industry, firstSeenAt, easyApply, closingDate, onClick }: JobCardProps) => {
   const { toast } = useToast();
   const [logoError, setLogoError] = useState(false);
+
+  const isNew = firstSeenAt ? Date.now() - new Date(firstSeenAt).getTime() < 7 * DAY : false;
+  const daysToClose = closingDate ? Math.ceil((new Date(closingDate).getTime() - Date.now()) / DAY) : null;
+  const closesSoon = daysToClose !== null && daysToClose >= 0 && daysToClose <= 7;
 
   const logoUrl = getCompanyLogoUrl(companyCareerUrl);
   const fallbackUrl = getCompanyFaviconUrl(companyCareerUrl);
@@ -73,10 +82,25 @@ const JobCard = ({ title, location, dateRange, source, startDate, description, j
           <span className="text-xs text-muted-foreground">{source}</span>
         </div>
         
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0 max-w-[45%]">
+          {isNew && (
+            <Badge variant="outline" className="text-xs font-medium border-emerald-300 text-emerald-700 bg-emerald-50">
+              Nieuw
+            </Badge>
+          )}
+          {easyApply && (
+            <Badge variant="outline" className="text-xs font-medium border-blue-300 text-blue-700 bg-blue-50" title="Solliciteren via een gestructureerd vacaturesysteem — FairApply kan dit automatiseren">
+              1-klik
+            </Badge>
+          )}
+          {closesSoon && (
+            <Badge variant="outline" className="text-xs font-medium border-amber-300 text-amber-700 bg-amber-50">
+              {daysToClose === 0 ? "Sluit vandaag" : `Nog ${daysToClose}d`}
+            </Badge>
+          )}
           {isInternship && (
             <Badge variant="outline" className="text-xs font-medium border-purple-300 text-purple-600 bg-purple-50">
-              Internship
+              Stage
             </Badge>
           )}
           <Badge variant="secondary" className="text-xs font-medium">

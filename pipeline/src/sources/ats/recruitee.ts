@@ -20,6 +20,18 @@ interface RecruiteeOffer {
   status?: string;
 }
 
+/** Recruitee's declared experience_code → our seniority label (beats the title-regex fallback). */
+function recruiteeSeniority(code?: string): string | undefined {
+  if (!code) return undefined;
+  const c = code.toLowerCase();
+  if (/student|intern|stage/.test(c)) return 'Internship';
+  if (/junior|entry|starter/.test(c)) return 'Junior';
+  if (/medior|mid|intermediate/.test(c)) return 'Medior';
+  if (/senior/.test(c)) return 'Senior';
+  if (/lead|principal|expert|manager|director|head/.test(c)) return 'Management';
+  return undefined; // unknown code → let finalizeJob's title heuristic decide
+}
+
 export const recruiteeSource: JobSource = {
   type: 'ats:recruitee',
 
@@ -54,6 +66,7 @@ export const recruiteeSource: JobSource = {
         employment_type: offer.employment_type_code?.replace(/_/g, '-') || undefined,
         description: htmlToText([offer.description ?? '', offer.requirements ?? ''].join('\n')),
         posted_date: offer.created_at,
+        experience_level: recruiteeSeniority(offer.experience_code),
         is_remote: offer.remote === true || offer.remote === 'fully' ? true : undefined,
         salary_range: salary,
       });

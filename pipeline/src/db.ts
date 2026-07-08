@@ -239,6 +239,7 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       salary_range: j.salary_range ?? null,
       description: j.description ?? null,
       posted_date: j.posted_date ?? null,
+      closing_date: j.closing_date ?? null,
       is_remote: j.is_remote ?? false,
       is_internship: j.is_internship ?? false,
       experience_level: j.experience_level ?? null,
