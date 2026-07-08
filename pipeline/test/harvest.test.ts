@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tokensFromCcLines } from '../src/harvest/commoncrawl.js';
+import { tokensFromCcLines, tokensFromCcPaths } from '../src/harvest/commoncrawl.js';
 import { cleanCompanyName, isNlLocation, titleize } from '../src/harvest/validators.js';
 import { homerunJobsFromEntries, parseHomerunFeed } from '../src/sources/ats/homerun.js';
 
@@ -21,6 +21,22 @@ describe('tokensFromCcLines', () => {
   it('handles homerun.co base and empty input', () => {
     expect(tokensFromCcLines(['{"url":"https://startup.homerun.co/vacancies"}'], 'homerun.co')).toEqual(['startup']);
     expect(tokensFromCcLines([], 'recruitee.com')).toEqual([]);
+  });
+});
+
+describe('tokensFromCcPaths (path-based ATS like Greenhouse)', () => {
+  it('extracts the first path segment on the given hosts, dropping infra/embed/dupes', () => {
+    const lines = [
+      '{"url":"https://boards.greenhouse.io/adyen/jobs/123"}',
+      '{"url":"https://boards.greenhouse.io/adyen"}', // same token → deduped
+      '{"url":"https://job-boards.greenhouse.io/coolblue/jobs/9"}',
+      '{"url":"https://boards.greenhouse.io/embed/job_app?token=1"}', // embed → dropped
+      '{"url":"https://www.greenhouse.io/customers"}', // wrong host → dropped
+    ];
+    expect(tokensFromCcPaths(lines, ['boards.greenhouse.io', 'job-boards.greenhouse.io']).sort()).toEqual([
+      'adyen',
+      'coolblue',
+    ]);
   });
 });
 
