@@ -65,6 +65,8 @@ const JUNK_TITLE_EXACT = new Set([
   'careers', 'career', 'jobs', 'job', 'careers home',
   'solliciteren', 'sollicitatie', 'open sollicitatie', 'open sollicitaties', 'initiatiefsollicitatie',
   'werken bij', 'werken voor', 'over ons', 'over-ons', 'onze arbeidsvoorwaarden',
+  // placeholder / broken titles seen in the wild
+  'unavailable', 'n/a', 'untitled', '-', 'test', 'testvacature', 'test vacature',
 ]);
 const JUNK_TITLE_PREFIX =
   /^(werken bij |werk bij |werken voor |kom werken bij |word collega |onze arbeidsvoorwaarden\b)/i;
@@ -74,10 +76,35 @@ const JUNK_TITLE_PREFIX =
 const JUNK_TITLE_RE =
   /(^(waarom (werken|kiezen)|over werken bij|het verhaal (van|achter)|ons verhaal|stap voor stap|werken in nederland)\b|\bals werkgever$)/i;
 
-/** True when a title is a landing/info page rather than a specific vacancy. */
+// Test/placeholder/template titles ("Testvacature", "Title of the hero block goes here", "Lorem ipsum").
+// NB: avoid a bare /^test\b/ — that would wrongly flag real roles like "Test Engineer" / "Tester".
+const JUNK_TITLE_TEST_RE =
+  /(test.?vacature|testvacancy|test vacancy|dit is een test|hero block|lorem ipsum|title (of|goes)|placeholder|your (title|text) here|example (job|title|vacancy)|sample (job|vacancy))/i;
+
+// Blog/news/press/video URLs are not vacancies. Two shapes: a section anywhere in the path
+// (/insights/, /blog/, …) OR an article section at the ROOT (/artikelen/, /articles/) — the root
+// anchor is deliberate so we DON'T drop real jobs some sites nest under /vacature/artikelen/….
+const JUNK_URL_SECTION_RE =
+  /\/(insights?|blogs?|news|nieuws|press|persberichten?|whitepapers?|webinars?|podcasts?|case-?stud[a-z]*)\//i;
+const JUNK_URL_ROOT_ARTICLE_RE = /^\/(actueel\/)?(artikelen?|articles?|verhalen)\//i;
+const JUNK_HOST_RE = /(?:^|\.)(vimeo|youtube|youtu|facebook|instagram|tiktok)\./i;
+
+/** True when a title is a landing/info/test/placeholder page rather than a specific vacancy. */
 export function isJunkTitle(title: string): boolean {
   const s = title.trim().toLowerCase().replace(/\s+/g, ' ');
-  return JUNK_TITLE_EXACT.has(s) || JUNK_TITLE_PREFIX.test(s) || JUNK_TITLE_RE.test(s);
+  return JUNK_TITLE_EXACT.has(s) || JUNK_TITLE_PREFIX.test(s) || JUNK_TITLE_RE.test(s) || JUNK_TITLE_TEST_RE.test(s);
+}
+
+/** True when a URL is a blog/news/press/video page rather than a vacancy detail page. */
+export function isJunkUrl(rawUrl: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (JUNK_HOST_RE.test(u.hostname)) return true;
+  return JUNK_URL_SECTION_RE.test(u.pathname) || JUNK_URL_ROOT_ARTICLE_RE.test(u.pathname);
 }
 
 /**
@@ -140,9 +167,11 @@ export function finalizeJob(
 ): CanonicalJob | null {
   const url = canonicalizeUrl(partial.job_url, baseUrl);
   if (!url) return null;
+  // Global guard (all tiers): blog/news/press/video URLs are not vacancies.
+  if (isJunkUrl(url)) return null;
   const title = partial.job_title.replace(/\s+/g, ' ').trim().slice(0, 200);
   if (title.length < 2) return null;
-  // Global guard (all tiers): landing/info-page titles are not vacancies.
+  // Global guard (all tiers): landing/info/test/placeholder titles are not vacancies.
   if (isJunkTitle(title)) return null;
 
   const description = capDescription(partial.description);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob, isCategoryTitle, isJunkTitle } from '../src/extract/normalize.js';
+import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob, isCategoryTitle, isJunkTitle, isJunkUrl } from '../src/extract/normalize.js';
 
 describe('isCategoryTitle — plural category listings vs real singular jobs', () => {
   it('flags category/overview titles', () => {
@@ -25,9 +25,41 @@ describe('isJunkTitle — landing pages vs real "Vacature <role>" titles', () =>
       expect(isJunkTitle(t), t).toBe(true);
     }
   });
-  it('keeps real Dutch "Vacature <role>" and "Vacatures <team>" job titles', () => {
-    for (const t of ['Vacature junior chemisch analist', 'Vacature Consultant Bouw', 'Vacatures Zorg team West', 'Senior Adviseur', 'Verpleegkundige thuiszorg']) {
+  it('flags test/placeholder/template titles', () => {
+    for (const t of ['Testvacature', 'Test vacature', 'Dit is een testvacature', 'TEST Vacature', 'unavailable', 'Title of the hero block goes here.', 'Lorem ipsum dolor', 'Your title here']) {
+      expect(isJunkTitle(t), t).toBe(true);
+    }
+  });
+  it('keeps real Dutch "Vacature <role>" and real roles containing "test"', () => {
+    for (const t of ['Vacature junior chemisch analist', 'Vacature Consultant Bouw', 'Vacatures Zorg team West', 'Senior Adviseur', 'Verpleegkundige thuiszorg', 'Tester', 'Test Engineer', 'Software Tester', 'QA Test Automation Engineer']) {
       expect(isJunkTitle(t), t).toBe(false);
+    }
+  });
+});
+
+describe('isJunkUrl — blog/news/press/video pages vs vacancy detail URLs', () => {
+  it('flags blog/news/press/video URLs', () => {
+    for (const u of [
+      'https://highberg.com/insights/new-job-framework-for-topgeschenken',
+      'https://aob.nl/actueel/artikelen/aantal-vacatures-primair-onderwijs',
+      'https://vandoorne.com/artikelen/wetsvoorstellen-szw',
+      'https://nieuweinstituut.nl/articles/open-call-design-fair-2026',
+      'https://werkenbijvanmeijel.nl/artikelen/senior-pagina',
+      'https://vimeo.com/1077928111?from=outro-embed',
+      'https://example.com/blog/some-post',
+      'https://example.com/nieuws/persbericht',
+    ]) {
+      expect(isJunkUrl(u), u).toBe(true);
+    }
+  });
+  it('keeps real vacancy URLs, incl. jobs nested under /vacature/artikelen/', () => {
+    for (const u of [
+      'https://kerstentechniek.nl/vacature/artikelen/servicemonteur-e-beheer',
+      'https://www.werkenbijvangelder.com/vacatures/boormedewerker-340601',
+      'https://boards.greenhouse.io/acme/jobs/12345',
+      'https://example.com/careers/senior-developer',
+    ]) {
+      expect(isJunkUrl(u), u).toBe(false);
     }
   });
 });
