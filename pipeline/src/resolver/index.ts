@@ -21,6 +21,12 @@ interface Candidate {
 const BAD_HOST_RE =
   /(linkedin|indeed|glassdoor|facebook|instagram|twitter|youtube|nationalevacaturebank|monsterboard|werkzoeken\.nl|jobbird|intermediair)/i;
 
+// Unambiguous non-employer org types FairJobs shouldn't scrape (amateur sports clubs, churches).
+// Deliberately narrow — only strong, specific terms — so real companies aren't excluded; a page
+// like a football club's /vacatures with real JobPosting markup would otherwise sail through as verified.
+const NON_EMPLOYER_NAME_RE =
+  /(^|\s)(v\.v\.|voetbalvereniging|voetbalclub|sportvereniging|sportclub|hockeyvereniging|hockeyclub|tennisvereniging|korfbalvereniging|gymnastiekvereniging|parochie)(\s|$)/i;
+
 function scoreCandidate(c: Omit<Candidate, 'score'>, companyDomain: string): number {
   let score = 0;
   const u = new URL(c.finalUrl);
@@ -76,6 +82,9 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
   const rootUrl = company.website || company.career_url;
   if (!rootUrl) {
     return { career_url: null, career_page_status: 'dead', source_type: null, source_config: null, evidence: ['no urls at all'] };
+  }
+  if (NON_EMPLOYER_NAME_RE.test(company.company_name || '')) {
+    return { career_url: null, career_page_status: 'dead', source_type: null, source_config: null, evidence: ['excluded: non-employer org type'] };
   }
   let companyDomain = '';
   try {
