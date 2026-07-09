@@ -87,6 +87,10 @@ const JUNK_TITLE_TEST_RE =
 const JUNK_URL_SECTION_RE =
   /\/(insights?|blogs?|news|nieuws|press|persberichten?|whitepapers?|webinars?|podcasts?|case-?stud[a-z]*)\//i;
 const JUNK_URL_ROOT_ARTICLE_RE = /^\/(actueel\/)?(artikelen?|articles?|verhalen)\//i;
+// English "article(s)" or a resources/knowledge section anywhere in the path = a blog/help article,
+// not a vacancy (e.g. /en-ae/resources/article/…, /content/articles/…). Dutch "artikelen" stays
+// root-anchored above to avoid dropping real jobs some sites nest under /vacature/artikelen/….
+const JUNK_URL_ARTICLE_ANY_RE = /\/articles?\/|\/resources\/article|\/content\/articles?|\/kennisbank\//i;
 const JUNK_HOST_RE = /(?:^|\.)(vimeo|youtube|youtu|facebook|instagram|tiktok)\./i;
 
 /** True when a title is a landing/info/test/placeholder page rather than a specific vacancy. */
@@ -104,7 +108,8 @@ export function isJunkUrl(rawUrl: string): boolean {
     return false;
   }
   if (JUNK_HOST_RE.test(u.hostname)) return true;
-  return JUNK_URL_SECTION_RE.test(u.pathname) || JUNK_URL_ROOT_ARTICLE_RE.test(u.pathname);
+  return JUNK_URL_SECTION_RE.test(u.pathname) || JUNK_URL_ROOT_ARTICLE_RE.test(u.pathname)
+    || JUNK_URL_ARTICLE_ANY_RE.test(u.pathname);
 }
 
 /**
