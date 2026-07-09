@@ -367,6 +367,27 @@ export async function pruneHistory(db: Db, keepDays = 90): Promise<number> {
   return res.data?.length ?? 0;
 }
 
+/**
+ * Close open jobs whose posted deadline (schema.org validThrough → closing_date) has passed.
+ * Boards commonly leave expired postings up, so this is the largest structural expiry gap: without
+ * it the API serves dead vacancies and FairApply sends users to closed applications.
+ */
+export async function closeExpiredJobs(db: Db): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (date-only compare, ignores tz slop)
+  const res = await db
+    .from('job_opportunities')
+    .update({ status: 'closed', closed_at: new Date().toISOString() })
+    .eq('status', 'open')
+    .not('closing_date', 'is', null)
+    .lt('closing_date', today)
+    .select('id');
+  if (res.error) {
+    console.error(`closeExpiredJobs: ${res.error.message}`);
+    return 0;
+  }
+  return res.data?.length ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // Staleness sweep — companies whose source died must not serve zombie jobs
 // ---------------------------------------------------------------------------

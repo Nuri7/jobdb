@@ -1,6 +1,6 @@
 import pLimit from 'p-limit';
 import { config } from './config.js';
-import { createDb, findCompany, pickDueCompanies, pruneHistory, staleCompanies } from './db.js';
+import { closeExpiredJobs, createDb, findCompany, pickDueCompanies, pruneHistory, staleCompanies } from './db.js';
 import { createLlmClient } from './extract/llm.js';
 import { processCompany, stalenessSweep, type CompanyOutcome } from './lifecycle.js';
 import { politeFetchText, createRobotsChecker } from './politeness.js';
@@ -92,6 +92,8 @@ export async function refreshCommand(opts: RefreshOpts): Promise<void> {
           const closed = await stalenessSweep(db, ctx, stale);
           if (closed > 0) console.log(`Staleness sweep closed ${closed} jobs across ${stale.length} companies`);
         }
+        const expired = await closeExpiredJobs(db);
+        if (expired > 0) console.log(`Closed ${expired} jobs past their closing_date`);
         const pruned = await pruneHistory(db, 90);
         if (pruned > 0) console.log(`Pruned ${pruned} scrape_history rows (>90d)`);
       } catch (err) {

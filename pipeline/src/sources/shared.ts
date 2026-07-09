@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { findKnownCity } from '../extract/nl-geo.js';
+import { findKnownCity, normalizeCity, provinceOf } from '../extract/nl-geo.js';
 import { dedupeJobs, finalizeJob, htmlToText, isCategoryTitle, isJunkTitle } from '../extract/normalize.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import type { CanonicalJob, Ctx } from '../types.js';
@@ -314,6 +314,20 @@ export async function jobsViaDetailPages(
 
     const fromLd = jobPostingsFromHtml(res.text, res.finalUrl);
     if (fromLd.length > 0) {
+      // JSON-LD with no jobLocation node never runs the heuristic city scan (the real "Group A"
+      // location gap). We already have the page HTML in hand, so backfill location + city/province
+      // from it for any LD job that came back locationless — no extra fetch.
+      const bodyText = htmlToText(res.text);
+      for (const job of fromLd) {
+        if (!job.location) {
+          const loc = heuristicLocation(bodyText, job.job_title);
+          if (loc) {
+            job.location = loc;
+            job.city = normalizeCity(loc) ?? undefined;
+            job.province = provinceOf(loc, job.city ?? null) ?? undefined;
+          }
+        }
+      }
       // Detail pages describe one job; ItemList pages can hold many
       jobs.push(...fromLd);
       continue;
