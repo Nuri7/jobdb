@@ -133,10 +133,13 @@ export const sitemapSource: JobSource = {
     const jobEntries = filterJobEntries(entries, careerUrl);
     ctx.log(`  sitemap: ${entries.length} urls, ${jobEntries.length} job-like`);
 
+    // Per-run detail-page cap keeps a single big employer from blowing the run's time budget;
+    // big rosters fill over several runs. Overridable via SITEMAP_DETAIL_CAP for one-off full backfills.
+    const detailCap = Number(process.env.SITEMAP_DETAIL_CAP) || 250;
     const jobs = await jobsViaDetailPages(
       jobEntries.map((e) => ({ url: e.loc, text: '' })),
       ctx,
-      { cap: 250 },
+      { cap: detailCap },
     );
 
     if (jobs.length === 0 && jobEntries.length >= 3) {
