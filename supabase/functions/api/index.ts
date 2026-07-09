@@ -356,6 +356,12 @@ Deno.serve(async (req) => {
 
         for (const phrase of phrases) {
           primary.push(phrase);
+          // Broaden a long, niche title to its 2-word core role so specific titles still return
+          // relevant roles instead of nothing: "ai solutions architect" (0 hits) → also match
+          // "solutions architect" (many). We stop at a 2-word tail — never a single generic word
+          // like "architect"/"engineer" — so this widens sensibly without flooding.
+          const words = phrase.split(/\s+/).filter(Boolean);
+          if (words.length >= 3) primary.push(words.slice(-2).join(' '));
           // Curated synonyms first (fast, predictable) — matched against the whole phrase
           const syn = getSynonymsFromGroups(phrase, synonymGroups);
           if (syn.length <= 1) {
