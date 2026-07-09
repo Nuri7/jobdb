@@ -380,6 +380,15 @@ Deno.serve(async (req) => {
         query = query.eq('verified', true);
       }
 
+      // NL-only gate (default): this is a Netherlands job board. `is_foreign` (a trigger-maintained
+      // column) is true only for jobs with a foreign city and no NL signal — i.e. a city not in
+      // city_coords, no Dutch province, not remote, and no "Nederland/Netherlands/Landelijk" in the
+      // location. Remote and location-unknown jobs are kept. A plain .eq() reliably AND-combines with
+      // the search .or() (two separate .or() groups do NOT). ?country=all bypasses it.
+      if ((params.get('country') || 'nl').toLowerCase() !== 'all') {
+        query = query.eq('is_foreign', false);
+      }
+
       // Apply intelligent search - OR across all related terms
       // Use word boundary matching for short terms (<=3 chars) to avoid false positives
       if (searchTerms.length > 0) {
