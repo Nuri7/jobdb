@@ -27,6 +27,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   harvest:
@@ -66,3 +67,16 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx src/cli.ts snapshot | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          NUM=$(gh issue list --search "in:title 🔴 Pipeline failing" --state open --json number -q '.[0].number' 2>/dev/null || true)
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --body "\`${{ github.workflow }}\` failed — $RUN_URL"
+          else
+            gh issue create --title "🔴 Pipeline failing" --body "\`${{ github.workflow }}\` failed — $RUN_URL" || true
+          fi
