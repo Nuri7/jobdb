@@ -152,6 +152,27 @@ function relevanceScore(title: string, phrases: string[]): { score: number; reas
   return { score: best, reason };
 }
 
+// Reject non-public / internal hosts so an attacker-supplied career_url can't coerce the scraper
+// into fetching internal services (SSRF). Blocks non-http(s), localhost, private/link-local/reserved
+// IP ranges, cloud metadata, and our own Supabase host.
+function isSafeCareerUrl(raw: string): boolean {
+  let u: URL;
+  try { u = new URL(raw); } catch { return false; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+  const host = u.hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) return false;
+  if (host === 'metadata.google.internal' || host === '169.254.169.254') return false;
+  if (host.includes('supabase.co') || host.includes('supabase.in')) return false;
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = Number(m[1]), b = Number(m[2]);
+    if (a === 0 || a === 10 || a === 127 || a >= 224 ||
+        (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) return false;
+  }
+  if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) return false;
+  return true;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -236,8 +257,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Skip API key validation for internal calls (from frontend via supabase.functions.invoke)
-    if (!isInternalCall) {
+    // Internal READ calls (from the frontend via supabase.functions.invoke) skip the API key. But
+    // writes ALWAYS require a valid key — a client-supplied `x-internal: true` header must never be
+    // enough to mutate data or trigger a scrape.
+    const isWrite = req.method !== 'GET' && req.method !== 'OPTIONS' && req.method !== 'HEAD';
+    if (!isInternalCall || isWrite) {
       // Validate API key for external API calls
       const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key');
       
@@ -627,11 +651,9 @@ Deno.serve(async (req) => {
             formattedUrl = `https://${formattedUrl}`;
           }
 
-          try {
-            new URL(formattedUrl);
-          } catch {
+          if (!isSafeCareerUrl(formattedUrl)) {
             return new Response(
-              JSON.stringify({ error: 'Bad Request', message: 'Invalid career_url format' }),
+              JSON.stringify({ error: 'Bad Request', message: 'Invalid or disallowed career_url' }),
               { status: 400, headers: corsHeaders }
             );
           }
