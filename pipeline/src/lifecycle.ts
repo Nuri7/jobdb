@@ -159,6 +159,12 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
       }
     }
 
+    // Load current jobs up front so a source can deprioritize already-scraped urls (incremental
+    // backfill) and reconcile can keep still-live-but-not-refetched jobs open.
+    const existing = await listCompanyJobs(db, company.id);
+    ctx.scrapedUrls = new Set(existing.map((j) => j.job_url));
+    ctx.liveUrls = undefined;
+
     // ---------- Full scrape (with tier escalation) ----------
     const historyId = ctx.dryRun ? null : await insertHistory(db, company.id, company.career_url ?? '', method);
     let jobs: CanonicalJob[];
@@ -187,7 +193,7 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     }
 
     // ---------- Reconcile ----------
-    const existing = await listCompanyJobs(db, company.id);
+    // `existing` was loaded before the fetch (for incremental prioritization); reuse it.
     const openBefore = existing.filter((j) => j.status === 'open').length;
 
     // Safety floor: a scrape that returns ZERO jobs for a company that currently has
@@ -207,21 +213,28 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
 
     const byUrl = new Map(existing.map((j) => [j.job_url, j]));
     const seenUrls = new Set(jobs.map((j) => j.job_url));
+    // A source may report the FULL live-url set even when it only fetched detail for a capped subset
+    // this run (incremental backfill). Fall back to what we actually fetched for sources that don't.
+    const liveSet = ctx.liveUrls ?? seenUrls;
 
-    const unchangedIds: string[] = [];
     const toWrite: CanonicalJob[] = [];
     for (const job of jobs) {
       const prior = byUrl.get(job.job_url);
-      if (prior && prior.content_hash === job.content_hash && prior.status === 'open' && prior.verified === job.verified) {
-        unchangedIds.push(prior.id);
-      } else {
-        toWrite.push(job);
-      }
+      const unchanged =
+        prior && prior.content_hash === job.content_hash && prior.status === 'open' && prior.verified === job.verified;
+      if (!unchanged) toWrite.push(job);
     }
-    const missedIds = existing.filter((j) => j.status === 'open' && !seenUrls.has(j.job_url)).map((j) => j.id);
+    const writeUrls = new Set(toWrite.map((j) => j.job_url));
+    // Keep alive every open job still present in the live set that we didn't rewrite — both the
+    // unchanged ones we re-fetched and the ones a capped run deliberately skipped.
+    const touchIds = existing
+      .filter((j) => j.status === 'open' && liveSet.has(j.job_url) && !writeUrls.has(j.job_url))
+      .map((j) => j.id);
+    // Only genuinely-gone jobs (no longer in the live set) count as missed.
+    const missedIds = existing.filter((j) => j.status === 'open' && !liveSet.has(j.job_url)).map((j) => j.id);
 
     await upsertJobs(db, company.id, toWrite);
-    await touchJobs(db, unchangedIds);
+    await touchJobs(db, touchIds);
     const closedIds = await incrementMisses(db, missedIds);
 
     const hadChanges = toWrite.length > 0 || closedIds.length > 0;

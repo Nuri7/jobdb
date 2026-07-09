@@ -133,11 +133,20 @@ export const sitemapSource: JobSource = {
     const jobEntries = filterJobEntries(entries, careerUrl);
     ctx.log(`  sitemap: ${entries.length} urls, ${jobEntries.length} job-like`);
 
-    // Per-run detail-page cap keeps a single big employer from blowing the run's time budget;
-    // big rosters fill over several runs. Overridable via SITEMAP_DETAIL_CAP for one-off full backfills.
+    // Every sitemap job url is a currently-live vacancy — tell reconcile so a capped run keeps the
+    // ones it didn't re-fetch this pass OPEN instead of closing them.
+    ctx.liveUrls = new Set(jobEntries.map((e) => e.loc));
+
+    // Per-run detail-page cap keeps a single big employer from blowing the run's time budget; big
+    // rosters fill over several runs. Deprioritize urls we've already scraped so each run spends its
+    // budget on NEW vacancies (incremental backfill). Overridable via SITEMAP_DETAIL_CAP.
     const detailCap = Number(process.env.SITEMAP_DETAIL_CAP) || 250;
+    const already = ctx.scrapedUrls ?? new Set<string>();
+    const fresh = jobEntries.filter((e) => !already.has(e.loc));
+    const ordered = [...fresh, ...jobEntries.filter((e) => already.has(e.loc))];
+
     const jobs = await jobsViaDetailPages(
-      jobEntries.map((e) => ({ url: e.loc, text: '' })),
+      ordered.map((e) => ({ url: e.loc, text: '' })),
       ctx,
       { cap: detailCap },
     );
@@ -146,9 +155,14 @@ export const sitemapSource: JobSource = {
       throw new ZeroExtractionError(`sitemap saw ${jobEntries.length} job urls but extracted 0`, jobEntries.length);
     }
 
-    // Persist change-detection state via the mutable source_config (lifecycle saves it)
-    cfg.listing_hash = hashUrlSet(jobEntries);
-    cfg.last_full_at = new Date().toISOString();
+    // Only mark the listing "fully crawled" once this run covered all not-yet-scraped urls — otherwise
+    // keep hasChanged() returning true so the next run continues filling a big roster.
+    if (fresh.length <= detailCap) {
+      cfg.listing_hash = hashUrlSet(jobEntries);
+      cfg.last_full_at = new Date().toISOString();
+    } else {
+      ctx.log(`  incremental: ${fresh.length} new urls, fetched ${detailCap}; ${fresh.length - detailCap} remain for next run`);
+    }
     return dedupeJobs(jobs);
   },
 };

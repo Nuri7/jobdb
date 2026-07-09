@@ -122,6 +122,13 @@ export interface Ctx {
   fetchText: (url: string, opts?: FetchTextOpts) => Promise<FetchResult>;
   llm: LlmClient | null;
   robotsAllowed: (url: string) => Promise<boolean>;
+  /** job_urls already in the DB for this company. Set by processCompany before fetch; a source may
+   *  deprioritize these so a capped run spends its budget on not-yet-scraped urls (incremental backfill). */
+  scrapedUrls?: Set<string>;
+  /** The FULL set of currently-live job urls the source observed (e.g. every url in the sitemap), even
+   *  when only a capped subset had detail fetched this run. Reconcile treats urls in this set as live
+   *  (kept open), so a big roster isn't mass-closed just because it wasn't fully re-fetched. */
+  liveUrls?: Set<string>;
 }
 
 export interface FetchTextOpts {
