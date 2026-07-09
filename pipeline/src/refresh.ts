@@ -46,7 +46,11 @@ export async function refreshCommand(opts: RefreshOpts): Promise<void> {
       return;
     }
     console.log(`Refreshing ${company.company_name} (${company.career_url ?? 'no url'}) …`);
-    outcomes.push(await processCompany(db, ctx, company));
+    {
+      const oc = await processCompany(db, ctx, company);
+      console.log(`[${oc.status}] ${oc.company}: ${oc.error ?? (oc.status === 'ok' ? `+${oc.inserted} upserted, ${oc.openNow} open` : '')}`);
+      outcomes.push(oc);
+    }
   } else {
     let processed = 0;
     const max = opts.limit ?? Infinity;
