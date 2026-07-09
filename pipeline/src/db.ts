@@ -226,7 +226,10 @@ function chunk<T>(arr: T[], size: number): T[][] {
 export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]): Promise<number> {
   const now = new Date().toISOString();
   let written = 0;
-  for (const batch of chunk(jobs, 100)) {
+  // Smaller batches + a hard description cap keep each request body well under the transport limit;
+  // large employers (e.g. Jumbo, 3.6k jobs with long descriptions) otherwise blew the request up into
+  // a `TypeError: fetch failed`. Each batch is retried on a transient network error.
+  for (const batch of chunk(jobs, 50)) {
     const rows = batch.map((j) => ({
       company_career_site_id: companyId,
       job_title: j.job_title,
@@ -237,7 +240,7 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       employment_type: j.employment_type ?? null,
       department: j.department ?? null,
       salary_range: j.salary_range ?? null,
-      description: j.description ?? null,
+      description: j.description ? j.description.slice(0, 8000) : null,
       posted_date: j.posted_date ?? null,
       closing_date: j.closing_date ?? null,
       is_remote: j.is_remote ?? false,
@@ -251,8 +254,19 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       content_hash: j.content_hash,
       verified: j.verified,
     }));
-    const res = await db.from('job_opportunities').upsert(rows, { onConflict: 'job_url' });
-    if (res.error) throw new Error(`upsertJobs: ${res.error.message}`);
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await db.from('job_opportunities').upsert(rows, { onConflict: 'job_url' });
+        if (res.error) throw new Error(res.error.message);
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
+    }
+    if (lastErr) throw new Error(`upsertJobs: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
     written += batch.length;
   }
   return written;
