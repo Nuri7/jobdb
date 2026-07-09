@@ -128,6 +128,30 @@ const EXPERIENCE_PATTERNS: Record<string, string[]> = {
 };
 const sanitizeLike = (s: string) => s.replace(/[,.()"%_*\\]/g, ' ').replace(/\s+/g, ' ').trim();
 
+// Real relevance score (0-100) for a job title vs the user's search phrases — replaces the old
+// hardcoded 80 so ranking actually means something: exact > prefix > whole-phrase > substring >
+// matched-only-via-synonym/expansion.
+function relevanceScore(title: string, phrases: string[]): { score: number; reason: string } {
+  if (!phrases.length) return { score: 70, reason: 'no query' };
+  const t = (title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  let best = 0;
+  let reason = 'related';
+  for (const raw of phrases) {
+    const p = raw.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!p) continue;
+    const esc = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let s = 0;
+    let r = 'related';
+    if (t === p) { s = 100; r = 'exact title'; }
+    else if (t.startsWith(`${p} `)) { s = 92; r = 'title starts with query'; }
+    else if (new RegExp(`\\b${esc}\\b`).test(t)) { s = 84; r = 'query is a whole phrase in the title'; }
+    else if (t.includes(p)) { s = 76; r = 'query appears in the title'; }
+    if (s > best) { best = s; reason = r; }
+  }
+  if (best === 0) return { score: 62, reason: 'related role (synonym / AI-expanded match)' };
+  return { score: best, reason };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -518,9 +542,12 @@ Deno.serve(async (req) => {
         };
         const sourceType = company?.source_type ?? null;
         const isAts = typeof sourceType === 'string' && sourceType.startsWith('ats:');
+        const rel = relevanceScore(job.job_title, phrases);
         return {
           id: job.id,
           title: job.job_title,
+          match_score: rel.score,
+          match_reason: rel.reason,
           url: job.job_url,
           location: job.location,
           city: job.city,
@@ -549,6 +576,12 @@ Deno.serve(async (req) => {
           },
         };
       }) || [];
+
+      // When there's a query, order the returned page by relevance (best matches first) instead of
+      // pure scrape-recency. Ties keep DB order (scraped_at desc) since sort is stable.
+      if (phrases.length > 0) {
+        jobs.sort((a: { match_score: number }, b: { match_score: number }) => b.match_score - a.match_score);
+      }
 
       return new Response(
         JSON.stringify({
