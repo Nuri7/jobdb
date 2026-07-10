@@ -55,5 +55,8 @@ export function config(): Config {
   return cached;
 }
 
+// A realistic desktop-Chrome UA: several big NL employers sit behind bot protection (Akamai etc.)
+// that serves an empty body to a transparent bot UA, so their public job sitemaps came back "empty".
+// We still honour robots.txt and rate limits.
 export const USER_AGENT =
-  'Mozilla/5.0 (compatible; jobdb-pipeline/1.0; +https://github.com/Nuri7/jobdb)';
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
