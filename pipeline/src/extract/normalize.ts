@@ -192,7 +192,11 @@ export function finalizeJob(
     }
   }
 
-  const locationStr = partial.location?.replace(/\s+/g, ' ').trim().slice(0, 150) || undefined;
+  // JSON-LD fields are loosely typed — a "department"/"salary"/"employmentType" can arrive as an
+  // object or array, so coerce to string before calling string methods (a non-string crashed the
+  // whole company scrape: "partial.department?.trim is not a function").
+  const asStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+  const locationStr = asStr(partial.location)?.replace(/\s+/g, ' ').trim().slice(0, 150) || undefined;
   const city = normalizeCity(locationStr);
   const draft: Omit<CanonicalJob, 'content_hash'> = {
     job_url: url,
@@ -200,9 +204,9 @@ export function finalizeJob(
     location: locationStr,
     city: city ?? undefined,
     province: provinceOf(locationStr, city) ?? undefined,
-    employment_type: partial.employment_type?.trim().slice(0, 80) || undefined,
-    department: partial.department?.trim().slice(0, 120) || undefined,
-    salary_range: partial.salary_range?.trim().slice(0, 100) || undefined,
+    employment_type: asStr(partial.employment_type)?.trim().slice(0, 80) || undefined,
+    department: asStr(partial.department)?.trim().slice(0, 120) || undefined,
+    salary_range: asStr(partial.salary_range)?.trim().slice(0, 100) || undefined,
     description,
     posted_date: normalizeDate(partial.posted_date),
     closing_date: normalizeDate(partial.closing_date),
