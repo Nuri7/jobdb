@@ -74,13 +74,10 @@ export async function discoverSitemaps(origin: string, ctx: Ctx): Promise<string
   return [...candidates];
 }
 
-export function filterJobEntries(entries: SitemapEntry[], careerUrl: string): SitemapEntry[] {
-  let careerHost = '';
-  try {
-    careerHost = new URL(careerUrl).host;
-  } catch {
-    /* keep empty */
-  }
+const AGGREGATOR_HOST_RE =
+  /(linkedin|indeed|glassdoor|monsterboard|nationalevacaturebank|jobbird|werkzoeken\.nl|google\.|facebook|instagram|youtube|twitter)/i;
+
+export function filterJobEntries(entries: SitemapEntry[], _careerUrl: string): SitemapEntry[] {
   return entries.filter((e) => {
     let u: URL;
     try {
@@ -88,7 +85,10 @@ export function filterJobEntries(entries: SitemapEntry[], careerUrl: string): Si
     } catch {
       return false;
     }
-    if (careerHost && u.host !== careerHost) return false;
+    // Don't require the same host as career_url: dedicated job sitemaps often live on a
+    // "werkenbij…" domain while the job pages sit on the main brand domain (e.g. Coolblue's
+    // sitemap is on werkenbijcoolblue.nl but the jobs are on coolblue.nl). Only exclude aggregators.
+    if (AGGREGATOR_HOST_RE.test(u.host)) return false;
     if (NON_JOB_RE.test(u.pathname) || hasBlockedSegment(u.pathname)) return false;
     if (!JOB_PATH_RE.test(u.pathname)) return false;
     // A job detail page, not the listing root: needs a slug segment after the job-ish part
