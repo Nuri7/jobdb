@@ -14,6 +14,11 @@ export function useJobs(options?: {
   return useQuery({
     queryKey: ['jobs', options],
     queryFn: () => jobsApi.getJobs(options),
+    // Cache each distinct filter combo (every city, tab and page has its own key) for 5 min so
+    // clicking between cities and back is instant instead of re-hitting the DB every time. The
+    // board only changes when the scraper runs, so 5-min-stale results are fine.
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 }
 
