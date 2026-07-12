@@ -172,9 +172,19 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
       const fetched = await fetchJobsWithEscalation(company, ctx);
       jobs = fetched.jobs;
       if (fetched.usedType !== company.source_type) {
-        // The lower tier is what actually works — remember it
-        company = { ...company, source_type: fetched.usedType };
-        if (!ctx.dryRun) await updateCompany(db, company.id, { source_type: fetched.usedType });
+        // The escalated tier produced this run's jobs. Persist it as the new primary UNLESS this is
+        // a downgrade away from a sitemap that still has a valid config: a sitemap can transiently
+        // extract 0 (e.g. every detail fetch failed one run) and we must not let a single bad run
+        // strand the company on the low-yield static tier forever — that is exactly how Randstad
+        // collapsed 3384 → 28. Keeping source_type='sitemap' lets the next run retry it and self-heal.
+        const downgradeFromLiveSitemap =
+          company.source_type === 'sitemap' && !!company.source_config?.sitemap_url;
+        if (downgradeFromLiveSitemap) {
+          ctx.log(`  used ${fetched.usedType} this run but kept source_type=sitemap (retries next run)`);
+        } else {
+          company = { ...company, source_type: fetched.usedType };
+          if (!ctx.dryRun) await updateCompany(db, company.id, { source_type: fetched.usedType });
+        }
       }
     } catch (err) {
       if (!ctx.dryRun) {
