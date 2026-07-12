@@ -374,7 +374,7 @@ const Index = () => {
         {/* Actions Row */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <SearchBar value={search} onChange={setSearch} />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <AddCompanyModal onCompanyAdded={() => { refetchCompanies(); refetch(); }} />
             <Button 
               onClick={handleScrape} 
