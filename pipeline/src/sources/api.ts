@@ -21,6 +21,10 @@ export interface ApiSourceConfig {
   jobs_path?: string;
   base_url?: string;
   map: Record<string, string>;
+  // Optional pagination for APIs that force a small page size (e.g. PostNL, pageSize=10):
+  page_param?: string; // query param to set the page number on `url` (e.g. "page")
+  pages_path?: string; // dot-path to the total page count in each response (e.g. "paging.pages")
+  max_pages?: number; // safety cap (default 200)
 }
 
 /** Read a value at a dot/index path (e.g. "Location.Label", "JobDisciplines.0.Label"). */
@@ -54,19 +58,34 @@ export const apiSource: JobSource = {
     if (!cfg?.url || !cfg.map?.title || !cfg.map?.url) {
       throw new SourceGoneError('api source: missing source_config.api {url, map.title, map.url}');
     }
-    const res = await ctx.fetchText(cfg.url, { kind: 'api', timeoutMs: 25_000 });
-    if (res.status === 404 || res.status === 410) throw new SourceGoneError(`api endpoint gone: ${cfg.url}`);
-    if (res.status !== 200) throw new Error(`api HTTP ${res.status}`);
+    const fetchPage = async (pageUrl: string): Promise<unknown> => {
+      const res = await ctx.fetchText(pageUrl, { kind: 'api', timeoutMs: 25_000 });
+      if (res.status === 404 || res.status === 410) throw new SourceGoneError(`api endpoint gone: ${pageUrl}`);
+      if (res.status !== 200) throw new Error(`api HTTP ${res.status}`);
+      try {
+        return JSON.parse(res.text.replace(/^﻿/, '')); // tolerate UTF-8 BOM
+      } catch {
+        throw new Error('api: invalid JSON');
+      }
+    };
+    const jobsArrayOf = (data: unknown): unknown[] => {
+      const a = cfg.jobs_path ? at(data, cfg.jobs_path) : data;
+      return Array.isArray(a) ? a : [];
+    };
 
-    let data: unknown;
-    try {
-      data = JSON.parse(res.text.replace(/^﻿/, '')); // tolerate UTF-8 BOM
-    } catch {
-      throw new Error('api: invalid JSON');
+    // Collect the raw job objects — paginated when page_param is set, else a single all-in-one call.
+    const arr: unknown[] = [];
+    if (cfg.page_param) {
+      const first = await fetchPage(cfg.url + (cfg.url.includes('?') ? '&' : '?') + `${cfg.page_param}=1`);
+      arr.push(...jobsArrayOf(first));
+      const totalPages = Math.min(Number(at(first, cfg.pages_path ?? '')) || 1, cfg.max_pages ?? 200);
+      for (let p = 2; p <= totalPages; p++) {
+        arr.push(...jobsArrayOf(await fetchPage(cfg.url + (cfg.url.includes('?') ? '&' : '?') + `${cfg.page_param}=${p}`)));
+      }
+    } else {
+      arr.push(...jobsArrayOf(await fetchPage(cfg.url)));
     }
-
-    const arr = cfg.jobs_path ? at(data, cfg.jobs_path) : data;
-    if (!Array.isArray(arr)) throw new SourceGoneError(`api: no jobs array at "${cfg.jobs_path ?? '<root>'}"`);
+    if (arr.length === 0) throw new SourceGoneError(`api: no jobs array at "${cfg.jobs_path ?? '<root>'}"`);
 
     const m = cfg.map;
     const jobs: CanonicalJob[] = [];
