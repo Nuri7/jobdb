@@ -846,7 +846,11 @@ Deno.serve(async (req) => {
           { status: 500, headers: corsHeaders }
         );
       }
-      return new Response(JSON.stringify({ data }), { headers: corsHeaders });
+      // City/province counts change only when scrapes run (~2×/day) — let the browser/CDN cache them
+      // so the map's first paint on a repeat visit is instant instead of a ~0.5s live aggregation.
+      return new Response(JSON.stringify({ data }), {
+        headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=600, stale-while-revalidate=86400' },
+      });
     }
 
     // Route: GET /synonyms

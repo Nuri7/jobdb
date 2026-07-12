@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as d3 from "d3";
 import { feature } from "topojson-client";
+import nldTopo from "@/assets/nld.topo.json"; // bundled locally — avoids a ~1.5s CDN fetch on first paint
 import Header from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,7 +72,7 @@ const JobsMap = () => {
     const cities = geo.cities.filter((c) => COORDS[c.city]).slice(0, 60);
     const r = d3.scaleSqrt().domain([0, d3.max(cities, (c) => c.count) || 1]).range([2.5, 38]);
 
-    d3.json<any>("https://cdn.jsdelivr.net/npm/datamaps@0.5.10/src/js/data/nld.topo.json").then((topo) => {
+    Promise.resolve(nldTopo as any).then((topo) => {
       const feats = (feature(topo, topo.objects.nld) as any).features.filter(
         (f: any) => f.properties.name && !["Saba", "St. Eustatius", "Bonaire"].includes(f.properties.name)
       );
