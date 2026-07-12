@@ -70,7 +70,7 @@ export const jobsApi = {
     let query: any = (supabase.from('job_opportunities') as any)
       .select(`
         *,
-        company_career_sites!inner (
+        company_career_sites (
           company_name,
           industry,
           career_url,
@@ -78,16 +78,27 @@ export const jobsApi = {
           is_scrape_enabled
         )
       `, { count: 'exact' })
-      // Filter enabled companies server-side via the join — passing thousands of
-      // company IDs through .in() blows the request URL past its limit
-      .eq('company_career_sites.is_scrape_enabled', true)
+      // Confidence gate: browse shows only verified real vacancies — the SAME rule as the
+      // Map's job_geo_counts RPC (status='open' AND verified=true), so a city's bubble count
+      // on the Map lines up exactly with its count here after you click through.
+      //
+      // Deliberately NOT re-filtering is_scrape_enabled via a `!inner` join: that join forces
+      // an exact COUNT over the joined set, which statement-times-out on 90k+ rows (the bug
+      // that made this page show "0 jobs" until a refresh warmed the cache). verified=true is
+      // the real quality gate and is what the Map counts too, so a plain left-join embed
+      // (just to read company_name) keeps the count fast + exact.
+      .eq('verified', true)
       .eq('status', 'open')
       .order('scraped_at', { ascending: false })
       .order('id', { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (location && location !== 'all') {
-      query = query.ilike('location', `%${location}%`);
+      // Match on the normalized, indexed `city` column (idx_job_opps_city) — NOT a
+      // leading-wildcard ilike on the free-text `location` (unindexable → seq scan → the
+      // same statement timeout). Both the Map and the location picker hand us a normalized
+      // lowercase city, so an exact match is correct and hits the index.
+      query = query.eq('city', location.toLowerCase());
     }
 
     if (source && source !== 'all') {
