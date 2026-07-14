@@ -57,6 +57,10 @@ const BLOCKED_SEGMENTS = new Set([
   'contact', 'over-ons', 'about', 'about-us', 'teams', 'team', 'afdelingen', 'departments',
   'locaties', 'locations', 'kantoren', 'offices', 'voorwaarden', 'recruiters', 'recruitment',
   'expertises', 'expertise', 'ons-verhaal', 'verhalen', 'als-werkgever',
+  // Facet/category listing pages whose slugs often end in "-jobs" (e.g. Radancy sites like
+  // careers.ing.com/en/location/netherlands-jobs/…) — they match JOB_PATH_RE but are not
+  // job details, so they'd otherwise eat the per-run detail cap before the real /job/ pages.
+  'category', 'categories', 'location', 'business', 'employment',
 ]);
 
 export function hasBlockedSegment(pathname: string): boolean {

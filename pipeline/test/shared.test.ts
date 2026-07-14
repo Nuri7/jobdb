@@ -201,7 +201,21 @@ describe('sitemap filterJobEntries + blocked segments', () => {
     const kept = filterJobEntries(entries, 'https://careers.bol.com/nl/vacatures/').map((e) => e.loc);
     expect(kept).toContain('https://careers.bol.com/en/jobs/data-engineer/8341587002');
     expect(kept).toContain('https://careers.bol.com/nl/vacatures/lead-engineer-utrecht');
-    expect(kept).toHaveLength(2);
+    // Cross-domain job detail pages are kept by design (a "werkenbij…" sitemap often points at
+    // job pages on the main brand domain) — only aggregators/listings/info pages are dropped.
+    expect(kept).toContain('https://andere-site.nl/vacatures/x');
+    expect(kept).toHaveLength(3);
+  });
+  it('drops Radancy-style facet pages whose slug ends in -jobs, keeps real /job/ details', () => {
+    const entries = [
+      { loc: 'https://careers.ing.com/en/job/amsterdam/data-engineer/3121/41150025152' },
+      { loc: 'https://careers.ing.com/en/location/netherlands-jobs/2618/2750405/2' },
+      { loc: 'https://careers.ing.com/en/business/technology-jobs/2618/798544/2' },
+      { loc: 'https://careers.ing.com/en/employment/full-time-jobs/2618/798549/2' },
+      { loc: 'https://careers.ing.com/en/category/it-engineering-jobs/2618/32177152/1' },
+    ];
+    const kept = filterJobEntries(entries, 'https://careers.ing.com/').map((e) => e.loc);
+    expect(kept).toEqual(['https://careers.ing.com/en/job/amsterdam/data-engineer/3121/41150025152']);
   });
   it('hasBlockedSegment matches exact segments only', () => {
     expect(hasBlockedSegment('/nl/werken-bij/esg')).toBe(true);
