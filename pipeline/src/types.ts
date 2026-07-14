@@ -9,6 +9,7 @@ export const ATS_NAMES = [
   'teamtailor',
   'homerun',
   'join',
+  'afas',
 ] as const;
 
 export type AtsName = (typeof ATS_NAMES)[number];
@@ -138,7 +139,9 @@ export interface FetchTextOpts {
   /** Politeness class: 'api' (250ms/host) or 'html' (1000ms/host). Default 'html'. */
   kind?: 'api' | 'html';
   ifNoneMatch?: string;
-  method?: 'GET' | 'HEAD';
+  method?: 'GET' | 'HEAD' | 'POST';
+  /** Request body for POST (e.g. a JSON string). Sent verbatim — set Content-Type via `headers`. */
+  body?: string;
 }
 
 export interface LlmClient {

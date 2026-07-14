@@ -23,6 +23,7 @@ export async function fetchRaw(url: string, opts: FetchTextOpts = {}): Promise<R
       const res = await fetch(url, {
         method: opts.method ?? 'GET',
         redirect: 'follow',
+        ...(opts.body !== undefined ? { body: opts.body } : {}),
         signal: AbortSignal.timeout(timeoutMs),
         headers: {
           'User-Agent': USER_AGENT,
