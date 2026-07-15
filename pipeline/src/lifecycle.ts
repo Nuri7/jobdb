@@ -243,9 +243,25 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     // Only genuinely-gone jobs (no longer in the live set) count as missed.
     const missedIds = existing.filter((j) => j.status === 'open' && !liveSet.has(j.job_url)).map((j) => j.id);
 
+    // Mass-close circuit breaker. A single run that would drop a large fraction of a sizeable
+    // roster is almost always a truncated source fetch (a big sitemap that came back partial this
+    // run → a small liveSet), not a genuine mass-removal — that is how Albert Heijn kept losing
+    // ~3.9k still-live jobs overnight. The empty-result guard above only catches a fully-empty
+    // scrape; this catches the partial one. Keep the jobs open and let a healthy next run confirm;
+    // a board that is truly gone is still retired by the staleness sweep (10 failures / 14 days).
+    const MASS_CLOSE_MIN = 25; // don't second-guess tiny rosters
+    const MASS_CLOSE_FRACTION = 0.4;
+    let missedToClose = missedIds;
+    if (openBefore >= MASS_CLOSE_MIN && missedIds.length > openBefore * MASS_CLOSE_FRACTION) {
+      ctx.log(
+        `  ⚠ mass-close guard: ${missedIds.length}/${openBefore} open jobs absent this run — skipping close (likely a partial ${company.source_type} fetch)`,
+      );
+      missedToClose = [];
+    }
+
     await upsertJobs(db, company.id, toWrite);
     await touchJobs(db, touchIds);
-    const closedIds = await incrementMisses(db, missedIds);
+    const closedIds = await incrementMisses(db, missedToClose);
 
     const hadChanges = toWrite.length > 0 || closedIds.length > 0;
     const openNow = await finalizeSuccess(db, company, null, hadChanges);
