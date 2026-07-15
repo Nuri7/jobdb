@@ -72,7 +72,8 @@ const JobsMap = () => {
     const cities = geo.cities.filter((c) => COORDS[c.city]).slice(0, 60);
     const r = d3.scaleSqrt().domain([0, d3.max(cities, (c) => c.count) || 1]).range([2.5, 38]);
 
-    Promise.resolve(nldTopo as any).then((topo) => {
+    {
+      const topo = nldTopo as any; // statically imported, already-resolved — no async needed
       const feats = (feature(topo, topo.objects.nld) as any).features.filter(
         (f: any) => f.properties.name && !["Saba", "St. Eustatius", "Bonaire"].includes(f.properties.name)
       );
@@ -108,7 +109,7 @@ const JobsMap = () => {
           .attr("fill", labelCol).style("text-transform", "capitalize").style("pointer-events", "none")
           .text(d.city);
       });
-    });
+    }
   }, [geo, navigate]);
 
   return (

@@ -217,6 +217,13 @@ describe('sitemap filterJobEntries + blocked segments', () => {
     const kept = filterJobEntries(entries, 'https://careers.ing.com/').map((e) => e.loc);
     expect(kept).toEqual(['https://careers.ing.com/en/job/amsterdam/data-engineer/3121/41150025152']);
   });
+  it('keeps a genuine job url under a facet-named segment when its slug is not a -jobs listing', () => {
+    // /business/ is a facet path on Radancy, but a real vacancy whose slug does not end in "-jobs"
+    // must NOT be dropped — the facet match is scoped to the "<x>-jobs" listing shape.
+    const entries = [{ loc: 'https://werkenbij.example.nl/business/senior-developer-job-12345' }];
+    const kept = filterJobEntries(entries, 'https://werkenbij.example.nl/').map((e) => e.loc);
+    expect(kept).toEqual(['https://werkenbij.example.nl/business/senior-developer-job-12345']);
+  });
   it('hasBlockedSegment matches exact segments only', () => {
     expect(hasBlockedSegment('/nl/werken-bij/esg')).toBe(true);
     expect(hasBlockedSegment('/vacatures/adviseur-diversiteit-en-inclusie-senior')).toBe(false);

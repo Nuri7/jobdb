@@ -207,7 +207,7 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
     try {
       const bestOrigin = new URL(best.finalUrl).origin;
       for (const sitemapUrl of await discoverSitemaps(bestOrigin, ctx)) {
-        const entries = await fetchSitemapEntries(sitemapUrl, ctx);
+        const { entries } = await fetchSitemapEntries(sitemapUrl, ctx);
         if (entries.length === 0) continue;
         const jobEntries = filterJobEntries(entries, best.finalUrl);
         if (jobEntries.length >= 3) {

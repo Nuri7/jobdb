@@ -97,7 +97,6 @@ const Index = () => {
   
   // Get enabled companies for tabs
   const enabledCompanies = companies?.filter(c => c.is_scrape_enabled === true) || [];
-  const enabledCompanyIds = enabledCompanies.map(c => c.id);
 
   // Debounce so typing doesn't fire a query (and an AI-synonym API call) per keystroke
   const debouncedSearch = useDebounce(search, 350);
@@ -112,7 +111,6 @@ const Index = () => {
     location: locationFilter,
     source: activeTab !== "all" ? activeTab : undefined,
     page: currentPage,
-    enabledCompanyIds: activeTab === "all" ? enabledCompanyIds : undefined,
   });
 
   const handleTabChange = (value: string) => {

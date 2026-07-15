@@ -418,7 +418,9 @@ Deno.serve(async (req) => {
         // growing table blew the statement_timeout. The planner estimate is
         // fast and close enough for a jobs listing's total/has_more.
         { count: 'estimated' })
-        .eq('company_career_sites.is_scrape_enabled', true)
+        // No is_scrape_enabled gate: verified=true (below) is the single quality gate, matching the
+        // browse query (src/lib/api/jobs.ts) and the Map's job_geo_counts RPC. Filtering it here too
+        // made search return a different set than browse for the same board.
         .order('scraped_at', { ascending: false })
         .order('id', { ascending: true })
         .range(offset, offset + limit - 1);

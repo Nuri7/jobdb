@@ -130,6 +130,10 @@ export interface Ctx {
    *  when only a capped subset had detail fetched this run. Reconcile treats urls in this set as live
    *  (kept open), so a big roster isn't mass-closed just because it wasn't fully re-fetched. */
   liveUrls?: Set<string>;
+  /** Whether `liveUrls` is the COMPLETE live set. false = the source fetch was truncated/partial
+   *  (a child sitemap failed, fan-out/entry cap hit), so reconcile must not close jobs absent from
+   *  it. undefined = the source can't report completeness; reconcile falls back to a fraction guard. */
+  liveUrlsComplete?: boolean;
 }
 
 export interface FetchTextOpts {

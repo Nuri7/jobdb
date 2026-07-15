@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import { createHash } from 'node:crypto';
 import { dedupeJobs } from '../extract/normalize.js';
-import { hasBlockedSegment, jobsViaDetailPages, JOB_PATH_RE, NON_JOB_RE } from './shared.js';
+import { FACET_LISTING_RE, hasBlockedSegment, jobsViaDetailPages, JOB_PATH_RE, NON_JOB_RE } from './shared.js';
 import type { CanonicalJob, CompanyRow, Ctx, JobSource } from '../types.js';
 import { SourceGoneError, ZeroExtractionError } from '../types.js';
 
@@ -17,45 +17,61 @@ function asArray<T>(v: T | T[] | undefined): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
-/** Fetch a sitemap (or sitemap index, one level deep) and return its URL entries. */
+/**
+ * Fetch a sitemap (or sitemap index, one level deep) and return its URL entries plus whether the
+ * result is COMPLETE. `complete` is false when we couldn't read the whole listing — a child sitemap
+ * fetch failed, the index had more children than we fan out to, or we hit the 5000-entry truncation.
+ * Reconcile uses this to avoid mass-closing live jobs on a partial fetch (a truncated liveUrls set).
+ */
 export async function fetchSitemapEntries(
   sitemapUrl: string,
   ctx: Ctx,
   depth = 0,
-): Promise<SitemapEntry[]> {
+): Promise<{ entries: SitemapEntry[]; complete: boolean }> {
   const res = await ctx.fetchText(sitemapUrl, { kind: 'api', timeoutMs: 15_000 });
-  if (res.status !== 200 || !res.text.includes('<')) return [];
+  if (res.status !== 200 || !res.text.includes('<')) return { entries: [], complete: false };
   let doc: Record<string, unknown>;
   try {
     doc = parser.parse(res.text) as Record<string, unknown>;
   } catch {
-    return [];
+    return { entries: [], complete: false };
   }
 
   const out: SitemapEntry[] = [];
   const index = doc.sitemapindex as { sitemap?: unknown } | undefined;
   if (index && depth < 1) {
-    const children = asArray(index.sitemap as { loc?: string } | Array<{ loc?: string }>);
-    // Prefer job-ish child sitemaps, cap fan-out
-    const ranked = children
-      .filter((c): c is { loc: string } => typeof c?.loc === 'string')
+    const children = asArray(index.sitemap as { loc?: string } | Array<{ loc?: string }>).filter(
+      (c): c is { loc: string } => typeof c?.loc === 'string',
+    );
+    // Prefer job-ish child sitemaps, cap fan-out. Dropping any child makes the result partial.
+    const ranked = [...children]
       .sort((a, b) => Number(JOB_PATH_RE.test(b.loc)) - Number(JOB_PATH_RE.test(a.loc)))
       .slice(0, 8);
+    let complete = ranked.length === children.length;
     for (const child of ranked) {
-      out.push(...(await fetchSitemapEntries(child.loc, ctx, depth + 1)));
-      if (out.length > 5000) break;
+      const sub = await fetchSitemapEntries(child.loc, ctx, depth + 1);
+      out.push(...sub.entries);
+      if (!sub.complete) complete = false;
+      if (out.length > 5000) {
+        complete = false;
+        break;
+      }
     }
-    return out;
+    return { entries: out, complete };
   }
 
   const urlset = doc.urlset as { url?: unknown } | undefined;
+  let complete = true;
   for (const entry of asArray(urlset?.url as SitemapEntry | SitemapEntry[])) {
     if (entry && typeof entry.loc === 'string') {
       out.push({ loc: entry.loc, lastmod: typeof entry.lastmod === 'string' ? entry.lastmod : undefined });
     }
-    if (out.length > 5000) break;
+    if (out.length > 5000) {
+      complete = false;
+      break;
+    }
   }
-  return out;
+  return { entries: out, complete };
 }
 
 /** Sitemap URLs advertised in robots.txt, plus the /sitemap.xml default. */
@@ -89,7 +105,7 @@ export function filterJobEntries(entries: SitemapEntry[], _careerUrl: string): S
     // "werkenbij…" domain while the job pages sit on the main brand domain (e.g. Coolblue's
     // sitemap is on werkenbijcoolblue.nl but the jobs are on coolblue.nl). Only exclude aggregators.
     if (AGGREGATOR_HOST_RE.test(u.host)) return false;
-    if (NON_JOB_RE.test(u.pathname) || hasBlockedSegment(u.pathname)) return false;
+    if (NON_JOB_RE.test(u.pathname) || hasBlockedSegment(u.pathname) || FACET_LISTING_RE.test(u.pathname)) return false;
     if (!JOB_PATH_RE.test(u.pathname)) return false;
     // A job detail page, not the listing root: needs a slug segment after the job-ish part
     const segments = u.pathname.split('/').filter(Boolean);
@@ -115,9 +131,10 @@ export const sitemapSource: JobSource = {
     // Force a full pass weekly
     if (!cfg.last_full_at || Date.now() - Date.parse(cfg.last_full_at) > 7 * 86_400_000) return true;
     try {
-      const entries = filterJobEntries(await fetchSitemapEntries(cfg.sitemap_url, ctx), company.career_url ?? '');
-      if (entries.length === 0) return true;
-      return hashUrlSet(entries) !== cfg.listing_hash;
+      const { entries } = await fetchSitemapEntries(cfg.sitemap_url, ctx);
+      const jobEntries = filterJobEntries(entries, company.career_url ?? '');
+      if (jobEntries.length === 0) return true;
+      return hashUrlSet(jobEntries) !== cfg.listing_hash;
     } catch {
       return true;
     }
@@ -128,14 +145,16 @@ export const sitemapSource: JobSource = {
     const careerUrl = company.career_url;
     if (!cfg?.sitemap_url || !careerUrl) throw new SourceGoneError('sitemap source missing config');
 
-    const entries = await fetchSitemapEntries(cfg.sitemap_url, ctx);
+    const { entries, complete } = await fetchSitemapEntries(cfg.sitemap_url, ctx);
     if (entries.length === 0) throw new SourceGoneError(`sitemap empty/gone: ${cfg.sitemap_url}`);
     const jobEntries = filterJobEntries(entries, careerUrl);
-    ctx.log(`  sitemap: ${entries.length} urls, ${jobEntries.length} job-like`);
+    ctx.log(`  sitemap: ${entries.length} urls, ${jobEntries.length} job-like${complete ? '' : ' (partial fetch)'}`);
 
     // Every sitemap job url is a currently-live vacancy — tell reconcile so a capped run keeps the
-    // ones it didn't re-fetch this pass OPEN instead of closing them.
+    // ones it didn't re-fetch this pass OPEN instead of closing them. `complete` tells reconcile
+    // whether this is the full roster (safe to close what's absent) or a truncated fetch (never).
     ctx.liveUrls = new Set(jobEntries.map((e) => e.loc));
+    ctx.liveUrlsComplete = complete;
 
     // Per-run detail-page cap keeps a single big employer from blowing the run's time budget; big
     // rosters fill over several runs. Deprioritize urls we've already scraped so each run spends its

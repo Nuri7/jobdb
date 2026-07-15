@@ -57,11 +57,17 @@ const BLOCKED_SEGMENTS = new Set([
   'contact', 'over-ons', 'about', 'about-us', 'teams', 'team', 'afdelingen', 'departments',
   'locaties', 'locations', 'kantoren', 'offices', 'voorwaarden', 'recruiters', 'recruitment',
   'expertises', 'expertise', 'ons-verhaal', 'verhalen', 'als-werkgever',
-  // Facet/category listing pages whose slugs often end in "-jobs" (e.g. Radancy sites like
-  // careers.ing.com/en/location/netherlands-jobs/…) — they match JOB_PATH_RE but are not
-  // job details, so they'd otherwise eat the per-run detail cap before the real /job/ pages.
-  'category', 'categories', 'location', 'business', 'employment',
 ]);
+
+/**
+ * Radancy/TMP facet listing pages look like `/<facet>/<slug>-jobs/<numeric-id>/…`
+ * (e.g. careers.ing.com/en/location/netherlands-jobs/2618/2750405/2). Their "-jobs" slug matches
+ * JOB_PATH_RE, so they'd otherwise be scraped as job details and eat the per-run cap before the real
+ * /job/ pages. Match precisely on facet-segment + a "-jobs" slug so genuine job urls that merely
+ * contain a segment named e.g. "business" (`/business/data-analyst-123`) are NOT dropped.
+ */
+export const FACET_LISTING_RE =
+  /\/(category|categories|location|locations|business|employment|discipline|function|team|department)\/[^/]*-jobs(\/|$)/i;
 
 export function hasBlockedSegment(pathname: string): boolean {
   return pathname

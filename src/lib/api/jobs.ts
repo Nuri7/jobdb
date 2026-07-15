@@ -43,9 +43,8 @@ export const jobsApi = {
     industry?: string;
     page?: number;
     limit?: number;
-    enabledCompanyIds?: string[];
   }) {
-    const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12, enabledCompanyIds } = options || {};
+    const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12 } = options || {};
     
     // If search is provided, use the API endpoint for intelligent search with synonyms
     if (search && search.trim()) {
@@ -74,8 +73,7 @@ export const jobsApi = {
           company_name,
           industry,
           career_url,
-          source_type,
-          is_scrape_enabled
+          source_type
         )
       `, { count: 'exact' })
       // Confidence gate: browse shows only verified real vacancies — the SAME rule as the
@@ -104,10 +102,11 @@ export const jobsApi = {
     if (source && source !== 'all') {
       query = query.eq('company_career_site_id', source);
     } else if (industryCompanyIds !== null && industryCompanyIds.length <= 200) {
-      // Filter by industry companies (bounded — large sets would blow the URL)
+      // Filter by industry companies (bounded — large sets would blow the URL). If more than 200
+      // companies match, we don't filter: with the plain (non-inner) embed a
+      // `company_career_sites.industry` ilike wouldn't restrict parent rows anyway, so an explicit
+      // no-op is dropped rather than left in to mislead.
       query = query.in('company_career_site_id', industryCompanyIds);
-    } else if (industryCompanyIds !== null) {
-      query = query.ilike('company_career_sites.industry', `%${industry}%`);
     }
 
     if (jobType && jobType !== 'all') {
@@ -150,7 +149,6 @@ export const jobsApi = {
     industry?: string;
     page?: number;
     limit?: number;
-    enabledCompanyIds?: string[];
   }) {
     const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12 } = options || {};
     
@@ -231,9 +229,8 @@ export const jobsApi = {
     industry?: string;
     page?: number;
     limit?: number;
-    enabledCompanyIds?: string[];
   }) {
-    const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12, enabledCompanyIds } = options || {};
+    const { search, location, source, jobType, experienceLevel, industry, page = 1, limit = 12 } = options || {};
     const offset = (page - 1) * limit;
 
     // If industry filter is applied, first get matching company IDs

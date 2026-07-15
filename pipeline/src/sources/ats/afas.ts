@@ -1,4 +1,4 @@
-import { dedupeJobs, finalizeJob, htmlToText } from '../../extract/normalize.js';
+import { finalizeJob, htmlToText } from '../../extract/normalize.js';
 import type { CanonicalJob, CompanyRow, Ctx, JobSource } from '../../types.js';
 import { SourceGoneError } from '../../types.js';
 
@@ -52,7 +52,10 @@ export const afasSource: JobSource = {
 
     const first = await getPage(0);
     const all: AfasVacancy[] = [...first.vacancies];
-    const total = first.count;
+    // Don't trust the server `count` as the paging bound — some instances under-report it or omit it
+    // (→ 0), which would truncate us to page 0. `total || Infinity` lets the reliable dedup-stop below
+    // (no new shortIds) end paging instead.
+    const total = first.count || Infinity;
     // De-dupe by shortId while paging: some AFAS instances ignore an out-of-range offset and re-serve
     // the first page, so "no new ids" is the reliable stop signal (not an empty array).
     const seen = new Set(all.map((v) => v.shortId).filter(Boolean) as string[]);
@@ -82,7 +85,8 @@ export const afasSource: JobSource = {
       });
       if (job) jobs.push(job);
     }
-    ctx.log(`  afas: ${jobs.length}/${total} vacancies from ${base}`);
-    return dedupeJobs(jobs);
+    ctx.log(`  afas: ${jobs.length} vacancies from ${base}`);
+    // Already unique — paging de-dupes by shortId and shortId is embedded in every job_url.
+    return jobs;
   },
 };

@@ -164,6 +164,7 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     const existing = await listCompanyJobs(db, company.id);
     ctx.scrapedUrls = new Set(existing.map((j) => j.job_url));
     ctx.liveUrls = undefined;
+    ctx.liveUrlsComplete = undefined;
 
     // ---------- Full scrape (with tier escalation) ----------
     const historyId = ctx.dryRun ? null : await insertHistory(db, company.id, company.career_url ?? '', method);
@@ -243,18 +244,26 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     // Only genuinely-gone jobs (no longer in the live set) count as missed.
     const missedIds = existing.filter((j) => j.status === 'open' && !liveSet.has(j.job_url)).map((j) => j.id);
 
-    // Mass-close circuit breaker. A single run that would drop a large fraction of a sizeable
-    // roster is almost always a truncated source fetch (a big sitemap that came back partial this
-    // run → a small liveSet), not a genuine mass-removal — that is how Albert Heijn kept losing
-    // ~3.9k still-live jobs overnight. The empty-result guard above only catches a fully-empty
-    // scrape; this catches the partial one. Keep the jobs open and let a healthy next run confirm;
-    // a board that is truly gone is still retired by the staleness sweep (10 failures / 14 days).
+    // Mass-close circuit breaker. Only close jobs absent from the live set when we trust that set to
+    // be COMPLETE. A truncated source fetch (a big sitemap that came back partial this run) yields a
+    // small liveSet, and reconcile would otherwise close thousands of still-live jobs — that is how
+    // Albert Heijn kept losing ~3.9k jobs overnight. Precedence:
+    //   • liveUrlsComplete === true   → authoritative full roster; close what's genuinely absent
+    //     (a real >40% shrink DOES close, unlike a blind fraction guard).
+    //   • liveUrlsComplete === false  → known-partial fetch; never close on this run's evidence.
+    //   • undefined (source can't say) → fall back to a fraction guard: a single run dropping a big
+    //     chunk of a sizeable roster is treated as a bad fetch.
     const MASS_CLOSE_MIN = 25; // don't second-guess tiny rosters
     const MASS_CLOSE_FRACTION = 0.4;
     let missedToClose = missedIds;
-    if (openBefore >= MASS_CLOSE_MIN && missedIds.length > openBefore * MASS_CLOSE_FRACTION) {
+    const partialFetch = ctx.liveUrlsComplete === false;
+    const suspiciousDrop =
+      ctx.liveUrlsComplete === undefined &&
+      openBefore >= MASS_CLOSE_MIN &&
+      missedIds.length > openBefore * MASS_CLOSE_FRACTION;
+    if (partialFetch || suspiciousDrop) {
       ctx.log(
-        `  ⚠ mass-close guard: ${missedIds.length}/${openBefore} open jobs absent this run — skipping close (likely a partial ${company.source_type} fetch)`,
+        `  ⚠ mass-close guard: ${missedIds.length}/${openBefore} open jobs absent this run — skipping close (${partialFetch ? 'partial' : 'suspicious'} ${company.source_type} fetch)`,
       );
       missedToClose = [];
     }
