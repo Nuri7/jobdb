@@ -14,6 +14,8 @@ export interface HarvestCandidate {
   companyName: string;
   totalJobs: number;
   nlJobs: number;
+  /** Regional shard the board answers on, when the ATS has more than one (Lever US vs EU). */
+  boardRegion?: 'eu';
 }
 
 const NL_MARKER_RE = /\b(nederland|netherlands|the netherlands|holland)\b/i;
@@ -330,6 +332,171 @@ export async function validateAshby(token: string, ctx: Ctx): Promise<HarvestCan
     website: `https://jobs.ashbyhq.com/${token}`,
     companyName: titleize(token),
     totalJobs: jobs.length,
+    nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Lever — public JSON API at api.lever.co/v0/postings/<token>?mode=json. Boards live on
+// either the US or the EU shard and a token only answers on its own one, so try US first
+// and fall back to EU; the shard is carried through to source_config.board_region so the
+// ats:lever adapter fetches from the same host later.
+// ---------------------------------------------------------------------------
+
+interface LeverPost {
+  text?: string;
+  categories?: { location?: string; allLocations?: string[] };
+  country?: string;
+}
+
+const LEVER_SHARDS = [
+  { api: 'api.lever.co', jobs: 'jobs.lever.co', region: undefined },
+  { api: 'api.eu.lever.co', jobs: 'jobs.eu.lever.co', region: 'eu' as const },
+];
+
+export async function validateLever(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  for (const shard of LEVER_SHARDS) {
+    let res;
+    try {
+      res = await ctx.fetchText(`https://${shard.api}/v0/postings/${token}?mode=json`, {
+        kind: 'api',
+        retries: 1,
+        timeoutMs: 15_000,
+      });
+    } catch {
+      continue;
+    }
+    if (res.status !== 200) continue;
+
+    let data: LeverPost[];
+    try {
+      data = JSON.parse(res.text) as LeverPost[];
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(data)) continue;
+    const jobs = data.filter((j) => j.text);
+    if (jobs.length === 0) continue;
+
+    let nlJobs = 0;
+    for (const j of jobs) {
+      const locs = [j.categories?.location, ...(j.categories?.allLocations ?? [])];
+      if (locs.some((l) => isNlLocation(l ?? undefined, j.country))) nlJobs++;
+    }
+
+    return {
+      sourceType: 'ats:lever',
+      boardId: token,
+      careerUrl: `https://${shard.jobs}/${token}`,
+      website: `https://${shard.jobs}/${token}`,
+      companyName: titleize(token),
+      totalJobs: jobs.length,
+      nlJobs,
+      boardRegion: shard.region,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Workable — public widget API at apply.workable.com/api/v1/widget/accounts/<token>.
+// Location arrives pre-split into city/state/country, and the account name is on the
+// payload, so one cheap request gives both the NL count and a real company name.
+// ---------------------------------------------------------------------------
+
+interface WorkableWidgetJob {
+  title?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  country_code?: string;
+}
+
+/** Join Workable's split location fields into the "City, State, Country" form isNlLocation reads. */
+export function workableLocation(job: WorkableWidgetJob): string | undefined {
+  return [job.city, job.state, job.country].filter(Boolean).join(', ') || undefined;
+}
+
+export async function validateWorkable(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  let res;
+  try {
+    res = await ctx.fetchText(`https://apply.workable.com/api/v1/widget/accounts/${token}`, {
+      kind: 'api',
+      retries: 1,
+      timeoutMs: 15_000,
+    });
+  } catch {
+    return null;
+  }
+  if (res.status !== 200) return null;
+
+  let data: { name?: string; jobs?: WorkableWidgetJob[] };
+  try {
+    data = JSON.parse(res.text) as typeof data;
+  } catch {
+    return null;
+  }
+  const jobs = (data.jobs ?? []).filter((j) => j.title);
+  if (jobs.length === 0) return null;
+
+  let nlJobs = 0;
+  for (const j of jobs) if (isNlLocation(workableLocation(j), j.country_code || j.country)) nlJobs++;
+
+  return {
+    sourceType: 'ats:workable',
+    boardId: token,
+    careerUrl: `https://apply.workable.com/${token}/`,
+    website: `https://apply.workable.com/${token}/`,
+    companyName: data.name ? cleanCompanyName(data.name) : titleize(token),
+    totalJobs: jobs.length,
+    nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SmartRecruiters — public JSON API at api.smartrecruiters.com/v1/companies/<token>/postings.
+// Each posting carries location.city plus an ISO country code, which is the authoritative
+// NL signal. One page of 100 is enough to decide whether a board hires here.
+// ---------------------------------------------------------------------------
+
+interface SrValidatePosting {
+  name?: string;
+  location?: { city?: string; country?: string };
+}
+
+export async function validateSmartRecruiters(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  let res;
+  try {
+    res = await ctx.fetchText(`https://api.smartrecruiters.com/v1/companies/${token}/postings?limit=100`, {
+      kind: 'api',
+      retries: 1,
+      timeoutMs: 15_000,
+    });
+  } catch {
+    return null;
+  }
+  if (res.status !== 200) return null;
+
+  let data: { totalFound?: number; content?: SrValidatePosting[] };
+  try {
+    data = JSON.parse(res.text) as typeof data;
+  } catch {
+    return null;
+  }
+  const jobs = (data.content ?? []).filter((j) => j.name);
+  if (jobs.length === 0) return null;
+
+  let nlJobs = 0;
+  for (const j of jobs) if (isNlLocation(j.location?.city, j.location?.country)) nlJobs++;
+
+  return {
+    sourceType: 'ats:smartrecruiters',
+    boardId: token,
+    careerUrl: `https://careers.smartrecruiters.com/${token}`,
+    website: `https://careers.smartrecruiters.com/${token}`,
+    companyName: titleize(token),
+    // totalFound counts the whole roster; `jobs` is only the first page we actually inspected.
+    totalJobs: data.totalFound ?? jobs.length,
     nlJobs,
   };
 }

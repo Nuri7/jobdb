@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tokensFromCcLines, tokensFromCcPaths } from '../src/harvest/commoncrawl.js';
-import { cleanCompanyName, isNlLocation, titleize } from '../src/harvest/validators.js';
+import { cleanCompanyName, isNlLocation, titleize, workableLocation } from '../src/harvest/validators.js';
 import { homerunJobsFromEntries, parseHomerunFeed } from '../src/sources/ats/homerun.js';
 
 describe('tokensFromCcLines', () => {
@@ -37,6 +37,52 @@ describe('tokensFromCcPaths (path-based ATS like Greenhouse)', () => {
       'adyen',
       'coolblue',
     ]);
+  });
+
+  it('extracts Lever tokens across the US and EU shards', () => {
+    const lines = [
+      '{"url":"https://jobs.lever.co/mollie/abc-123"}',
+      '{"url":"https://jobs.lever.co/mollie"}', // same token → deduped
+      '{"url":"https://jobs.eu.lever.co/messagebird/xyz"}',
+      '{"url":"https://www.lever.co/customers"}', // marketing host → dropped
+    ];
+    expect(tokensFromCcPaths(lines, ['jobs.lever.co', 'jobs.eu.lever.co']).sort()).toEqual([
+      'messagebird',
+      'mollie',
+    ]);
+  });
+
+  it('extracts Workable tokens but drops the /j/ short-apply and /widget routes', () => {
+    const lines = [
+      '{"url":"https://apply.workable.com/framer/j/A1B2C3/"}',
+      '{"url":"https://apply.workable.com/otrium/"}',
+      '{"url":"https://apply.workable.com/j/A1B2C3"}', // platform short link, not a tenant
+      '{"url":"https://apply.workable.com/widget/accounts/framer"}', // widget endpoint
+    ];
+    expect(tokensFromCcPaths(lines, ['apply.workable.com']).sort()).toEqual(['framer', 'otrium']);
+  });
+
+  it('extracts SmartRecruiters tokens from both the careers and jobs hosts', () => {
+    const lines = [
+      '{"url":"https://careers.smartrecruiters.com/Picnic"}',
+      '{"url":"https://jobs.smartrecruiters.com/Picnic/743999"}', // same token, other host → deduped
+      '{"url":"https://jobs.smartrecruiters.com/BookingcomBV/74400"}',
+    ];
+    expect(tokensFromCcPaths(lines, ['careers.smartrecruiters.com', 'jobs.smartrecruiters.com']).sort()).toEqual([
+      'bookingcombv',
+      'picnic',
+    ]);
+  });
+});
+
+describe('workableLocation', () => {
+  it('joins the split city/state/country fields into a form isNlLocation reads', () => {
+    expect(workableLocation({ city: 'Amsterdam', country: 'Netherlands' })).toBe('Amsterdam, Netherlands');
+    expect(isNlLocation(workableLocation({ city: 'Amsterdam', country: 'Netherlands' }))).toBe(true);
+  });
+
+  it('is undefined when no location parts are present', () => {
+    expect(workableLocation({ title: 'Remote role' })).toBeUndefined();
   });
 });
 

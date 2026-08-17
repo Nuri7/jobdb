@@ -8,13 +8,18 @@ import {
   validateAshby,
   validateGreenhouse,
   validateHomerun,
+  validateLever,
   validatePersonio,
   validateRecruitee,
+  validateSmartRecruiters,
   validateTeamtailor,
+  validateWorkable,
   type HarvestCandidate,
 } from './validators.js';
 
 const GREENHOUSE_HOSTS = ['boards.greenhouse.io', 'job-boards.greenhouse.io'];
+const LEVER_HOSTS = ['jobs.lever.co', 'jobs.eu.lever.co'];
+const SMARTRECRUITERS_HOSTS = ['careers.smartrecruiters.com', 'jobs.smartrecruiters.com'];
 
 export interface HarvestOpts {
   ats: AtsName[];
@@ -52,6 +57,20 @@ const DISCOVERERS: Partial<Record<AtsName, Discoverer>> = {
     discover: (ctx, n) => ccPathTokens('ashbyhq.com', ctx, ['jobs.ashbyhq.com'], { indexes: n }),
     validate: validateAshby,
   },
+  // Lever, Workable and SmartRecruiters are all path-based. They skew toward international
+  // employers and scale-ups — the Amsterdam segment the Dutch-SME platforms above miss.
+  lever: {
+    discover: (ctx, n) => ccPathTokens('lever.co', ctx, LEVER_HOSTS, { indexes: n }),
+    validate: validateLever,
+  },
+  workable: {
+    discover: (ctx, n) => ccPathTokens('workable.com', ctx, ['apply.workable.com'], { indexes: n }),
+    validate: validateWorkable,
+  },
+  smartrecruiters: {
+    discover: (ctx, n) => ccPathTokens('smartrecruiters.com', ctx, SMARTRECRUITERS_HOSTS, { indexes: n }),
+    validate: validateSmartRecruiters,
+  },
 };
 
 export function harvestableAts(): AtsName[] {
@@ -64,7 +83,11 @@ function toRow(c: HarvestCandidate): NewCompany {
     career_url: c.careerUrl,
     website: c.website,
     source_type: c.sourceType,
-    source_config: { resolved_url: c.careerUrl, board_id: c.boardId },
+    source_config: {
+      resolved_url: c.careerUrl,
+      board_id: c.boardId,
+      ...(c.boardRegion ? { board_region: c.boardRegion } : {}),
+    },
   };
 }
 

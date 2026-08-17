@@ -1,4 +1,8 @@
+import { CRAWL_INDEX_USER_AGENT } from '../config.js';
 import type { Ctx } from '../types.js';
+
+/** Every index.commoncrawl.org call must identify itself — a browser UA gets 403. */
+const CC_HEADERS = { 'User-Agent': CRAWL_INDEX_USER_AGENT, Accept: 'application/json,*/*;q=0.8' };
 
 /**
  * Discover the customer roster of a subdomain-per-tenant ATS (e.g. `<token>.recruitee.com`)
@@ -20,6 +24,10 @@ const INFRA = new Set([
   'partners', 'ats', 'secure', 'landing', 'feedback', 'interactive', 'metabase', 'proxycareers',
   'default', 'localhost',
 ]);
+
+// First path segments that are platform routing rather than a tenant: Greenhouse's /embed,
+// Workable's short apply link /j/<shortcode> and its /widget endpoints.
+const PATH_INFRA = new Set(['embed', 'j', 'widget']);
 
 const HOST = 'https://index.commoncrawl.org';
 
@@ -52,7 +60,12 @@ export function tokensFromCcLines(lines: string[], baseDomain: string): string[]
 
 /** Newest `n` monthly Common Crawl index ids (e.g. 'CC-MAIN-2026-25'). */
 export async function ccLatestIndexes(ctx: Ctx, n: number): Promise<string[]> {
-  const res = await ctx.fetchText(`${HOST}/collinfo.json`, { kind: 'api', retries: 2, timeoutMs: 30_000 });
+  const res = await ctx.fetchText(`${HOST}/collinfo.json`, {
+    kind: 'api',
+    retries: 2,
+    timeoutMs: 30_000,
+    headers: CC_HEADERS,
+  });
   if (res.status !== 200) throw new Error(`Common Crawl collinfo HTTP ${res.status}`);
   const arr = JSON.parse(res.text) as Array<{ id?: string }>;
   return arr.map((c) => c.id).filter((x): x is string => Boolean(x)).slice(0, n);
@@ -60,14 +73,13 @@ export async function ccLatestIndexes(ctx: Ctx, n: number): Promise<string[]> {
 
 async function ccNumPages(indexId: string, baseDomain: string, ctx: Ctx): Promise<number> {
   const url = `${HOST}/${indexId}-index?url=${encodeURIComponent(baseDomain)}&matchType=domain&showNumPages=true&output=json`;
-  try {
-    const res = await ctx.fetchText(url, { kind: 'api', retries: 2, timeoutMs: 30_000 });
-    if (res.status !== 200) return 0; // 404 = no captures in this index
-    const j = JSON.parse(res.text) as { pages?: number };
-    return Math.max(0, Number(j.pages) || 0);
-  } catch {
-    return 0;
-  }
+  const res = await ctx.fetchText(url, { kind: 'api', retries: 2, timeoutMs: 30_000, headers: CC_HEADERS });
+  if (res.status === 404) return 0; // genuinely no captures of this domain in this index
+  // Anything else is a real failure. Swallowing it here once made every harvest report
+  // "0 candidate tokens" and exit 0, which reads as "nothing new to find" — let it surface.
+  if (res.status !== 200) throw new Error(`Common Crawl index HTTP ${res.status} for ${baseDomain} in ${indexId}`);
+  const j = JSON.parse(res.text) as { pages?: number };
+  return Math.max(0, Number(j.pages) || 0);
 }
 
 /**
@@ -92,7 +104,7 @@ export function tokensFromCcPaths(lines: string[], hosts: string[]): string[] {
     }
     if (!hostSet.has(u.hostname.toLowerCase())) continue;
     const seg = u.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
-    if (!seg || INFRA.has(seg) || seg === 'embed') continue;
+    if (!seg || INFRA.has(seg) || PATH_INFRA.has(seg)) continue;
     if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(seg)) continue;
     tokens.add(seg);
   }
@@ -101,8 +113,12 @@ export function tokensFromCcPaths(lines: string[], hosts: string[]): string[] {
 
 async function ccPage(indexId: string, baseDomain: string, page: number, ctx: Ctx): Promise<string[]> {
   const url = `${HOST}/${indexId}-index?url=${encodeURIComponent(baseDomain)}&matchType=domain&output=json&fl=url&page=${page}`;
-  const res = await ctx.fetchText(url, { kind: 'api', retries: 2, timeoutMs: 60_000 });
-  if (res.status !== 200) return [];
+  const res = await ctx.fetchText(url, { kind: 'api', retries: 2, timeoutMs: 60_000, headers: CC_HEADERS });
+  if (res.status !== 200) {
+    // One bad page shouldn't abort the platform, but it must not pass as an empty page either.
+    ctx.log(`  cc ${indexId} page ${page}: HTTP ${res.status} — skipped`);
+    return [];
+  }
   return res.text.trim().split('\n').filter(Boolean);
 }
 

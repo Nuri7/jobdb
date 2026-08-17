@@ -32,7 +32,11 @@ permissions:
 jobs:
   harvest:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    # Discovery was returning zero for months (Common Crawl 403'd our UA), so the first runs
+    # after that fix face a backlog of ~8k unvalidated tokens instead of a normal week's trickle.
+    # A platform only writes its keepers after validating all of them, so a timeout mid-platform
+    # throws that platform's whole run away. Can drop back to ~75 once the backlog is absorbed.
+    timeout-minutes: 330
     defaults:
       run:
         working-directory: pipeline
@@ -49,13 +53,16 @@ jobs:
 
       # Discover + validate + insert new NL-hiring boards. Dedup skips boards already stored,
       # so after the initial backfill each weekly run only handles genuinely new companies.
+      # No --ats here on purpose: the CLI defaults to every harvestable platform, so adding a
+      # discoverer takes effect without editing this file (a hardcoded list silently skipped
+      # lever/workable/smartrecruiters once already).
       - name: Harvest
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: >
           npx tsx src/cli.ts harvest
-          --ats "${{ inputs.ats || 'recruitee,homerun,personio,greenhouse,ashby' }}"
+          ${{ inputs.ats && format('--ats "{0}"', inputs.ats) || '' }}
           --min-nl "${{ inputs.min_nl || '1' }}"
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
           ${{ inputs.dry_run == true && '--dry-run' || '' }}
