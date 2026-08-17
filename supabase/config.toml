@@ -1,4 +1,9 @@
-project_id = "khsaaiguqwtxtkvzqbrm"
+# Local identifier only — this names the Docker containers of `supabase start`.
+# It is NOT the remote project: that is the linked ref (sfdppcdzvwmdbqlehihz)
+# or whatever `--project-ref` says. It used to hold the ref of the old Lovable
+# Cloud project, which reads as authoritative and is not — that project no
+# longer resolves at all. The documented default is the directory name.
+project_id = "jobdb"
 
 [functions.scrape-jobs]
 verify_jwt = false
