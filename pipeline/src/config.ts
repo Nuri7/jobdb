@@ -62,6 +62,7 @@ export const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 // ...but the Common Crawl index does the opposite: it 403s browser-like UAs and only answers
-// tools that identify themselves. Sending USER_AGENT there silently killed all ATS discovery,
-// so index.commoncrawl.org requests must carry this honest one instead.
+// tools that identify themselves. Sending USER_AGENT there made discovery fail intermittently
+// (some weekly runs found nothing at all, others were fine), so index.commoncrawl.org requests
+// must carry this honest one instead. Verified side by side: browser UA 403, this one 200.
 export const CRAWL_INDEX_USER_AGENT = 'jobdb-harvester/1.0 (+https://fairjobs.app)';

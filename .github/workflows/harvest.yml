@@ -32,10 +32,11 @@ permissions:
 jobs:
   harvest:
     runs-on: ubuntu-latest
-    # Discovery was returning zero for months (Common Crawl 403'd our UA), so the first runs
-    # after that fix face a backlog of ~8k unvalidated tokens instead of a normal week's trickle.
-    # A platform only writes its keepers after validating all of them, so a timeout mid-platform
-    # throws that platform's whole run away. Can drop back to ~75 once the backlog is absorbed.
+    # 9 platforms now instead of 5, and keep-rates are ~1% so nearly every discovered token is
+    # re-validated each week (rejects aren't recorded). The 5-platform run already took ~50 min;
+    # lever+workable+smartrecruiters add ~4k validations on top. A platform only writes its
+    # keepers after validating all of them, so a timeout mid-platform throws that whole platform
+    # away — hence the generous ceiling rather than a tight one.
     timeout-minutes: 330
     defaults:
       run:
