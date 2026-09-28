@@ -4,6 +4,7 @@ import { Building2, ExternalLink, Heart, MapPin, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PublicJob } from "@/lib/api/publicJobs";
+import { displaySalary } from "@/lib/jobDisplay";
 import { jobPath } from "@/lib/jobSlug";
 
 type Props = {
@@ -26,7 +27,7 @@ export default function PublicJobCard({ job, saved = false, onSave }: Props) {
     try { return new URL(job.company.career_url).hostname; } catch { return null; }
   })();
   const logo = companyHost ? `https://${companyHost}/favicon.ico` : null;
-  const meaningfulSalary = job.salary_range && !/\b(?:eur|€)\s*0(?:\D|$)/i.test(job.salary_range);
+  const salary = displaySalary(job.salary_range);
 
   return (
     <article className="rounded-2xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -54,7 +55,7 @@ export default function PublicJobCard({ job, saved = false, onSave }: Props) {
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" />{job.location || "Nederland"}</span>
             {job.employment_type && <span>{job.employment_type}</span>}
-            {meaningfulSalary && <span className="font-medium text-foreground">{job.salary_range}</span>}
+            {salary && <span className="font-medium text-foreground">{salary}</span>}
             {relativeDate(job.first_seen_at) && <span>{relativeDate(job.first_seen_at)}</span>}
           </div>
 
