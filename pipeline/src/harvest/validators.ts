@@ -540,3 +540,116 @@ export async function validateTeamtailor(token: string, ctx: Ctx): Promise<Harve
     nlJobs,
   };
 }
+
+// ---------------------------------------------------------------------------
+// AFAS OutSite — the same structured endpoint used by the production adapter.
+// Candidate token is the tenant subdomain under afas.online; custom-domain AFAS sites are found
+// separately by Dutch-domain JobPosting discovery and fingerprinted during resolution.
+// ---------------------------------------------------------------------------
+
+export async function validateAfas(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  const base = `https://${token}.afas.online`;
+  const endpoint = `${base}/api/integration/vacancy/get-page`;
+  const res = await ctx.fetchText(endpoint, {
+    kind: 'api', method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filters: [], offset: 0, limit: 10, cultureCode: 'nl-NL' }),
+    retries: 1, timeoutMs: 20_000,
+  }).catch(() => null);
+  if (!res || res.status !== 200) return null;
+  let payload: { vacancies?: Array<{ title?: string; location?: string }>; count?: number };
+  try { payload = JSON.parse(res.text) as typeof payload; } catch { return null; }
+  const jobs = (payload.vacancies ?? []).filter((job) => job.title);
+  if (jobs.length === 0) return null;
+  const nlJobs = jobs.filter((job) => isNlLocation(job.location) || !job.location).length;
+  return {
+    sourceType: 'ats:afas', boardId: base, careerUrl: base, website: base,
+    companyName: titleize(token), totalJobs: payload.count ?? jobs.length, nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// JOIN — static company listing with JSON-LD detail pages.
+// ---------------------------------------------------------------------------
+
+export async function validateJoin(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  const careerUrl = `https://join.com/companies/${token}`;
+  const res = await ctx.fetchText(careerUrl, { kind: 'html', retries: 1, timeoutMs: 15_000 }).catch(() => null);
+  if (!res || res.status !== 200) return null;
+  const links = extractJobLinks(res.text, res.finalUrl).filter((link) => {
+    try { return new URL(link.url).pathname.startsWith(`/companies/${token}/`); } catch { return false; }
+  });
+  if (links.length === 0) return null;
+  let nlJobs = 0;
+  for (const link of links.slice(0, 4)) {
+    const detail = await ctx.fetchText(link.url, { kind: 'html', retries: 0, timeoutMs: 12_000 }).catch(() => null);
+    if (detail?.status === 200 && jobPostingsFromHtml(detail.text, detail.finalUrl).some((job) => isNlLocation(job.location))) {
+      nlJobs = links.length;
+      break;
+    }
+  }
+  return {
+    sourceType: 'ats:join', boardId: token, careerUrl, website: careerUrl,
+    companyName: titleize(token), totalJobs: links.length, nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Workday — public CXS search endpoint. Token is "host|site".
+// ---------------------------------------------------------------------------
+
+export async function validateWorkday(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  const [host, site] = token.split('|');
+  const tenant = host?.split('.')[0];
+  if (!host || !site || !tenant || !/\.myworkdayjobs\.com$/i.test(host)) return null;
+  const endpoint = `https://${host}/wday/cxs/${encodeURIComponent(tenant)}/${encodeURIComponent(site)}/jobs`;
+  type WorkdayPayload = { total?: number; jobPostings?: Array<{ title?: string; locationsText?: string }> };
+  const search = async (searchText: string): Promise<WorkdayPayload | null> => {
+    const res = await ctx.fetchText(endpoint, {
+      kind: 'api', method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appliedFacets: {}, limit: 20, offset: 0, searchText }),
+      retries: 1, timeoutMs: 20_000,
+    }).catch(() => null);
+    if (!res || res.status !== 200) return null;
+    try { return JSON.parse(res.text) as WorkdayPayload; } catch { return null; }
+  };
+  const payload = await search('');
+  if (!payload) return null;
+  const jobs = (payload.jobPostings ?? []).filter((job) => job.title);
+  if (jobs.length === 0) return null;
+  let nlJobs = jobs.filter((job) => isNlLocation(job.locationsText)).length;
+  // Global boards commonly sort US roles first. A location-text search catches Dutch vacancies
+  // beyond page one without paging through thousands of unrelated jobs during discovery.
+  if (nlJobs === 0 && Number(payload.total) > jobs.length) {
+    const nlSearch = await search('Netherlands');
+    const nlMatches = (nlSearch?.jobPostings ?? []).filter((job) => job.title && isNlLocation(job.locationsText));
+    if (nlMatches.length > 0) nlJobs = Math.max(nlMatches.length, Number(nlSearch?.total) || 0);
+  }
+  const careerUrl = `https://${host}/en-US/${site}`;
+  return {
+    sourceType: 'ats:workday', boardId: token, careerUrl, website: `https://${host}`,
+    companyName: titleize(tenant), totalJobs: payload.total ?? jobs.length, nlJobs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SAP SuccessFactors — validate the tenant listing cheaply; the production adapter renders the
+// page and captures its JSON/XHR feed because SuccessFactors installations vary by region/version.
+// ---------------------------------------------------------------------------
+
+export async function validateSuccessFactors(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
+  const [host, company] = token.split('|');
+  if (!host || !company || !/successfactors\.(?:eu|com)$/i.test(host)) return null;
+  const careerUrl = `https://${host}/career?company=${encodeURIComponent(company)}`;
+  const res = await ctx.fetchText(careerUrl, { kind: 'html', retries: 1, timeoutMs: 20_000 }).catch(() => null);
+  if (!res || res.status !== 200 || res.text.length < 500) return null;
+  const inline = jobPostingsFromHtml(res.text, res.finalUrl);
+  const links = extractJobLinks(res.text, res.finalUrl);
+  const signals = Math.max(inline.length, links.length);
+  if (signals === 0 && !/(job|vacan|vacatur|career)/i.test(res.text)) return null;
+  const nlSignals = inline.filter((job) => isNlLocation(job.location)).length +
+    (/(Nederland|Netherlands|Amsterdam|Rotterdam|Utrecht|Eindhoven)/i.test(res.text) ? 1 : 0);
+  return {
+    sourceType: 'ats:successfactors', boardId: token, careerUrl: res.finalUrl, website: `https://${host}`,
+    companyName: titleize(company), totalJobs: Math.max(1, signals), nlJobs: nlSignals,
+  };
+}

@@ -20,7 +20,7 @@ function asArray<T>(v: T | T[] | undefined): T[] {
 /**
  * Fetch a sitemap (or sitemap index, one level deep) and return its URL entries plus whether the
  * result is COMPLETE. `complete` is false when we couldn't read the whole listing — a child sitemap
- * fetch failed, the index had more children than we fan out to, or we hit the 5000-entry truncation.
+ * fetch failed, the index had more children than we fan out to, or we hit the 50k-entry circuit breaker.
  * Reconcile uses this to avoid mass-closing live jobs on a partial fetch (a truncated liveUrls set).
  */
 export async function fetchSitemapEntries(
@@ -43,16 +43,18 @@ export async function fetchSitemapEntries(
     const children = asArray(index.sitemap as { loc?: string } | Array<{ loc?: string }>).filter(
       (c): c is { loc: string } => typeof c?.loc === 'string',
     );
-    // Prefer job-ish child sitemaps, cap fan-out. Dropping any child makes the result partial.
+    // Prefer job-ish child sitemaps. The high configurable ceiling avoids permanently truncating
+    // large employers while retaining a circuit breaker for pathological sitemap indexes.
+    const childCap = Number(process.env.SITEMAP_CHILD_CAP) || 100;
     const ranked = [...children]
       .sort((a, b) => Number(JOB_PATH_RE.test(b.loc)) - Number(JOB_PATH_RE.test(a.loc)))
-      .slice(0, 8);
+      .slice(0, childCap);
     let complete = ranked.length === children.length;
     for (const child of ranked) {
       const sub = await fetchSitemapEntries(child.loc, ctx, depth + 1);
       out.push(...sub.entries);
       if (!sub.complete) complete = false;
-      if (out.length > 5000) {
+      if (out.length > 50_000) {
         complete = false;
         break;
       }
@@ -66,7 +68,7 @@ export async function fetchSitemapEntries(
     if (entry && typeof entry.loc === 'string') {
       out.push({ loc: entry.loc, lastmod: typeof entry.lastmod === 'string' ? entry.lastmod : undefined });
     }
-    if (out.length > 5000) {
+    if (out.length > 50_000) {
       complete = false;
       break;
     }
@@ -159,7 +161,7 @@ export const sitemapSource: JobSource = {
     // Per-run detail-page cap keeps a single big employer from blowing the run's time budget; big
     // rosters fill over several runs. Deprioritize urls we've already scraped so each run spends its
     // budget on NEW vacancies (incremental backfill). Overridable via SITEMAP_DETAIL_CAP.
-    const detailCap = Number(process.env.SITEMAP_DETAIL_CAP) || 250;
+    const detailCap = Number(process.env.SITEMAP_DETAIL_CAP) || 500;
     const already = ctx.scrapedUrls ?? new Set<string>();
     const fresh = jobEntries.filter((e) => !already.has(e.loc));
     const ordered = [...fresh, ...jobEntries.filter((e) => already.has(e.loc))];

@@ -153,6 +153,30 @@ export function contentHash(
 const REMOTE_RE = /\b(remote|thuiswerk|work from home|wfh|volledig thuis)\b/i;
 const INTERNSHIP_RE = /\b(internship|intern\b|stage\b|stagiair|werkstudent|traineeship|afstudeer)/i;
 
+export function parseSalaryRange(value: string | undefined): {
+  min?: number; max?: number; currency?: string; period?: string;
+} {
+  if (!value) return {};
+  const text = value.trim();
+  const currency = /(?:€|\bEUR\b)/i.test(text) ? 'EUR'
+    : /(?:\$|\bUSD\b)/i.test(text) ? 'USD'
+      : /(?:£|\bGBP\b)/i.test(text) ? 'GBP' : undefined;
+  const period = /(?:\/|per\s+)(hour|uur|day|dag|week|month|maand|year|jaar)\b/i.exec(text)?.[1]?.toLowerCase();
+  const normalizedPeriod = period && ({ uur: 'hour', dag: 'day', maand: 'month', jaar: 'year' } as Record<string, string>)[period]
+    || period;
+  const numbers = [...text.matchAll(/\d[\d.,]*/g)]
+    .map(([raw]) => Number(raw.replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')))
+    .filter((number) => Number.isFinite(number) && number > 0);
+  if (numbers.length === 0) return { currency, period: normalizedPeriod };
+  if (numbers.length >= 2) {
+    return { min: Math.min(numbers[0]!, numbers[1]!), max: Math.max(numbers[0]!, numbers[1]!), currency, period: normalizedPeriod };
+  }
+  const upperOnly = /(^|\s)(tot|max(?:imaal)?|up to|[–—-]\s*)/i.test(text) || /^[A-Z€$£]*\s*[–—-]/i.test(text);
+  return upperOnly
+    ? { max: numbers[0], currency, period: normalizedPeriod }
+    : { min: numbers[0], currency, period: normalizedPeriod };
+}
+
 const EXPERIENCE_LEVELS: Array<[RegExp, string]> = [
   [INTERNSHIP_RE, 'Internship'],
   [/\b(junior|starter|entry.level|trainee)\b/i, 'Junior'],
@@ -198,6 +222,8 @@ export function finalizeJob(
   const asStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
   const locationStr = asStr(partial.location)?.replace(/\s+/g, ' ').trim().slice(0, 150) || undefined;
   const city = normalizeCity(locationStr);
+  const salaryRange = asStr(partial.salary_range)?.trim().slice(0, 100) || undefined;
+  const salary = parseSalaryRange(salaryRange);
   const draft: Omit<CanonicalJob, 'content_hash'> = {
     job_url: url,
     job_title: title,
@@ -206,9 +232,13 @@ export function finalizeJob(
     province: provinceOf(locationStr, city) ?? undefined,
     employment_type: asStr(partial.employment_type)?.trim().slice(0, 80) || undefined,
     department: asStr(partial.department)?.trim().slice(0, 120) || undefined,
-    salary_range: asStr(partial.salary_range)?.trim().slice(0, 100) || undefined,
+    salary_range: salaryRange,
+    salary_min: partial.salary_min ?? salary.min,
+    salary_max: partial.salary_max ?? salary.max,
+    salary_currency: partial.salary_currency ?? salary.currency,
+    salary_period: partial.salary_period ?? salary.period,
     description,
-    posted_date: normalizeDate(partial.posted_date),
+    posted_date: normalizePostedDate(partial.posted_date),
     closing_date: normalizeDate(partial.closing_date),
     is_remote: partial.is_remote ?? REMOTE_RE.test(haystack.slice(0, 4000)),
     is_internship: partial.is_internship ?? INTERNSHIP_RE.test(title),
@@ -225,6 +255,15 @@ export function normalizeDate(value: string | undefined): string | undefined {
   const yr = d.getUTCFullYear();
   if (yr < 2000 || yr > 2100) return undefined;
   return d.toISOString().slice(0, 10);
+}
+
+/** A publication date cannot be materially in the future. Some feeds accidentally map an
+ * application deadline into datePosted; rejecting it keeps future-dated jobs out of the top rank. */
+export function normalizePostedDate(value: string | undefined): string | undefined {
+  const normalized = normalizeDate(value);
+  if (!normalized) return undefined;
+  const max = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+  return normalized <= max ? normalized : undefined;
 }
 
 /** Dedupe by job_url, keeping the entry with the longer description. */

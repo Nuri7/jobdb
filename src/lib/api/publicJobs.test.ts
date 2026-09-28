@@ -11,12 +11,21 @@ describe("jobFiltersToParams", () => {
   });
 
   it("serializes candidate filters with API names", () => {
-    const params = jobFiltersToParams({ remote: true, hasSalary: true, easyApply: true, postedWithin: 7 });
+    const params = jobFiltersToParams({ remote: true, workplaceType: "hybrid", hasSalary: true, easyApply: true, postedWithin: 7 });
     expect(Object.fromEntries(params)).toMatchObject({
       remote: "true",
+      workplace_type: "hybrid",
       has_salary: "true",
       easy_apply: "true",
       posted_within: "7",
     });
+  });
+
+  it("uses radius search when a distance is selected", () => {
+    const params = jobFiltersToParams({ location: "Utrecht", radiusKm: 25, includeFacets: true });
+    expect(params.get("near")).toBe("Utrecht");
+    expect(params.get("radius_km")).toBe("25");
+    expect(params.get("location")).toBeNull();
+    expect(params.get("include_facets")).toBe("true");
   });
 });

@@ -1,25 +1,65 @@
 import pLimit from 'p-limit';
 import { config } from '../config.js';
-import { createDb, existingBoardIds, insertCompanies, type NewCompany } from '../db.js';
+import {
+  createDb,
+  existingBoardIds,
+  insertCompanies,
+  recordIngestionCandidate,
+  skippedIngestionCandidateKeys,
+  type NewCompany,
+} from '../db.js';
 import { buildCtx } from '../refresh.js';
 import type { AtsName, Ctx } from '../types.js';
-import { ccPathTokens, ccTokens } from './commoncrawl.js';
+import { ccPathTokens, ccTokens, ccUrls } from './commoncrawl.js';
 import {
   validateAshby,
+  validateAfas,
   validateGreenhouse,
   validateHomerun,
   validateLever,
   validatePersonio,
   validateRecruitee,
   validateSmartRecruiters,
+  validateSuccessFactors,
   validateTeamtailor,
   validateWorkable,
+  validateWorkday,
+  validateJoin,
   type HarvestCandidate,
 } from './validators.js';
 
 const GREENHOUSE_HOSTS = ['boards.greenhouse.io', 'job-boards.greenhouse.io'];
 const LEVER_HOSTS = ['jobs.lever.co', 'jobs.eu.lever.co'];
 const SMARTRECRUITERS_HOSTS = ['careers.smartrecruiters.com', 'jobs.smartrecruiters.com'];
+
+export function workdayBoards(urls: string[]): string[] {
+  const boards = new Set<string>();
+  for (const raw of urls) {
+    try {
+      const url = new URL(raw);
+      if (!/^[a-z0-9-]+(?:\.wd\d+)?\.myworkdayjobs\.com$/i.test(url.hostname)) continue;
+      if (['www', 'jobs', 'careers'].includes(url.hostname.split('.')[0]!.toLowerCase())) continue;
+      const segments = url.pathname.split('/').filter(Boolean);
+      const siteIndex = segments[0] && /^[a-z]{2}-[a-z]{2}$/i.test(segments[0]) ? 1 : 0;
+      const site = segments[siteIndex];
+      if (site && !/^(job|details|search)$/i.test(site)) boards.add(`${url.hostname.toLowerCase()}|${site}`);
+    } catch { /* malformed capture */ }
+  }
+  return [...boards];
+}
+
+export function successFactorsBoards(urls: string[]): string[] {
+  const boards = new Set<string>();
+  for (const raw of urls) {
+    try {
+      const url = new URL(raw);
+      if (!/^career\d+\.successfactors\.(?:eu|com)$/i.test(url.hostname)) continue;
+      const company = url.searchParams.get('company');
+      if (company && /^[a-z0-9_-]{2,80}$/i.test(company)) boards.add(`${url.hostname.toLowerCase()}|${company}`);
+    } catch { /* malformed capture */ }
+  }
+  return [...boards];
+}
 
 export interface HarvestOpts {
   ats: AtsName[];
@@ -71,6 +111,30 @@ const DISCOVERERS: Partial<Record<AtsName, Discoverer>> = {
     discover: (ctx, n) => ccPathTokens('smartrecruiters.com', ctx, SMARTRECRUITERS_HOSTS, { indexes: n }),
     validate: validateSmartRecruiters,
   },
+  afas: {
+    discover: (ctx, n) => ccTokens('afas.online', ctx, { indexes: n }),
+    validate: validateAfas,
+  },
+  join: {
+    discover: (ctx, n) => ccPathTokens('join.com', ctx, ['join.com', 'www.join.com'], { indexes: n }),
+    validate: validateJoin,
+  },
+  workday: {
+    discover: async (ctx, n) => workdayBoards(await ccUrls('myworkdayjobs.com', ctx, { indexes: n, maxPages: 50 })),
+    validate: validateWorkday,
+    normalizeKnown: (board) => board.toLowerCase(),
+  },
+  successfactors: {
+    discover: async (ctx, n) => {
+      const [eu, global] = await Promise.all([
+        ccUrls('successfactors.eu', ctx, { indexes: n, maxPages: 40 }),
+        ccUrls('successfactors.com', ctx, { indexes: n, maxPages: 40 }),
+      ]);
+      return successFactorsBoards([...eu, ...global]);
+    },
+    validate: validateSuccessFactors,
+    normalizeKnown: (board) => board.toLowerCase(),
+  },
 };
 
 export function harvestableAts(): AtsName[] {
@@ -111,8 +175,9 @@ async function harvestOne(ats: AtsName, disc: Discoverer, opts: HarvestOpts, ctx
   const known = await existingBoardIds(db, `ats:${ats}`);
   const norm = disc.normalizeKnown ?? ((b) => b);
   const knownTokens = new Set([...known].map(norm));
-  let fresh = tokens.filter((t) => !knownTokens.has(t));
-  console.log(`  ${known.size} already in DB → ${fresh.length} new to validate`);
+  const cached = await skippedIngestionCandidateKeys(db, `ats:${ats}`);
+  let fresh = tokens.filter((t) => !knownTokens.has(norm(t)) && !cached.has(norm(t)));
+  console.log(`  ${known.size} already in DB, ${cached.size} cached candidates → ${fresh.length} new/due to validate`);
   if (opts.limit && fresh.length > opts.limit) {
     console.log(`  capping at --limit ${opts.limit} (of ${fresh.length})`);
     fresh = fresh.slice(0, opts.limit);
@@ -130,8 +195,18 @@ async function harvestOne(ats: AtsName, disc: Discoverer, opts: HarvestOpts, ctx
       pool(async () => {
         const c = await disc.validate(token, ctx).catch(() => null);
         checked++;
-        if (!c) dead++;
-        else if (c.nlJobs < opts.minNl) nonNl++;
+        if (!c) {
+          dead++;
+          if (!opts.dryRun) await recordIngestionCandidate(db, `ats:${ats}`, norm(token), 'retry', { retryDays: 30 });
+        }
+        else if (c.nlJobs < opts.minNl) {
+          nonNl++;
+          if (!opts.dryRun) await recordIngestionCandidate(db, `ats:${ats}`, norm(token), 'rejected', {
+            sourceUrl: c.careerUrl,
+            retryDays: 14,
+            details: { total_jobs: c.totalJobs, nl_jobs: c.nlJobs },
+          });
+        }
         else keep.push(c);
         if (checked % 50 === 0 || checked === fresh.length) {
           console.log(`  …validated ${checked}/${fresh.length} (keep ${keep.length}, dead ${dead}, non-NL ${nonNl})`);
@@ -150,6 +225,13 @@ async function harvestOne(ats: AtsName, disc: Discoverer, opts: HarvestOpts, ctx
     }
   } else if (keep.length > 0) {
     const n = await insertCompanies(db, keep.map(toRow));
+    await Promise.all(keep.map((candidate) => recordIngestionCandidate(
+      db,
+      `ats:${ats}`,
+      disc.normalizeKnown ? disc.normalizeKnown(candidate.boardId) : candidate.boardId,
+      'accepted',
+      { sourceUrl: candidate.careerUrl, details: { total_jobs: candidate.totalJobs, nl_jobs: candidate.nlJobs } },
+    )));
     console.log(`  inserted ${n} companies (~${nlJobEstimate} NL jobs) — will scrape on next refresh`);
   }
 

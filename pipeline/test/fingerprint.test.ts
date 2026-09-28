@@ -16,6 +16,8 @@ describe('fingerprintAts — URL matches (definitive)', () => {
     ['https://acme.teamtailor.com/jobs', 'teamtailor', 'acme'],
     ['https://acme.homerun.co/', 'homerun', 'acme'],
     ['https://join.com/companies/acme-bv', 'join', 'acme-bv'],
+    ['https://acme.wd3.myworkdayjobs.com/en-US/careers', 'workday', 'acme.wd3.myworkdayjobs.com|careers'],
+    ['https://career5.successfactors.eu/career?company=acme', 'successfactors', 'career5.successfactors.eu|acme'],
   ];
   for (const [url, ats, board] of cases) {
     it(`${ats}: ${url}`, () => {
@@ -53,7 +55,6 @@ describe('fingerprintAts — HTML corroboration', () => {
 describe('fingerprintHint', () => {
   it('labels NL platforms without adapters', () => {
     expect(fingerprintHint('https://x.nl', '<iframe src="https://x.carerix.com/vacancies">')).toBe('carerix');
-    expect(fingerprintHint('https://x.myworkdayjobs.com/en-US/careers')).toBe('workday');
     expect(fingerprintHint('https://x.nl', '<p>gewone pagina</p>')).toBeNull();
   });
 });

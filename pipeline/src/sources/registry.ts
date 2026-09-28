@@ -9,6 +9,8 @@ import { personioSource } from './ats/personio.js';
 import { recruiteeSource } from './ats/recruitee.js';
 import { smartrecruitersSource } from './ats/smartrecruiters.js';
 import { workableSource } from './ats/workable.js';
+import { workdaySource } from './ats/workday.js';
+import { successFactorsSource } from './ats/successfactors.js';
 import { renderedSource } from './rendered.js';
 import { sitemapSource } from './sitemap.js';
 import { staticHtmlSource } from './static-html.js';
@@ -26,6 +28,8 @@ const sources: Record<SourceType, JobSource> = {
   'ats:homerun': homerunSource,
   'ats:join': joinSource,
   'ats:afas': afasSource,
+  'ats:workday': workdaySource,
+  'ats:successfactors': successFactorsSource,
   api: apiSource,
   sitemap: sitemapSource,
   static: staticHtmlSource,

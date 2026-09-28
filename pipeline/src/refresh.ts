@@ -1,6 +1,6 @@
 import pLimit from 'p-limit';
 import { config } from './config.js';
-import { closeExpiredJobs, createDb, findCompany, pickDueCompanies, pruneHistory, staleCompanies } from './db.js';
+import { closeExpiredJobs, createDb, findCompany, pickDueCompanies, pruneHistory, staleCompanies, type RefreshLane } from './db.js';
 import { createLlmClient } from './extract/llm.js';
 import { processCompany, stalenessSweep, type CompanyOutcome } from './lifecycle.js';
 import { politeFetchText, createRobotsChecker } from './politeness.js';
@@ -14,6 +14,7 @@ export interface RefreshOpts {
   dryRun: boolean;
   shard?: { k: number; n: number };
   force?: boolean;
+  lane?: RefreshLane;
 }
 
 export function buildCtx(dryRun: boolean, force = false): Ctx {
@@ -59,9 +60,9 @@ export async function refreshCommand(opts: RefreshOpts): Promise<void> {
       // with a small batch, the single slowest company (e.g. a 5,000-URL sitemap) gates
       // the next batch while most of the concurrency pool sits idle.
       const batchSize = Math.min(4000, max - processed);
-      const due = await pickDueCompanies(db, batchSize, opts.shard);
+      const due = await pickDueCompanies(db, batchSize, opts.shard, opts.lane ?? 'all');
       if (due.length === 0) break;
-      console.log(`Batch: ${due.length} due companies (elapsed ${Math.round((Date.now() - startedAt) / 60000)}m)`);
+      console.log(`Batch: ${due.length} due companies [${opts.lane ?? 'all'}] (elapsed ${Math.round((Date.now() - startedAt) / 60000)}m)`);
       const results = await Promise.all(
         due.map((company) =>
           pool(async () => {
@@ -89,7 +90,7 @@ export async function refreshCommand(opts: RefreshOpts): Promise<void> {
     }
 
     // Run-level maintenance
-    if (!opts.dryRun) {
+    if (!opts.dryRun && (!opts.lane || opts.lane === 'all' || opts.lane === 'fast')) {
       try {
         const stale = await staleCompanies(db);
         if (stale.length > 0) {

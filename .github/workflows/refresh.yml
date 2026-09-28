@@ -26,6 +26,16 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: fast
+            company_concurrency: 24
+          - lane: structured
+            company_concurrency: 14
+          - lane: rendered
+            company_concurrency: 4
     defaults:
       run:
         working-directory: pipeline
@@ -41,6 +51,7 @@ jobs:
       - run: npm ci
 
       - name: Cache Playwright browsers
+        if: matrix.lane == 'rendered'
         id: pw-cache
         uses: actions/cache@v4
         with:
@@ -48,11 +59,11 @@ jobs:
           key: pw-${{ runner.os }}-${{ hashFiles('pipeline/package-lock.json') }}
 
       - name: Install Playwright (browser + deps)
-        if: steps.pw-cache.outputs.cache-hit != 'true'
+        if: matrix.lane == 'rendered' && steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Install Playwright (deps only, browser cached)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
+        if: matrix.lane == 'rendered' && steps.pw-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
       - name: Refresh
@@ -62,9 +73,10 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-haiku-4-5-20251001' }}
-          COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
+          COMPANY_CONCURRENCY: ${{ matrix.company_concurrency }}
         run: >
           npx tsx src/cli.ts refresh
+          --lane "${{ matrix.lane }}"
           --budget-min "${{ inputs.budget_min || '75' }}"
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
 

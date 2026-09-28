@@ -5,14 +5,16 @@ import { refreshCommand } from './refresh.js';
 import { resolveCommand } from './resolve.js';
 import { snapshotCommand } from './snapshot.js';
 import { statsCommand } from './stats.js';
+import { discoverDomainsCommand } from './discover-domains.js';
 import { ATS_NAMES, type AtsName } from './types.js';
 
 const HELP = `jobdb pipeline
 
 Usage:
   tsx src/cli.ts resolve  [--limit N] [--company <uuid|name>] [--only-broken] [--force] [--dry-run]
-  tsx src/cli.ts refresh  [--limit N] [--company <uuid|name>] [--budget-min 50] [--dry-run]
+  tsx src/cli.ts refresh  [--limit N] [--company <uuid|name>] [--budget-min 50] [--lane fast|structured|rendered] [--dry-run]
   tsx src/cli.ts harvest  [--ats recruitee,homerun] [--limit N] [--min-nl 1] [--dry-run]
+  tsx src/cli.ts discover-domains [--limit 500] [--dry-run]
   tsx src/cli.ts snapshot [--dry-run]
   tsx src/cli.ts stats    [--format text|md|json]
   tsx src/cli.ts probe <url> [name]      (DB-less: resolve + fetch one company, write nothing)
@@ -37,6 +39,7 @@ async function main(): Promise<void> {
       'dry-run': { type: 'boolean', default: false },
       'budget-min': { type: 'string', default: '50' },
       shard: { type: 'string' }, // "k/n" — process only companies in shard k of n (parallel backfill)
+      lane: { type: 'string' }, // refresh lane: fast ATS/API, structured sitemap/static, or rendered
       ats: { type: 'string' }, // harvest: comma-separated ATS names (default: all harvestable)
       'min-nl': { type: 'string', default: '1' }, // harvest: min NL jobs to keep a board
       'cc-indexes': { type: 'string' }, // harvest: # of monthly Common Crawl indexes to union
@@ -82,6 +85,10 @@ async function main(): Promise<void> {
       break;
     }
     case 'refresh':
+      if (values.lane && !['all', 'fast', 'structured', 'rendered'].includes(values.lane)) {
+        console.error('--lane must be all, fast, structured, or rendered');
+        process.exit(1);
+      }
       await refreshCommand({
         limit,
         company: values.company,
@@ -89,6 +96,7 @@ async function main(): Promise<void> {
         dryRun: values['dry-run'] ?? false,
         shard,
         force: values.force ?? false,
+        lane: (values.lane as 'all' | 'fast' | 'structured' | 'rendered' | undefined) ?? 'all',
       });
       break;
     case 'harvest': {
@@ -119,6 +127,9 @@ async function main(): Promise<void> {
       });
       break;
     }
+    case 'discover-domains':
+      await discoverDomainsCommand({ limit, dryRun: values['dry-run'] ?? false });
+      break;
     case 'snapshot':
       await snapshotCommand({ dryRun: values['dry-run'] ?? false });
       break;

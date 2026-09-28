@@ -10,6 +10,8 @@ export const ATS_NAMES = [
   'homerun',
   'join',
   'afas',
+  'workday',
+  'successfactors',
 ] as const;
 
 export type AtsName = (typeof ATS_NAMES)[number];
@@ -21,8 +23,6 @@ export const ATS_HINTS = [
   'mysolution',
   'afas',
   'hroffice',
-  'workday',
-  'successfactors',
   'jobtoolz',
   'emply',
   'byner',
@@ -43,6 +43,10 @@ export interface CanonicalJob {
   employment_type?: string;
   department?: string;
   salary_range?: string;
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_period?: string;
   description?: string;
   posted_date?: string; // ISO date (YYYY-MM-DD)
   closing_date?: string; // ISO date — application deadline (schema.org validThrough)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob, isCategoryTitle, isJunkTitle, isJunkUrl } from '../src/extract/normalize.js';
+import { canonicalizeUrl, contentHash, dedupeJobs, finalizeJob, isCategoryTitle, isJunkTitle, isJunkUrl, normalizePostedDate, parseSalaryRange } from '../src/extract/normalize.js';
 
 describe('isCategoryTitle — plural category listings vs real singular jobs', () => {
   it('flags category/overview titles', () => {
@@ -128,5 +128,20 @@ describe('contentHash', () => {
   it('ignores volatile fields', () => {
     const base = { job_url: 'https://x.nl/1', job_title: 'Dev', description: 'd' };
     expect(contentHash({ ...base, posted_date: '2026-01-01' })).toBe(contentHash({ ...base, posted_date: '2026-06-01' }));
+  });
+});
+
+describe('parseSalaryRange', () => {
+  it('normalizes complete and one-sided salary ranges', () => {
+    expect(parseSalaryRange('EUR 2.762–4.729/month')).toEqual({ min: 2762, max: 4729, currency: 'EUR', period: 'month' });
+    expect(parseSalaryRange('€ –2850 per maand')).toEqual({ max: 2850, currency: 'EUR', period: 'month' });
+    expect(parseSalaryRange('Vanaf EUR 65.000 per jaar')).toEqual({ min: 65000, currency: 'EUR', period: 'year' });
+  });
+});
+
+describe('normalizePostedDate', () => {
+  it('keeps real publication dates and rejects deadline-like future dates', () => {
+    expect(normalizePostedDate('2026-09-28')).toBe('2026-09-28');
+    expect(normalizePostedDate('2099-01-01')).toBeUndefined();
   });
 });

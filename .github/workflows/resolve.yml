@@ -3,6 +3,7 @@ name: resolve-career-pages
 on:
   schedule:
     - cron: '0 2 * * 0' # Sundays 02:00 UTC — re-verify broken/unverified pages
+    - cron: '0 2 1 * *' # Monthly — re-fingerprint every employer for moved pages/new ATS adapters
   workflow_dispatch:
     inputs:
       all:
@@ -51,7 +52,7 @@ jobs:
         # (0 jobs = likely wrong/moved page). Manual dispatch with all:true re-resolves everything.
         run: >
           npx tsx src/cli.ts resolve
-          ${{ inputs.all == true && '--all' || '--stale' }}
+          ${{ (inputs.all == true || github.event.schedule == '0 2 1 * *') && '--all' || '--stale' }}
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
 
       - name: Stats summary

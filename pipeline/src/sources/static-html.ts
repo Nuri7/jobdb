@@ -5,18 +5,19 @@ import { extractJobLinks, findNextPage, jobsViaDetailPages, type JobLink } from 
 import type { CanonicalJob, CompanyRow, Ctx, JobSource } from '../types.js';
 import { SourceGoneError, ZeroExtractionError } from '../types.js';
 
-const MAX_LISTING_PAGES = 6;
+const MAX_LISTING_PAGES = Number(process.env.STATIC_LISTING_PAGE_CAP) || 50;
 
 export async function collectListingLinks(
   careerUrl: string,
   ctx: Ctx,
-): Promise<{ links: JobLink[]; inlineJobs: CanonicalJob[]; listingHash: string; finalUrl: string }> {
+): Promise<{ links: JobLink[]; inlineJobs: CanonicalJob[]; listingHash: string; finalUrl: string; complete: boolean }> {
   const links: JobLink[] = [];
   const inlineJobs: CanonicalJob[] = [];
   const seenPages = new Set<string>();
   let pageUrl: string | null = careerUrl;
   let firstFinalUrl = careerUrl;
 
+  let complete = true;
   for (let i = 0; i < MAX_LISTING_PAGES && pageUrl && !seenPages.has(pageUrl); i++) {
     seenPages.add(pageUrl);
     const res = await ctx.fetchText(pageUrl, { kind: 'html', timeoutMs: 15_000 });
@@ -32,13 +33,14 @@ export async function collectListingLinks(
     links.push(...extractJobLinks(res.text, res.finalUrl));
     pageUrl = findNextPage(res.text, res.finalUrl);
   }
+  if (pageUrl && !seenPages.has(pageUrl)) complete = false;
 
   const unique = new Map(links.map((l) => [l.url, l]));
   const listingHash = createHash('sha256')
     .update([...unique.keys()].sort().join('\n'))
     .digest('hex')
     .slice(0, 32);
-  return { links: [...unique.values()], inlineJobs: dedupeJobs(inlineJobs), listingHash, finalUrl: firstFinalUrl };
+  return { links: [...unique.values()], inlineJobs: dedupeJobs(inlineJobs), listingHash, finalUrl: firstFinalUrl, complete };
 }
 
 export const staticHtmlSource: JobSource = {
@@ -58,8 +60,12 @@ export const staticHtmlSource: JobSource = {
 
   async fetchJobs(company: CompanyRow, ctx: Ctx): Promise<CanonicalJob[]> {
     if (!company.career_url) throw new SourceGoneError('static: no career_url');
-    const { links, inlineJobs, listingHash } = await collectListingLinks(company.career_url, ctx);
+    const collected = await collectListingLinks(company.career_url, ctx);
+    const { links, inlineJobs, listingHash } = collected;
+    let complete = collected.complete;
     ctx.log(`  static: ${links.length} links, ${inlineJobs.length} inline JSON-LD jobs`);
+    ctx.liveUrls = new Set(links.map((link) => link.url));
+    ctx.liveUrlsComplete = complete;
 
     // Inline JSON-LD with per-job URLs beats crawling details
     const inlineWithUrls = inlineJobs.filter((j) => j.job_url !== company.career_url);
@@ -67,8 +73,17 @@ export const staticHtmlSource: JobSource = {
     if (inlineWithUrls.length >= Math.max(3, links.length / 2)) {
       jobs = inlineWithUrls;
     } else {
-      jobs = await jobsViaDetailPages(links, ctx, { cap: 200 });
+      const detailCap = Number(process.env.STATIC_DETAIL_CAP) || 400;
+      const already = ctx.scrapedUrls ?? new Set<string>();
+      const fresh = links.filter((link) => !already.has(link.url));
+      const ordered = [...fresh, ...links.filter((link) => already.has(link.url))];
+      jobs = await jobsViaDetailPages(ordered, ctx, { cap: detailCap });
       if (jobs.length === 0 && inlineWithUrls.length > 0) jobs = inlineWithUrls;
+      if (fresh.length > detailCap) {
+        complete = false;
+        ctx.liveUrlsComplete = false;
+        ctx.log(`  incremental: ${fresh.length} new urls, fetched ${detailCap}; ${fresh.length - detailCap} remain`);
+      }
     }
 
     const result = dedupeJobs(jobs);
@@ -76,7 +91,7 @@ export const staticHtmlSource: JobSource = {
       throw new ZeroExtractionError(`listing had ${links.length} job links but extracted 0`, links.length);
     }
 
-    if (company.source_config) {
+    if (company.source_config && complete) {
       company.source_config.listing_hash = listingHash;
       company.source_config.last_full_at = new Date().toISOString();
     }

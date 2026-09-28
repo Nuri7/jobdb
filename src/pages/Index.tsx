@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useJobs, useCompanies, useCities } from "@/hooks/useJobs";
@@ -38,7 +38,8 @@ import {
   Sliders,
   Search,
   ChevronsUpDown,
-  MapPin
+  MapPin,
+  Activity
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getCompanyLogoUrl, getCompanyFaviconUrl } from "@/lib/utils/logo";
@@ -373,6 +374,9 @@ const Index = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <SearchBar value={search} onChange={setSearch} />
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/admin/coverage"><Activity className="mr-2 h-4 w-4" />Dekking</Link>
+            </Button>
             <AddCompanyModal onCompanyAdded={() => { refetchCompanies(); refetch(); }} />
             <Button 
               onClick={handleScrape} 

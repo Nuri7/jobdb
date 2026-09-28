@@ -47,6 +47,16 @@ const ATS_PATTERNS: AtsPattern[] = [
   { ats: 'teamtailor', re: /https?:\/\/([a-z0-9-]+)\.teamtailor\.com/i, board: (m) => m[1]!.toLowerCase() },
   { ats: 'homerun', re: /https?:\/\/([a-z0-9-]+)\.homerun\.co/i, board: (m) => m[1]!.toLowerCase() },
   { ats: 'join', re: /https?:\/\/(?:www\.)?join\.com\/companies\/([a-z0-9-]+)/i, board: (m) => m[1]!.toLowerCase() },
+  {
+    ats: 'workday',
+    re: /https?:\/\/([a-z0-9-]+(?:\.wd\d+)?\.myworkdayjobs\.com)\/(?:[a-z]{2}-[a-z]{2}\/)?([a-z0-9_-]+)/i,
+    board: (m) => `${m[1]!.toLowerCase()}|${m[2]!}`,
+  },
+  {
+    ats: 'successfactors',
+    re: /https?:\/\/(career\d+\.successfactors\.(?:eu|com))\/career(?:\/[^?]*)?\?[^"'\s]*\bcompany=([a-z0-9_-]+)/i,
+    board: (m) => `${m[1]!.toLowerCase()}|${m[2]!}`,
+  },
 ];
 
 const EXCLUDED_BOARDS = new Set(['www', 'careers', 'jobs', 'app', 'api', 'assets', 'static', 'cdn', 'embed', 'auth', 'help', 'support', 'blog', 'docs']);
@@ -58,8 +68,6 @@ const HINT_PATTERNS: Array<[AtsHint, RegExp]> = [
   ['mysolution', /mysolution/i],
   ['afas', /afasinsite|vacatures\.afas|afas\.online/i],
   ['hroffice', /hroffice/i],
-  ['workday', /myworkdayjobs\.com|workday/i],
-  ['successfactors', /successfactors|career\d*\.sapsf/i],
   ['jobtoolz', /jobtoolz/i],
   ['emply', /emply\.(?:com|net)/i],
   ['byner', /byner/i],
@@ -77,7 +85,8 @@ export function fingerprintAts(url: string, html?: string, companyTokens: string
     const m = url.match(pattern.re);
     if (m) {
       const boardId = pattern.board(m);
-      if (!EXCLUDED_BOARDS.has(boardId.toLowerCase())) {
+      const firstIdentityPart = boardId.toLowerCase().split(/[.|]/)[0] ?? '';
+      if (!EXCLUDED_BOARDS.has(boardId.toLowerCase()) && !EXCLUDED_BOARDS.has(firstIdentityPart)) {
         return { ats: pattern.ats, boardId, region: pattern.region?.(m) };
       }
     }
@@ -89,7 +98,8 @@ export function fingerprintAts(url: string, html?: string, companyTokens: string
     const re = new RegExp(pattern.re.source, 'gi');
     for (const m of html.matchAll(re)) {
       const boardId = pattern.board(m as unknown as RegExpMatchArray);
-      if (EXCLUDED_BOARDS.has(boardId.toLowerCase())) continue;
+      const firstIdentityPart = boardId.toLowerCase().split(/[.|]/)[0] ?? '';
+      if (EXCLUDED_BOARDS.has(boardId.toLowerCase()) || EXCLUDED_BOARDS.has(firstIdentityPart)) continue;
       const key = `${pattern.ats}:${boardId}`;
       const entry = counts.get(key) ?? {
         fp: { ats: pattern.ats, boardId, region: pattern.region?.(m as unknown as RegExpMatchArray) },

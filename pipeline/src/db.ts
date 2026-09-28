@@ -42,6 +42,8 @@ export interface Shard {
   n: number; // total shards
 }
 
+export type RefreshLane = 'all' | 'fast' | 'structured' | 'rendered';
+
 /** Disjoint uuid range for a shard (uuids are uniformly random, so first-hex-char ranges partition evenly). */
 function shardRange(shard: Shard): { lo: string; hi: string | null } {
   const loChar = Math.floor((shard.k * 16) / shard.n);
@@ -50,13 +52,20 @@ function shardRange(shard: Shard): { lo: string; hi: string | null } {
   return { lo: uuid(loChar), hi: hiChar >= 16 ? null : uuid(hiChar) };
 }
 
-export async function pickDueCompanies(db: Db, limit: number, shard?: Shard): Promise<CompanyRow[]> {
+export async function pickDueCompanies(db: Db, limit: number, shard?: Shard, lane: RefreshLane = 'all'): Promise<CompanyRow[]> {
   let query = db
     .from('company_career_sites')
     .select(COMPANY_COLUMNS)
     .eq('is_scrape_enabled', true)
     .neq('career_page_status', 'ambiguous')
     .lte('next_check_at', new Date().toISOString());
+  if (lane === 'fast') {
+    query = query.or('source_type.like.ats:*,source_type.eq.api').neq('source_type', 'ats:successfactors');
+  } else if (lane === 'structured') {
+    query = query.in('source_type', ['sitemap', 'static']);
+  } else if (lane === 'rendered') {
+    query = query.in('source_type', ['rendered', 'ats:successfactors']);
+  }
   if (shard && shard.n > 1) {
     const { lo, hi } = shardRange(shard);
     query = query.gte('id', lo);
@@ -71,28 +80,29 @@ export async function pickResolvable(
   limit: number,
   mode: 'unverified' | 'broken' | 'stale' | 'all',
 ): Promise<CompanyRow[]> {
-  let query = db
-    .from('company_career_sites')
-    .select(COMPANY_COLUMNS)
-    .eq('is_scrape_enabled', true)
-    .order('next_check_at', { ascending: true })
-    .limit(limit);
-  // Server-side status filter — client-side filtering starves the picker once
-  // the earliest next_check_at rows are all verified.
-  if (mode === 'unverified') {
-    query = query.eq('career_page_status', 'unverified');
-  } else if (mode === 'broken') {
-    query = query.or('career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3');
-  } else if (mode === 'stale') {
-    // Weekly health sweep: broken/failing PLUS verified-but-empty pages (0 jobs = likely
-    // wrong or moved page, e.g. a.s.r.). Healthy job-producing pages are left untouched.
-    query = query.or(
-      'career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3,and(career_page_status.eq.verified,jobs_found_count.eq.0)',
-    );
+  const out: CompanyRow[] = [];
+  const pageSize = Math.min(1000, limit);
+  for (let offset = 0; offset < limit; offset += pageSize) {
+    let query = db
+      .from('company_career_sites')
+      .select(COMPANY_COLUMNS)
+      .eq('is_scrape_enabled', true)
+      .order('next_check_at', { ascending: true })
+      .range(offset, Math.min(offset + pageSize - 1, limit - 1));
+    if (mode === 'unverified') {
+      query = query.eq('career_page_status', 'unverified');
+    } else if (mode === 'broken') {
+      query = query.or('career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3');
+    } else if (mode === 'stale') {
+      query = query.or(
+        'career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3,and(career_page_status.eq.verified,jobs_found_count.eq.0)',
+      );
+    }
+    const rows = unwrap(await query, 'pickResolvable') as unknown as CompanyRow[];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
   }
-  // mode === 'all' → no status filter (full re-resolve)
-  const res = await query;
-  return unwrap(res, 'pickResolvable') as unknown as CompanyRow[];
+  return out;
 }
 
 export async function findCompany(db: Db, idOrName: string): Promise<CompanyRow | null> {
@@ -171,6 +181,44 @@ export async function insertCompanies(db: Db, companies: NewCompany[]): Promise<
   return written;
 }
 
+export async function existingCompanyHosts(db: Db): Promise<Set<string>> {
+  const hosts = new Set<string>();
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const res = await db.from('company_career_sites').select('website,career_url').range(offset, offset + pageSize - 1);
+    const rows = unwrap(res, 'existingCompanyHosts') as unknown as Array<{ website: string | null; career_url: string | null }>;
+    for (const row of rows) {
+      for (const value of [row.website, row.career_url]) {
+        try { if (value) hosts.add(new URL(value).hostname.replace(/^www\./, '').toLowerCase()); } catch { /* invalid legacy url */ }
+      }
+    }
+    if (rows.length < pageSize) break;
+  }
+  return hosts;
+}
+
+export async function insertUnverifiedCompany(
+  db: Db,
+  company: { name: string; website: string; careerUrl: string },
+): Promise<boolean> {
+  const res = await db.from('company_career_sites').insert({
+    company_name: company.name,
+    website: company.website,
+    career_url: company.careerUrl,
+    career_page_status: 'unverified',
+    source_type: null,
+    source_config: null,
+    is_scrape_enabled: true,
+    is_active: true,
+    next_check_at: new Date().toISOString(),
+  });
+  if (res.error) {
+    console.warn(`insert discovered domain ${company.website}: ${res.error.message}`);
+    return false;
+  }
+  return true;
+}
+
 /** Duplicate-board detection: does another company already own this board identity? */
 export async function findBoardOwner(
   db: Db,
@@ -187,6 +235,58 @@ export async function findBoardOwner(
     .limit(1);
   if (res.error) throw new Error(`findBoardOwner: ${res.error.message}`);
   return res.data?.[0]?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Discovery candidate cache — prevents daily harvests from revalidating the same dead/non-NL
+// board while still giving non-NL employers a periodic chance to start hiring in the Netherlands.
+// ---------------------------------------------------------------------------
+
+export async function skippedIngestionCandidateKeys(db: Db, sourceKind: string): Promise<Set<string>> {
+  const skipped = new Set<string>();
+  const now = Date.now();
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const res = await db
+      .from('job_ingestion_candidates')
+      .select('candidate_key,state,retry_after')
+      .eq('source_kind', sourceKind)
+      .range(offset, offset + pageSize - 1);
+    if (res.error) {
+      console.warn(`candidate cache unavailable for ${sourceKind}: ${res.error.message}`);
+      return new Set<string>();
+    }
+    const rows = (res.data ?? []) as Array<{ candidate_key: string; state: string; retry_after: string | null }>;
+    for (const row of rows) {
+      if (row.state === 'accepted' || row.state === 'dead' || (row.retry_after && Date.parse(row.retry_after) > now)) {
+        skipped.add(row.candidate_key);
+      }
+    }
+    if (rows.length < pageSize) break;
+  }
+  return skipped;
+}
+
+export async function recordIngestionCandidate(
+  db: Db,
+  sourceKind: string,
+  candidateKey: string,
+  state: 'accepted' | 'rejected' | 'retry' | 'dead',
+  opts: { sourceUrl?: string; retryDays?: number; details?: Record<string, unknown> } = {},
+): Promise<void> {
+  const now = new Date();
+  const retryAfter = opts.retryDays ? new Date(now.getTime() + opts.retryDays * 86_400_000).toISOString() : null;
+  const res = await db.from('job_ingestion_candidates').upsert({
+    source_kind: sourceKind,
+    candidate_key: candidateKey,
+    source_url: opts.sourceUrl ?? null,
+    state,
+    last_checked_at: now.toISOString(),
+    retry_after: retryAfter,
+    check_count: 1,
+    details: opts.details ?? {},
+  }, { onConflict: 'source_kind,candidate_key' });
+  if (res.error) console.warn(`record candidate ${sourceKind}/${candidateKey}: ${res.error.message}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +340,10 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       employment_type: j.employment_type ?? null,
       department: j.department ?? null,
       salary_range: j.salary_range ?? null,
+      salary_min: j.salary_min ?? null,
+      salary_max: j.salary_max ?? null,
+      salary_currency: j.salary_currency ?? null,
+      salary_period: j.salary_period ?? null,
       description: j.description ? j.description.slice(0, 8000) : null,
       posted_date: j.posted_date ?? null,
       closing_date: j.closing_date ?? null,

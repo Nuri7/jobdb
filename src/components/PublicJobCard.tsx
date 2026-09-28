@@ -60,7 +60,8 @@ export default function PublicJobCard({ job, saved = false, onSave }: Props) {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            {job.is_remote && <Badge variant="secondary">Thuiswerken</Badge>}
+            {(job.workplace_type === "remote" || job.is_remote) && <Badge variant="secondary">Thuiswerken</Badge>}
+            {job.workplace_type === "hybrid" && <Badge variant="secondary">Hybride</Badge>}
             {job.is_internship && <Badge variant="secondary">Stage</Badge>}
             {job.easy_apply && <Badge className="gap-1"><Sparkles className="h-3 w-3" />FairApply geschikt</Badge>}
             {job.experience_level && <Badge variant="outline">{job.experience_level}</Badge>}

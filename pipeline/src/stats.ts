@@ -7,12 +7,61 @@ async function countWhere(db: Db, table: string, filters: Record<string, string>
     q = val.startsWith('!') ? q.neq(col, val.slice(1)) : q.eq(col, val);
   }
   const res = await q;
-  if (res.error) return -1;
+  if (res.error) {
+    console.error(`count failed for ${table}: ${res.error.message}`);
+    return -1;
+  }
   return res.count ?? 0;
+}
+
+type CoverageStats = {
+  generated_at: string;
+  companies: Record<string, number>;
+  jobs: Record<string, number>;
+  runs_24h: Record<string, number>;
+  sources: Array<{ source: string; companies: number; public_open_jobs: number }>;
+  candidates: Record<string, number>;
+  top_errors_24h: Array<{ message: string; n: number }>;
+};
+
+function printCoverage(data: CoverageStats, format: 'text' | 'md' | 'json'): void {
+  if (format === 'json') {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+  const h = (s: string) => (format === 'md' ? `\n### ${s}\n` : `\n== ${s} ==`);
+  const lines = [
+    h('Companies'),
+    `total ${data.companies.total}, enabled ${data.companies.enabled}, verified ${data.companies.verified}, fresh<48h ${data.companies.fresh_48h}`,
+    `unverified ${data.companies.unverified}, ambiguous ${data.companies.ambiguous}, dead ${data.companies.dead}, stale>7d ${data.companies.stale_7d}`,
+    h('Jobs'),
+    `public open ${data.jobs.public_open}, all open ${data.jobs.open_all}, closed ${data.jobs.closed}`,
+    `fresh<7d ${data.jobs.fresh_7d}, fresh<30d ${data.jobs.fresh_30d}, ATS ${data.jobs.from_ats}, salary ${data.jobs.with_salary}`,
+    h('Runs last 24h'),
+    `total ${data.runs_24h.total}, success ${data.runs_24h.success}, partial ${data.runs_24h.partial}, failed ${data.runs_24h.failed}, running ${data.runs_24h.running}`,
+  ];
+  if (data.sources.length > 0) {
+    lines.push(h('Sources'));
+    lines.push(data.sources.map((row) => `${row.source}=${row.companies} companies/${row.public_open_jobs} jobs`).join(', '));
+  }
+  if (data.top_errors_24h.length > 0) {
+    lines.push(h('Top errors 24h'));
+    for (const error of data.top_errors_24h) lines.push(`${error.n}× ${error.message}`);
+  }
+  console.log(lines.join('\n'));
 }
 
 export async function statsCommand(format: 'text' | 'md' | 'json'): Promise<void> {
   const db = createDb({ readOnly: true });
+
+  const coverage = await db.rpc('fairjobs_coverage_stats');
+  if (!coverage.error && coverage.data && typeof coverage.data === 'object') {
+    printCoverage(coverage.data as CoverageStats, format);
+    return;
+  }
+  if (coverage.error && !coverage.error.message.includes('fairjobs_coverage_stats')) {
+    console.error(`coverage stats RPC failed: ${coverage.error.message}`);
+  }
 
   const statuses = ['verified', 'unverified', 'dead', 'ambiguous'];
   const sourceTypes: SourceType[] = [...ATS_NAMES.map((a) => `ats:${a}` as SourceType), 'sitemap', 'static', 'rendered'];

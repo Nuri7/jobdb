@@ -111,6 +111,23 @@ export function tokensFromCcPaths(lines: string[], hosts: string[]): string[] {
   return [...tokens];
 }
 
+/** Extract unique absolute URLs from CDX JSONL lines. Used for platforms whose tenant identity is
+ * spread across both host and path/query (Workday, SuccessFactors) and for Dutch JobPosting seeds. */
+export function urlsFromCcLines(lines: string[]): string[] {
+  const urls = new Set<string>();
+  for (const line of lines) {
+    try {
+      const raw = (JSON.parse(line) as { url?: string }).url;
+      if (!raw) continue;
+      const url = new URL(raw);
+      if (url.protocol === 'http:' || url.protocol === 'https:') urls.add(url.toString());
+    } catch {
+      /* malformed CDX line */
+    }
+  }
+  return [...urls];
+}
+
 async function ccPage(indexId: string, baseDomain: string, page: number, ctx: Ctx): Promise<string[]> {
   const url = `${HOST}/${indexId}-index?url=${encodeURIComponent(baseDomain)}&matchType=domain&output=json&fl=url&page=${page}`;
   const res = await ctx.fetchText(url, { kind: 'api', retries: 2, timeoutMs: 60_000, headers: CC_HEADERS });
@@ -149,4 +166,36 @@ export function ccTokens(baseDomain: string, ctx: Ctx, opts: { indexes?: number;
 /** Union of path tenant tokens (`<host>/<token>`) across the newest monthly crawls. */
 export function ccPathTokens(baseDomain: string, ctx: Ctx, hosts: string[], opts: { indexes?: number; maxPages?: number } = {}): Promise<string[]> {
   return ccUnion(baseDomain, ctx, (lines) => tokensFromCcPaths(lines, hosts), opts);
+}
+
+/** Union raw captured URLs for host+path/query tenant discovery. */
+export function ccUrls(baseDomain: string, ctx: Ctx, opts: { indexes?: number; maxPages?: number } = {}): Promise<string[]> {
+  return ccUnion(baseDomain, ctx, urlsFromCcLines, opts);
+}
+
+/** Targeted wildcard URL discovery (for example `*.nl/vacature/*`). Common Crawl accepts wildcard
+ * URL queries directly; unlike domain roster scans this lets us sample the Dutch long tail without
+ * attempting to enumerate the entire .nl zone. */
+export async function ccPatternUrls(
+  pattern: string,
+  ctx: Ctx,
+  opts: { indexes?: number; maxPages?: number } = {},
+): Promise<string[]> {
+  const indexes = await ccLatestIndexes(ctx, opts.indexes ?? 2);
+  const out = new Set<string>();
+  for (const indexId of indexes) {
+    const base = `${HOST}/${indexId}-index?url=${encodeURIComponent(pattern)}&output=json&fl=url&filter=status:200&filter=mime:text/html&collapse=urlkey`;
+    const info = await ctx.fetchText(`${base}&showNumPages=true`, { kind: 'api', retries: 2, timeoutMs: 30_000, headers: CC_HEADERS });
+    if (info.status !== 200) continue;
+    let pages = 1;
+    try { pages = Math.max(1, Number((JSON.parse(info.text) as { pages?: number }).pages) || 1); } catch { /* one page */ }
+    pages = Math.min(pages, opts.maxPages ?? 5);
+    for (let page = 0; page < pages; page++) {
+      const res = await ctx.fetchText(`${base}&page=${page}`, { kind: 'api', retries: 1, timeoutMs: 60_000, headers: CC_HEADERS });
+      if (res.status !== 200) continue;
+      for (const url of urlsFromCcLines(res.text.trim().split('\n').filter(Boolean))) out.add(url);
+    }
+    ctx.log(`  cc pattern ${pattern} / ${indexId}: ${pages} page(s), ${out.size} urls`);
+  }
+  return [...out];
 }

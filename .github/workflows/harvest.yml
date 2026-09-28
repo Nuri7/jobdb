@@ -2,13 +2,13 @@ name: harvest-companies
 
 on:
   schedule:
-    - cron: '0 4 * * 1' # Mondays 04:00 UTC — discover newly-onboarded ATS boards, then log metrics
+    - cron: '0 4 * * *' # Daily — incremental candidate cache prevents rechecking the same rejects
   workflow_dispatch:
     inputs:
       ats:
-        description: 'Comma-separated ATS platforms'
+        description: 'Comma-separated ATS platforms (blank = all)'
         required: false
-        default: 'recruitee,homerun,personio,greenhouse,ashby'
+        default: ''
       limit:
         description: 'Max new boards to validate per platform'
         required: false
@@ -32,11 +32,8 @@ permissions:
 jobs:
   harvest:
     runs-on: ubuntu-latest
-    # 9 platforms now instead of 5, and keep-rates are ~1% so nearly every discovered token is
-    # re-validated each week (rejects aren't recorded). The 5-platform run already took ~50 min;
-    # lever+workable+smartrecruiters add ~4k validations on top. A platform only writes its
-    # keepers after validating all of them, so a timeout mid-platform throws that whole platform
-    # away — hence the generous ceiling rather than a tight one.
+    # The first run fills the negative candidate cache; daily runs then validate only new/due
+    # candidates. The generous ceiling also covers large first-pass Workday/SAP rosters.
     timeout-minutes: 330
     defaults:
       run:
@@ -61,12 +58,31 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '20' }}
         run: >
           npx tsx src/cli.ts harvest
           ${{ inputs.ats && format('--ats "{0}"', inputs.ats) || '' }}
           --min-nl "${{ inputs.min_nl || '1' }}"
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
           ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      - name: Discover Dutch employer domains
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
+        run: >
+          npx tsx src/cli.ts discover-domains
+          --limit "${{ inputs.limit || '500' }}"
+          ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      - name: Resolve newly discovered domains
+        if: ${{ inputs.dry_run != true }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
+        run: npx tsx src/cli.ts resolve --limit "${{ inputs.limit || '500' }}"
 
       # Record the weekly metrics row (companies/jobs added + removed) — runs even if harvest fails.
       - name: Snapshot metrics

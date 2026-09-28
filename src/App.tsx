@@ -13,6 +13,7 @@ const Jobs = lazy(() => import("./pages/Jobs"));
 const Map = lazy(() => import("./pages/Map"));
 const Admin = lazy(() => import("./pages/Index"));
 const Api = lazy(() => import("./pages/Api"));
+const Coverage = lazy(() => import("./pages/Coverage"));
 const Features = lazy(() => import("./pages/Features"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Saved = lazy(() => import("./pages/Saved"));
@@ -47,6 +48,7 @@ function AppShell() {
           <Route path="/features" element={<Features />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/admin/api" element={<AdminRoute><Api /></AdminRoute>} />
+          <Route path="/admin/coverage" element={<AdminRoute><Coverage /></AdminRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

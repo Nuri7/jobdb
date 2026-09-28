@@ -195,7 +195,7 @@ async function llmJobsFromListing(
   const parsed = llmJobsSchema.safeParse(result);
   if (!parsed.success) return [];
   const jobs: CanonicalJob[] = [];
-  for (const item of parsed.data.slice(0, 100)) {
+  for (const item of parsed.data.slice(0, 250)) {
     const job = finalizeJob(
       {
         job_url: item.url || `${listingUrl}#${item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
@@ -275,7 +275,14 @@ export const renderedSource: JobSource = {
     const links = extractJobLinks(html, company.career_url);
     ctx.log(`  rendered: ${links.length} links after render`);
     if (links.length > 0) {
-      const jobs = await jobsViaDetailPages(links, ctx, { cap: 150 });
+      ctx.liveUrls = new Set(links.map((link) => link.url));
+      const detailCap = Number(process.env.RENDERED_DETAIL_CAP) || 400;
+      const already = ctx.scrapedUrls ?? new Set<string>();
+      const fresh = links.filter((link) => !already.has(link.url));
+      const ordered = [...fresh, ...links.filter((link) => already.has(link.url))];
+      ctx.liveUrlsComplete = fresh.length <= detailCap;
+      const jobs = await jobsViaDetailPages(ordered, ctx, { cap: detailCap });
+      if (fresh.length > detailCap) ctx.log(`  incremental: ${fresh.length - detailCap} new rendered urls remain`);
       if (jobs.length > 0) return dedupeJobs([...jobs, ...inline]);
     }
 

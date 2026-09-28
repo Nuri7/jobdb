@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { tokensFromCcLines, tokensFromCcPaths } from '../src/harvest/commoncrawl.js';
+import { tokensFromCcLines, tokensFromCcPaths, urlsFromCcLines } from '../src/harvest/commoncrawl.js';
+import { successFactorsBoards, workdayBoards } from '../src/harvest/index.js';
 import { cleanCompanyName, isNlLocation, titleize, workableLocation } from '../src/harvest/validators.js';
 import { homerunJobsFromEntries, parseHomerunFeed } from '../src/sources/ats/homerun.js';
 
@@ -21,6 +22,37 @@ describe('tokensFromCcLines', () => {
   it('handles homerun.co base and empty input', () => {
     expect(tokensFromCcLines(['{"url":"https://startup.homerun.co/vacancies"}'], 'homerun.co')).toEqual(['startup']);
     expect(tokensFromCcLines([], 'recruitee.com')).toEqual([]);
+  });
+});
+
+describe('host + path/query ATS discovery', () => {
+  it('extracts and deduplicates absolute Common Crawl URLs', () => {
+    expect(urlsFromCcLines([
+      '{"url":"https://acme.wd3.myworkdayjobs.com/en-US/Careers/job/1"}',
+      '{"url":"https://acme.wd3.myworkdayjobs.com/en-US/Careers/job/1"}',
+      '{"url":"mailto:jobs@example.com"}',
+      'broken',
+    ])).toEqual(['https://acme.wd3.myworkdayjobs.com/en-US/Careers/job/1']);
+  });
+
+  it('derives Workday host|site board ids, including vanity hosts', () => {
+    expect(workdayBoards([
+      'https://acme.wd3.myworkdayjobs.com/en-US/Careers/job/one',
+      'https://acme.wd3.myworkdayjobs.com/en-US/Careers/job/two',
+      'https://example.myworkdayjobs.com/nl-NL/Vacatures/job/three',
+      'https://www.myworkdayjobs.com/marketing',
+    ]).sort()).toEqual([
+      'acme.wd3.myworkdayjobs.com|Careers',
+      'example.myworkdayjobs.com|Vacatures',
+    ]);
+  });
+
+  it('derives SuccessFactors host|company board ids', () => {
+    expect(successFactorsBoards([
+      'https://career5.successfactors.eu/career?company=Acme_NL',
+      'https://career5.successfactors.eu/career?company=Acme_NL&lang=nl_NL',
+      'https://jobs.example.com/?company=nope',
+    ])).toEqual(['career5.successfactors.eu|Acme_NL']);
   });
 });
 

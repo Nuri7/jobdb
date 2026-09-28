@@ -115,42 +115,11 @@ async function hashApiKey(key: string): Promise<string> {
 // Canonical filter value -> the messy real-world variants in the data (employment_type /
 // experience_level are inconsistent: "full-time" vs "fulltime" vs "voltijds", "senior" vs
 // "management" vs "principal", etc.). Each canonical choice OR-matches all its patterns.
-const JOB_TYPE_PATTERNS: Record<string, string[]> = {
-  fulltime: ['full-time', 'fulltime', 'voltijd'],
-  parttime: ['part-time', 'parttime', 'deeltijd'],
-  internship: ['internship', 'intern', 'stage', 'stagiair', 'werkstudent'],
-  contract: ['contract', 'temporary', 'tijdelijk', 'fixed-term', 'interim'],
+const canonicalList = (value: string | null, allowed: string[]): string[] | null => {
+  if (!value) return null;
+  const values = value.split(',').map((item) => item.trim().toLowerCase()).filter((item) => allowed.includes(item));
+  return values.length > 0 ? [...new Set(values)] : null;
 };
-const EXPERIENCE_PATTERNS: Record<string, string[]> = {
-  junior: ['junior', 'entry', 'instap', 'starter', 'graduate', 'student', 'stagiair'],
-  medior: ['medior', 'experienced', 'medewerker', 'professional', 'ervaren'],
-  senior: ['senior', 'lead', 'principal', 'staff', 'management', 'manager', 'director', 'directeur', 'expert'],
-};
-const sanitizeLike = (s: string) => s.replace(/[,.()"%_*\\]/g, ' ').replace(/\s+/g, ' ').trim();
-
-// Real relevance score (0-100) for a job title vs the user's search phrases — replaces the old
-// hardcoded 80 so ranking actually means something: exact > prefix > whole-phrase > substring >
-// matched-only-via-synonym/expansion.
-function relevanceScore(title: string, phrases: string[]): { score: number; reason: string } {
-  if (!phrases.length) return { score: 70, reason: 'no query' };
-  const t = (title || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  let best = 0;
-  let reason = 'related';
-  for (const raw of phrases) {
-    const p = raw.toLowerCase().replace(/\s+/g, ' ').trim();
-    if (!p) continue;
-    const esc = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    let s = 0;
-    let r = 'related';
-    if (t === p) { s = 100; r = 'exact title'; }
-    else if (t.startsWith(`${p} `)) { s = 92; r = 'title starts with query'; }
-    else if (new RegExp(`\\b${esc}\\b`).test(t)) { s = 84; r = 'query is a whole phrase in the title'; }
-    else if (t.includes(p)) { s = 76; r = 'query appears in the title'; }
-    if (s > best) { best = s; reason = r; }
-  }
-  if (best === 0) return { score: 62, reason: 'related role (synonym / AI-expanded match)' };
-  return { score: best, reason };
-}
 
 // Reject non-public / internal hosts so an attacker-supplied career_url can't coerce the scraper
 // into fetching internal services (SSRF). Blocks non-http(s), localhost, private/link-local/reserved
@@ -244,6 +213,9 @@ Deno.serve(async (req) => {
             'GET /api/stats': {
               description: 'Get aggregate statistics',
             },
+            'GET /api/coverage': {
+              description: 'Admin-only ingestion coverage and pipeline health dashboard data',
+            },
             'GET /api/synonyms': {
               description: 'List and manage search synonym groups',
               note: 'Synonyms improve job search by matching related terms (e.g., "product owner" also finds "product manager")',
@@ -307,14 +279,67 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Exact, internal pipeline metrics. This deliberately requires an admin session even though
+    // public job reads do not: failure details and discovery state are operational information.
+    if (req.method === 'GET' && (path === '/coverage' || path === '/coverage/')) {
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: 'Forbidden', message: 'Admin access required.' }), {
+          status: 403,
+          headers: corsHeaders,
+        });
+      }
+      const { data, error } = await supabase.rpc('fairjobs_coverage_stats');
+      if (error) {
+        console.error('Coverage RPC error:', error);
+        return new Response(JSON.stringify({ error: 'Failed to load coverage metrics' }), {
+          status: 500,
+          headers: corsHeaders,
+        });
+      }
+      return new Response(JSON.stringify({ data }), {
+        headers: { ...corsHeaders, 'Cache-Control': 'private, max-age=60' },
+      });
+    }
+
+    // Lightweight typeahead backed by the same globally-ranked search used by the result list.
+    if (req.method === 'GET' && (path === '/jobs/suggestions' || path === '/jobs/suggestions/')) {
+      const q = (params.get('q') || '').replace(/[.()"*%_\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (q.length < 2) {
+        return new Response(JSON.stringify({ data: { titles: [], companies: [], cities: [] } }), {
+          headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=300' },
+        });
+      }
+
+      const [rankedResult, companyResult, cityResult] = await Promise.all([
+        supabase.rpc('fairjobs_search_jobs', { p_terms: [q], p_limit: 8, p_offset: 0 }),
+        supabase.from('company_career_sites').select('company_name').ilike('company_name', `%${q}%`).limit(8),
+        supabase.from('city_coords').select('display_name,city').or(`display_name.ilike.%${q}%,city.ilike.%${q}%`).limit(8),
+      ]);
+      const ids = (rankedResult.data || []).map((row: { id: string }) => row.id);
+      const { data: titleRows } = ids.length > 0
+        ? await supabase.from('job_opportunities').select('id,job_title').in('id', ids)
+        : { data: [] };
+      const titleById = new Map((titleRows || []).map((row: { id: string; job_title: string }) => [row.id, row.job_title]));
+      const unique = (values: Array<string | null | undefined>) => [...new Set(values.filter((v): v is string => Boolean(v)))].slice(0, 8);
+
+      return new Response(JSON.stringify({ data: {
+        titles: unique(ids.map((id: string) => titleById.get(id))),
+        companies: unique((companyResult.data || []).map((row: { company_name: string }) => row.company_name)),
+        cities: unique((cityResult.data || []).map((row: { display_name: string | null; city: string }) => row.display_name || row.city)),
+      } }), {
+        headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=300, stale-while-revalidate=1800' },
+      });
+    }
+
     // Stable detail endpoint for crawlable vacancy pages and FairApply deep links.
     const jobDetailMatch = path.match(/^\/jobs\/([0-9a-f-]{36})\/?$/i);
     if (req.method === 'GET' && jobDetailMatch) {
       const { data: job, error } = await supabase
         .from('job_opportunities')
         .select(`
-          id, job_title, job_url, location, city, province, employment_type, department,
-          salary_range, description, requirements, is_remote, is_internship, experience_level,
+          id, job_title, job_url, location, city, province, employment_type, employment_type_normalized, department,
+          salary_range, salary_min, salary_max, salary_currency, salary_period,
+          description, requirements, is_remote, workplace_type, is_internship, experience_level, experience_level_normalized,
           posted_date, closing_date, first_seen_at, status, scraped_at,
           company_career_sites!inner(id, company_name, industry, career_url, source_type)
         `)
@@ -346,13 +371,20 @@ Deno.serve(async (req) => {
         city: job.city,
         province: job.province,
         employment_type: job.employment_type,
+        employment_type_normalized: job.employment_type_normalized,
         department: job.department,
         salary_range: job.salary_range,
+        salary_min: job.salary_min,
+        salary_max: job.salary_max,
+        salary_currency: job.salary_currency,
+        salary_period: job.salary_period,
         description: job.description,
         requirements: job.requirements,
         is_remote: job.is_remote,
+        workplace_type: job.workplace_type,
         is_internship: job.is_internship,
         experience_level: job.experience_level,
+        experience_level_normalized: job.experience_level_normalized,
         posted_date: job.posted_date,
         closing_date: job.closing_date,
         first_seen_at: job.first_seen_at,
@@ -392,7 +424,6 @@ Deno.serve(async (req) => {
             .filter(p => p.length > 0)
             .slice(0, 6) // cap: at most 6 distinct title phrases per request
         : [];
-      const search = phrases.length > 0 ? phrases.join(', ') : null; // display/log value
       const location = params.get('location');
       const company = params.get('company');
       const companyId = params.get('company_id');
@@ -410,11 +441,8 @@ Deno.serve(async (req) => {
       const easyApply = (params.get('easy_apply') || '').toLowerCase() === 'true';
       const includeDescription = (params.get('include_description') || '').toLowerCase() === 'true';
 
-      // Build search terms per phrase - combine synonyms + AI expansion, then OR everything.
-      // The .or() becomes a set of leading-wildcard ILIKEs; too many (or ultra-short ones that
-      // the trigram index can't serve, like "po"/"pm") make the query fall back to full scans and
-      // time out on the growing table. So: keep the user's own phrases first (always), add only
-      // synonyms/AI terms of length >= 3, and cap the total OR breadth.
+      // Build search terms per phrase: keep the user's own phrases first, then add a tightly
+      // bounded set of curated synonyms / AI terms for the global ranking RPC.
       const normTerm = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
       const MAX_SEARCH_TERMS = 6;
       let searchTerms: string[] = [];
@@ -467,11 +495,10 @@ Deno.serve(async (req) => {
       // Resolve company-side filters first so the large jobs query can use its indexed foreign key
       // rather than joining companies while it also evaluates title/location filters and sorting.
       let companySiteIds: string[] | null = null;
-      if (company || industry || easyApply) {
+      if (company || industry) {
         let companyQuery = supabase.from('company_career_sites').select('id').limit(10_000);
         if (company) companyQuery = companyQuery.ilike('company_name', `%${company}%`);
         if (industry) companyQuery = companyQuery.ilike('industry', `%${industry}%`);
-        if (easyApply) companyQuery = companyQuery.ilike('source_type', 'ats:%');
 
         const { data: companyRows, error: companyError } = await companyQuery;
         if (companyError) {
@@ -483,84 +510,9 @@ Deno.serve(async (req) => {
         }
         companySiteIds = (companyRows || []).map((row: { id: string }) => row.id);
       }
-      // Keep foreign-key IN filters below PostgREST/URL limits. Broad company predicates (most
-      // notably easy_apply across every ATS board) are reapplied through an inner join instead.
-      const useCompanyJoin = Boolean(companySiteIds && companySiteIds.length > 500);
-
-      // Search and pagination run against IDs only. Fetching full descriptions plus a company
-      // join while Postgres was also evaluating filters and sorting hundreds of thousands of rows
-      // regularly exceeded the statement timeout. Hydrating only the IDs on the requested page
-      // keeps the expensive matching query narrow and bounded.
-      //
-      // Count only simple browse/title-search requests. PostgreSQL can estimate those cheaply;
-      // combining count with sparse optional filters still scans the whole match set. For filtered
-      // requests we fetch one extra ID to provide exact has_more without an unbounded count scan.
-      const usesBoundedPagination = Boolean(
-        location || near || company || companyId || industry || jobType || experienceLevel ||
-        remote === 'true' || internship === 'true' || easyApply || hasSalary
-      );
-      // The selected relation shape is conditional; keep runtime validation while avoiding the
-      // Supabase client's compile-time string parser rejecting one of the two valid variants.
-      // deno-lint-ignore no-explicit-any
-      let query: any = (supabase.from('job_opportunities') as any)
-        .select(useCompanyJoin ? 'id, company_career_sites!inner(id)' : 'id',
-        // 'estimated': an exact count over this filtered+joined set on a large,
-        // growing table blew the statement_timeout. The planner estimate is
-        // fast and close enough for a jobs listing's total/has_more.
-        usesBoundedPagination ? undefined : { count: phrases.length === 0 ? 'exact' : 'estimated' })
-        // No is_scrape_enabled gate: verified=true (below) is the single quality gate, matching the
-        // browse query (src/lib/api/jobs.ts) and the Map's job_geo_counts RPC. Filtering it here too
-        // made search return a different set than browse for the same board.
-        .order('scraped_at', { ascending: false })
-        .order('id', { ascending: true })
-        .range(offset, offset + limit - 1 + (usesBoundedPagination ? 1 : 0));
-
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      // Confidence gate: serve ONLY verified real vacancies (structured data / ATS / real
-      // apply button). This is what keeps landing/category/blog/dead pages out of applyforme.
-      // ?verified=all bypasses it for debugging only.
-      if (!(hasApiKey || isAdmin) || (params.get('verified') || 'true').toLowerCase() !== 'all') {
-        query = query.eq('verified', true);
-      }
-
-      // NL-only gate (default): this is a Netherlands job board. `is_foreign` (a trigger-maintained
-      // column) is true only for jobs with a foreign city and no NL signal — i.e. a city not in
-      // city_coords, no Dutch province, not remote, and no "Nederland/Netherlands/Landelijk" in the
-      // location. Remote and location-unknown jobs are kept. A plain .eq() reliably AND-combines with
-      // the search .or() (two separate .or() groups do NOT). ?country=all bypasses it.
-      if (!(hasApiKey || isAdmin) || (params.get('country') || 'nl').toLowerCase() !== 'all') {
-        query = query.eq('is_foreign', false);
-      }
-
-      // Apply intelligent search - OR across all related terms
-      // Use word boundary matching for short terms (<=3 chars) to avoid false positives
-      if (searchTerms.length > 0) {
-        // Synonym-table and AI-expanded terms also flow into the .or() grammar — strip
-        // PostgREST metacharacters and LIKE wildcards from every term, not just the seed.
-        const safeTerms = searchTerms
-          .map(t => String(t).replace(/[,.()"%_*\\]/g, ' ').replace(/\s+/g, ' ').trim())
-          .filter(t => t.length > 0);
-        const searchFilters = safeTerms.map(term => {
-          if (term.length <= 3) {
-            // For short terms, require word boundaries (start/end of string or surrounded by spaces)
-            // This prevents "po" matching "Corporate" or "pm" matching "Development"
-            return [
-              `job_title.ilike.${term} %`,      // starts with term + space
-              `job_title.ilike.% ${term}`,      // ends with space + term
-              `job_title.ilike.% ${term} %`,    // surrounded by spaces
-              `job_title.eq.${term}`            // exact match
-            ].join(',');
-          }
-          return `job_title.ilike.%${term}%`;
-        }).join(',');
-        if (searchFilters) query = query.or(searchFilters);
-      }
-      // Location — a radius search (near + radius_km) resolves to the set of cities within range
-      // via city_coords and takes precedence; otherwise fall back to a plain location substring.
-      let radiusResolved = false;
+      // Resolve radius search to normalized cities before invoking the ranked SQL function.
+      let radiusCities: string[] | null = null;
+      let resolvedLocation: string | null = location;
       if (near && radiusKm > 0) {
         const nearNorm = near.toLowerCase().replace(/\s+/g, ' ').trim();
         const { data: center } = await supabase
@@ -587,17 +539,15 @@ Deno.serve(async (req) => {
             .sort((a, b) => a.d - b.d)
             .slice(0, 600)
             .map((c) => c.city);
-          // '__no_match__' guarantees an empty result if nothing is in range (never a real city).
-          query = query.in('city', inRange.length > 0 ? inRange : ['__no_match__']);
-          radiusResolved = true;
+          radiusCities = inRange.length > 0 ? inRange : ['__no_match__'];
+          resolvedLocation = null;
           console.log(`Radius: ${inRange.length} cities within ${radiusKm}km of "${nearNorm}"`);
         } else {
           console.log(`Radius: no coords for "${nearNorm}" — falling back to substring match`);
+          resolvedLocation = near;
         }
       }
-      if (!radiusResolved && (near || location)) {
-        // Resolve known cities to the normalized, indexed city column. Fall back to a location
-        // substring only for broader regions or names not present in city_coords.
+      if (!radiusCities && (near || location)) {
         const locationValue = (near || location || '').trim();
         const normalizedCity = locationValue.toLowerCase().replace(/\s+/g, ' ');
         const { data: knownCity } = await supabase
@@ -605,59 +555,81 @@ Deno.serve(async (req) => {
           .select('city')
           .eq('city', normalizedCity)
           .maybeSingle();
-        query = knownCity
-          ? query.eq('city', knownCity.city)
-          : query.ilike('location', `%${locationValue}%`);
-      }
-      if (companySiteIds && !useCompanyJoin) {
-        // A valid UUID that cannot exist in the table makes an empty company match explicit.
-        query = query.in(
-          'company_career_site_id',
-          companySiteIds.length > 0 ? companySiteIds : ['00000000-0000-0000-0000-000000000000']
-        );
-      } else if (useCompanyJoin) {
-        if (company) query = query.ilike('company_career_sites.company_name', `%${company}%`);
-        if (industry) query = query.ilike('company_career_sites.industry', `%${industry}%`);
-        if (easyApply) query = query.ilike('company_career_sites.source_type', 'ats:%');
-      }
-      if (companyId && /^[0-9a-f-]{36}$/i.test(companyId)) {
-        query = query.eq('company_career_site_id', companyId);
-      }
-      if (jobType) {
-        const pats = JOB_TYPE_PATTERNS[jobType.toLowerCase()] || [sanitizeLike(jobType)];
-        query = query.or(pats.filter(Boolean).map(p => `employment_type.ilike.%${p}%`).join(','));
-      }
-      if (experienceLevel) {
-        const pats = EXPERIENCE_PATTERNS[experienceLevel.toLowerCase()] || [sanitizeLike(experienceLevel)];
-        query = query.or(pats.filter(Boolean).map(p => `experience_level.ilike.%${p}%`).join(','));
-      }
-      if (remote === 'true') {
-        query = query.eq('is_remote', true);
-      }
-      if (internship === 'true') {
-        query = query.eq('is_internship', true);
-      }
-      if (hasSalary) {
-        query = query.not('salary_range', 'is', null);
-      }
-      if (Number.isFinite(postedWithin) && postedWithin > 0) {
-        const since = new Date(Date.now() - postedWithin * 86_400_000).toISOString();
-        query = query.gte('first_seen_at', since);
+        if (knownCity) {
+          radiusCities = [knownCity.city];
+          resolvedLocation = null;
+        } else {
+          resolvedLocation = locationValue || null;
+        }
       }
 
-      const { data: matches, error, count } = await query;
+      const employmentTypes = canonicalList(jobType, ['fulltime', 'parttime', 'contract', 'internship', 'other']);
+      const experienceLevels = canonicalList(experienceLevel, ['junior', 'medior', 'senior', 'unknown']);
+      const workplace = canonicalList(params.get('workplace_type'), ['remote', 'hybrid', 'onsite', 'unknown'])
+        ?? (remote === 'true' ? ['remote', 'hybrid'] : null);
+      const validCompanyId = companyId && /^[0-9a-f-]{36}$/i.test(companyId) ? companyId : null;
+      const verifiedOnly = !(hasApiKey || isAdmin) || (params.get('verified') || 'true').toLowerCase() !== 'all';
+      const nlOnly = !(hasApiKey || isAdmin) || (params.get('country') || 'nl').toLowerCase() !== 'all';
+      const requestedSince = Number.isFinite(postedWithin) && postedWithin > 0
+        ? new Date(Date.now() - postedWithin * 86_400_000).toISOString()
+        : null;
+      const autoExpand = phrases.length > 0 && requestedSince !== null &&
+        (params.get('auto_expand') || 'true').toLowerCase() !== 'false';
 
+      const rpcArgs = (postedSince: string | null, rpcLimit: number, rpcOffset: number) => ({
+        p_terms: searchTerms,
+        p_limit: rpcLimit,
+        p_offset: rpcOffset,
+        p_posted_since: postedSince,
+        p_location: resolvedLocation,
+        p_cities: radiusCities,
+        p_company_ids: companySiteIds === null
+          ? null
+          : (companySiteIds.length > 0 ? companySiteIds : ['00000000-0000-0000-0000-000000000000']),
+        p_company_id: validCompanyId,
+        p_employment_types: employmentTypes,
+        p_experience_levels: experienceLevels,
+        p_workplace_types: workplace,
+        p_internship: internship === 'true' ? true : null,
+        p_has_salary: hasSalary ? true : null,
+        p_ats_only: easyApply ? true : null,
+        p_status: statusFilter,
+        p_verified_only: verifiedOnly,
+        p_nl_only: nlOnly,
+      });
+
+      let effectiveSince = requestedSince;
+      let expandedRecency = false;
+      const isPublicBrowse = searchTerms.length === 0 && statusFilter === 'open' && verifiedOnly && nlOnly;
+      const isUnfilteredBrowse = isPublicBrowse && !resolvedLocation && !radiusCities && !companySiteIds && !validCompanyId &&
+        !employmentTypes && !experienceLevels && !workplace && internship !== 'true' && !hasSalary && !easyApply;
+      const jobsRpc = isPublicBrowse ? 'fairjobs_browse_jobs' : 'fairjobs_search_jobs';
+      const runJobsQuery = (since: string | null) => isUnfilteredBrowse
+        ? supabase.rpc('fairjobs_browse_latest', { p_limit: limit, p_offset: offset, p_posted_since: since })
+        : supabase.rpc(jobsRpc, rpcArgs(since, limit, offset));
+      let { data: matches, error } = await runJobsQuery(effectiveSince);
+      // The first ranked page is also the sparsity probe. Only execute a second query when the
+      // requested recency window genuinely has too few matches; common searches stay one RPC.
+      if (!error && autoExpand && Number(matches?.[0]?.total_count || 0) < 20) {
+        effectiveSince = null;
+        expandedRecency = true;
+        const expanded = await runJobsQuery(null);
+        matches = expanded.data;
+        error = expanded.error;
+      }
       if (error) {
-        console.error('Jobs query error:', error);
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch jobs', details: error.message }),
-          { status: 500, headers: corsHeaders }
-        );
+        console.error('Ranked jobs query error:', error);
+        return new Response(JSON.stringify({ error: 'Failed to fetch jobs', details: error.message }), {
+          status: 500, headers: corsHeaders,
+        });
       }
 
-      const hasExtraMatch = usesBoundedPagination && (matches?.length || 0) > limit;
-      const pageMatches = hasExtraMatch ? matches!.slice(0, limit) : (matches || []);
-      const matchedIds = pageMatches.map((row: { id: string }) => row.id);
+      const rankedMatches = (matches || []) as Array<{
+        id: string; search_rank: number; match_reason: string; total_count: number;
+      }>;
+      const matchedIds = rankedMatches.map((row) => row.id);
+      const rankById = new Map(rankedMatches.map((row) => [row.id, row]));
+      const total = Number(rankedMatches[0]?.total_count || 0);
       // deno-lint-ignore no-explicit-any
       let data: any[] = [];
 
@@ -670,12 +642,19 @@ Deno.serve(async (req) => {
           city,
           province,
           employment_type,
+          employment_type_normalized,
           department,
           salary_range,
+          salary_min,
+          salary_max,
+          salary_currency,
+          salary_period,
           ${includeDescription ? 'description,' : ''}
           is_remote,
+          workplace_type,
           is_internship,
           experience_level,
+          experience_level_normalized,
           posted_date,
           closing_date,
           first_seen_at,
@@ -703,8 +682,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        // PostgREST does not preserve the order of an IN-list. Restore the ID query's stable
-        // scraped_at/id order before applying the page-local relevance sort below.
+        // PostgREST does not preserve an IN-list; restore the global SQL rank order.
         const rowsById = new Map(
           (hydrated || []).map((row: any) => [String(row.id), row])
         );
@@ -735,23 +713,30 @@ Deno.serve(async (req) => {
         };
         const sourceType = company?.source_type ?? null;
         const isAts = typeof sourceType === 'string' && sourceType.startsWith('ats:');
-        const rel = relevanceScore(job.job_title, phrases);
+        const ranked = rankById.get(job.id);
         return {
           id: job.id,
           title: job.job_title,
-          match_score: rel.score,
-          match_reason: rel.reason,
+          match_score: Math.round(Number(ranked?.search_rank || 70)),
+          match_reason: ranked?.match_reason || 'fresh vacancy',
           url: job.job_url,
           location: job.location,
           city: job.city,
           province: job.province,
           employment_type: job.employment_type,
+          employment_type_normalized: job.employment_type_normalized,
           department: job.department,
           salary_range: job.salary_range,
+          salary_min: job.salary_min,
+          salary_max: job.salary_max,
+          salary_currency: job.salary_currency,
+          salary_period: job.salary_period,
           ...(includeDescription ? { description: job.description } : {}),
           is_remote: job.is_remote,
+          workplace_type: job.workplace_type,
           is_internship: job.is_internship,
           experience_level: job.experience_level,
+          experience_level_normalized: job.experience_level_normalized,
           posted_date: job.posted_date,
           closing_date: job.closing_date,
           first_seen_at: job.first_seen_at,
@@ -770,25 +755,34 @@ Deno.serve(async (req) => {
         };
       });
 
-      // When there's a query, order the returned page by relevance (best matches first) instead of
-      // pure scrape-recency. Ties keep DB order (scraped_at desc) since sort is stable.
-      if (phrases.length > 0) {
-        jobs.sort((a: { match_score: number }, b: { match_score: number }) => b.match_score - a.match_score);
+      let facets: Record<string, unknown> | undefined;
+      if ((params.get('include_facets') || '').toLowerCase() === 'true' && offset === 0) {
+        const { data: facetData, error: facetError } = await supabase.rpc('fairjobs_search_facets', {
+          p_terms: searchTerms,
+          p_posted_since: effectiveSince,
+          p_location: resolvedLocation,
+          p_cities: radiusCities,
+          p_company_ids: companySiteIds,
+          p_company_id: validCompanyId,
+        });
+        if (!facetError && facetData && typeof facetData === 'object') facets = facetData as Record<string, unknown>;
       }
 
       return new Response(
         JSON.stringify({
           data: jobs,
           meta: {
-            // Filtered queries use a lower-bound total so callers retain useful pagination
-            // metadata without forcing a full-table count. has_more remains exact for this page.
-            total: count ?? (offset + matchedIds.length + (hasExtraMatch ? 1 : 0)),
-            total_is_lower_bound: count === null,
-            total_is_estimate: count !== null && phrases.length > 0,
+            total,
+            total_is_lower_bound: false,
+            total_is_estimate: false,
             limit,
             offset,
-            has_more: count === null ? hasExtraMatch : (offset + limit) < (count || 0),
+            has_more: (offset + limit) < total,
             search_terms: searchTerms.length > 0 ? searchTerms : undefined,
+            expanded_recency: expandedRecency,
+            requested_posted_within: Number.isFinite(postedWithin) && postedWithin > 0 ? postedWithin : undefined,
+            effective_posted_within: expandedRecency ? null : (Number.isFinite(postedWithin) && postedWithin > 0 ? postedWithin : null),
+            facets,
           },
         }),
         { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } }
@@ -1056,7 +1050,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: 'Not found', available_endpoints: ['/api', '/api/jobs', 'GET /api/companies', 'POST /api/companies', '/api/stats', '/api/synonyms'] }),
+      JSON.stringify({ error: 'Not found', available_endpoints: ['/api', '/api/jobs', 'GET /api/companies', 'POST /api/companies', '/api/stats', '/api/coverage', '/api/synonyms'] }),
       { status: 404, headers: corsHeaders }
     );
 

@@ -25,7 +25,17 @@ function makeListingLdSource(
 
       const links = extractJobLinks(res.text, res.finalUrl).filter((l) => linkFilter(l.url, board));
       ctx.log(`  ${type}: ${links.length} job links on listing`);
-      const jobs = await jobsViaDetailPages(links, ctx, { cap: 150 });
+      ctx.liveUrls = new Set(links.map((link) => link.url));
+      ctx.liveUrlsComplete = true;
+      const detailCap = Number(process.env.ATS_LISTING_DETAIL_CAP) || 400;
+      const already = ctx.scrapedUrls ?? new Set<string>();
+      const fresh = links.filter((link) => !already.has(link.url));
+      const ordered = [...fresh, ...links.filter((link) => already.has(link.url))];
+      const jobs = await jobsViaDetailPages(ordered, ctx, { cap: detailCap });
+      if (fresh.length > detailCap) {
+        ctx.liveUrlsComplete = false;
+        ctx.log(`  incremental: ${fresh.length} new urls, fetched ${detailCap}; ${fresh.length - detailCap} remain`);
+      }
       return dedupeJobs(jobs);
     },
   };
