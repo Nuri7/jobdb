@@ -65,9 +65,11 @@ for (const job of jobs) {
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`)
     .replace("</head>", `<meta name="description" content="${escapeHtml(summary)}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(summary)}"><meta property="og:url" content="${canonical}"><script type="application/ld+json">${structuredData.replaceAll("<", "\\u003c")}</script></head>`)
     .replace('<div id="root"></div>', `<div id="root">${content}</div>`);
-  const target = join(OUTPUT, "vacatures", slug);
+  const target = join(OUTPUT, "vacatures");
   await mkdir(target, { recursive: true });
-  await writeFile(join(target, "index.html"), html);
+  // Vercel's `cleanUrls` maps /vacatures/<slug> to this .html file before the SPA rewrite.
+  // Unknown/older slugs still miss the filesystem and fall back to React normally.
+  await writeFile(join(target, `${slug}.html`), html);
   sitemapUrls.push({ loc: canonical, modified: job.scraped_at || new Date().toISOString() });
 }
 
