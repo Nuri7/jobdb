@@ -11,7 +11,7 @@ import { Copy, Key, RefreshCw, Trash2, Eye, EyeOff, Code, ExternalLink, Settings
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 
-const API_BASE_URL = `https://khsaaiguqwtxtkvzqbrm.supabase.co/functions/v1/api`;
+const API_BASE_URL = 'https://fairjobs.app/api';
 
 // Simple hash function for API keys (in production, use a proper crypto library)
 async function hashApiKey(key: string): Promise<string> {

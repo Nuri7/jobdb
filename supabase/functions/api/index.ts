@@ -346,7 +346,7 @@ Deno.serve(async (req) => {
       // time out on the growing table. So: keep the user's own phrases first (always), add only
       // synonyms/AI terms of length >= 3, and cap the total OR breadth.
       const normTerm = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
-      const MAX_SEARCH_TERMS = 8;
+      const MAX_SEARCH_TERMS = 6;
       let searchTerms: string[] = [];
       if (phrases.length > 0) {
         // Fetch synonym groups from database (once for all phrases)
@@ -376,7 +376,16 @@ Deno.serve(async (req) => {
         }
 
         // Drop ultra-short synonym noise (e.g. "po", "pm"); the original phrases are exempt.
-        const extras = [...secondary].filter(t => t.trim().length >= 3);
+        // A multi-word search must not fan out into generic one-word roles. For example,
+        // "software engineer" used to also search for engineer/developer/programmer/coder, which
+        // both diluted relevance and forced a large OR scan. Closely related multi-word titles
+        // such as "software developer" are still included.
+        const requiresSpecificExtras = phrases.every(phrase => phrase.split(/\s+/).length > 1);
+        const extras = [...secondary].filter(t => {
+          const normalized = t.trim();
+          return normalized.length >= 3 &&
+            (!requiresSpecificExtras || normalized.split(/\s+/).length > 1);
+        });
         searchTerms = [...new Set([...primary, ...extras])].slice(0, MAX_SEARCH_TERMS);
       }
 
@@ -384,46 +393,55 @@ Deno.serve(async (req) => {
       const statusParam = (params.get('status') || 'open').toLowerCase();
       const statusFilter = ['open', 'closed', 'all'].includes(statusParam) ? statusParam : 'open';
 
+      // Resolve company-side filters first so the large jobs query can use its indexed foreign key
+      // rather than joining companies while it also evaluates title/location filters and sorting.
+      let companySiteIds: string[] | null = null;
+      if (company || industry || easyApply) {
+        let companyQuery = supabase.from('company_career_sites').select('id').limit(10_000);
+        if (company) companyQuery = companyQuery.ilike('company_name', `%${company}%`);
+        if (industry) companyQuery = companyQuery.ilike('industry', `%${industry}%`);
+        if (easyApply) companyQuery = companyQuery.ilike('source_type', 'ats:%');
+
+        const { data: companyRows, error: companyError } = await companyQuery;
+        if (companyError) {
+          console.error('Company filter query error:', companyError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch jobs', details: companyError.message }),
+            { status: 500, headers: corsHeaders }
+          );
+        }
+        companySiteIds = (companyRows || []).map((row: { id: string }) => row.id);
+      }
+      // Keep foreign-key IN filters below PostgREST/URL limits. Broad company predicates (most
+      // notably easy_apply across every ATS board) are reapplied through an inner join instead.
+      const useCompanyJoin = Boolean(companySiteIds && companySiteIds.length > 500);
+
+      // Search and pagination run against IDs only. Fetching full descriptions plus a company
+      // join while Postgres was also evaluating filters and sorting hundreds of thousands of rows
+      // regularly exceeded the statement timeout. Hydrating only the IDs on the requested page
+      // keeps the expensive matching query narrow and bounded.
+      //
+      // Count only simple browse/title-search requests. PostgreSQL can estimate those cheaply;
+      // combining count with sparse optional filters still scans the whole match set. For filtered
+      // requests we fetch one extra ID to provide exact has_more without an unbounded count scan.
+      const usesBoundedPagination = Boolean(
+        location || near || company || industry || jobType || experienceLevel ||
+        remote === 'true' || internship === 'true' || easyApply || hasSalary ||
+        (Number.isFinite(postedWithin) && postedWithin > 0)
+      );
       let query = supabase
         .from('job_opportunities')
-        .select(`
-          id,
-          job_title,
-          job_url,
-          location,
-          city,
-          province,
-          employment_type,
-          department,
-          salary_range,
-          description,
-          is_remote,
-          is_internship,
-          experience_level,
-          posted_date,
-          closing_date,
-          first_seen_at,
-          status,
-          scraped_at,
-          company_career_sites!inner (
-            id,
-            company_name,
-            industry,
-            career_url,
-            source_type,
-            is_scrape_enabled
-          )
-        `,
+        .select(useCompanyJoin ? 'id, company_career_sites!inner(id)' : 'id',
         // 'estimated': an exact count over this filtered+joined set on a large,
         // growing table blew the statement_timeout. The planner estimate is
         // fast and close enough for a jobs listing's total/has_more.
-        { count: 'estimated' })
+        usesBoundedPagination ? undefined : { count: 'estimated' })
         // No is_scrape_enabled gate: verified=true (below) is the single quality gate, matching the
         // browse query (src/lib/api/jobs.ts) and the Map's job_geo_counts RPC. Filtering it here too
         // made search return a different set than browse for the same board.
         .order('scraped_at', { ascending: false })
         .order('id', { ascending: true })
-        .range(offset, offset + limit - 1);
+        .range(offset, offset + limit - 1 + (usesBoundedPagination ? 1 : 0));
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
@@ -506,14 +524,29 @@ Deno.serve(async (req) => {
         }
       }
       if (!radiusResolved && (near || location)) {
-        // No radius (or unknown center city) → plain substring match on the location text
-        query = query.ilike('location', `%${near || location}%`);
+        // Resolve known cities to the normalized, indexed city column. Fall back to a location
+        // substring only for broader regions or names not present in city_coords.
+        const locationValue = (near || location || '').trim();
+        const normalizedCity = locationValue.toLowerCase().replace(/\s+/g, ' ');
+        const { data: knownCity } = await supabase
+          .from('city_coords')
+          .select('city')
+          .eq('city', normalizedCity)
+          .maybeSingle();
+        query = knownCity
+          ? query.eq('city', knownCity.city)
+          : query.ilike('location', `%${locationValue}%`);
       }
-      if (company) {
-        query = query.ilike('company_career_sites.company_name', `%${company}%`);
-      }
-      if (industry) {
-        query = query.ilike('company_career_sites.industry', `%${industry}%`);
+      if (companySiteIds && !useCompanyJoin) {
+        // A valid UUID that cannot exist in the table makes an empty company match explicit.
+        query = query.in(
+          'company_career_site_id',
+          companySiteIds.length > 0 ? companySiteIds : ['00000000-0000-0000-0000-000000000000']
+        );
+      } else if (useCompanyJoin) {
+        if (company) query = query.ilike('company_career_sites.company_name', `%${company}%`);
+        if (industry) query = query.ilike('company_career_sites.industry', `%${industry}%`);
+        if (easyApply) query = query.ilike('company_career_sites.source_type', 'ats:%');
       }
       if (jobType) {
         const pats = JOB_TYPE_PATTERNS[jobType.toLowerCase()] || [sanitizeLike(jobType)];
@@ -529,10 +562,6 @@ Deno.serve(async (req) => {
       if (internship === 'true') {
         query = query.eq('is_internship', true);
       }
-      if (easyApply) {
-        // easy_apply in the response is derived from an ATS source_type (see mapping below)
-        query = query.ilike('company_career_sites.source_type', 'ats:%');
-      }
       if (hasSalary) {
         query = query.not('salary_range', 'is', null);
       }
@@ -541,7 +570,7 @@ Deno.serve(async (req) => {
         query = query.gte('first_seen_at', since);
       }
 
-      const { data, error, count } = await query;
+      const { data: matches, error, count } = await query;
 
       if (error) {
         console.error('Jobs query error:', error);
@@ -549,6 +578,63 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: 'Failed to fetch jobs', details: error.message }),
           { status: 500, headers: corsHeaders }
         );
+      }
+
+      const hasExtraMatch = usesBoundedPagination && (matches?.length || 0) > limit;
+      const pageMatches = hasExtraMatch ? matches!.slice(0, limit) : (matches || []);
+      const matchedIds = pageMatches.map((row: { id: string }) => row.id);
+      // deno-lint-ignore no-explicit-any
+      let data: any[] = [];
+
+      if (matchedIds.length > 0) {
+        const { data: hydrated, error: hydrateError } = await supabase
+          .from('job_opportunities')
+          .select(`
+            id,
+            job_title,
+            job_url,
+            location,
+            city,
+            province,
+            employment_type,
+            department,
+            salary_range,
+            description,
+            is_remote,
+            is_internship,
+            experience_level,
+            posted_date,
+            closing_date,
+            first_seen_at,
+            status,
+            scraped_at,
+            company_career_sites!inner (
+              id,
+              company_name,
+              industry,
+              career_url,
+              source_type,
+              is_scrape_enabled
+            )
+          `)
+          .in('id', matchedIds);
+
+        if (hydrateError) {
+          console.error('Jobs hydration error:', hydrateError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch jobs', details: hydrateError.message }),
+            { status: 500, headers: corsHeaders }
+          );
+        }
+
+        // PostgREST does not preserve the order of an IN-list. Restore the ID query's stable
+        // scraped_at/id order before applying the page-local relevance sort below.
+        const rowsById = new Map(
+          (hydrated || []).map((row) => [String(row.id), row])
+        );
+        data = matchedIds
+          .map((id: string) => rowsById.get(String(id)))
+          .filter(Boolean);
       }
 
       // Helper to get company logo URL from career URL (using Google Favicons - free and reliable)
@@ -564,7 +650,7 @@ Deno.serve(async (req) => {
       };
 
       // Transform data for cleaner API response
-      const jobs = data?.map(job => {
+      const jobs = data.map(job => {
         const company = job.company_career_sites as unknown as {
           id: string;
           company_name: string;
@@ -607,7 +693,7 @@ Deno.serve(async (req) => {
             career_url: company?.career_url,
           },
         };
-      }) || [];
+      });
 
       // When there's a query, order the returned page by relevance (best matches first) instead of
       // pure scrape-recency. Ties keep DB order (scraped_at desc) since sort is stable.
@@ -619,10 +705,13 @@ Deno.serve(async (req) => {
         JSON.stringify({
           data: jobs,
           meta: {
-            total: count,
+            // Filtered queries use a lower-bound total so callers retain useful pagination
+            // metadata without forcing a full-table count. has_more remains exact for this page.
+            total: count ?? (offset + matchedIds.length + (hasExtraMatch ? 1 : 0)),
+            total_is_lower_bound: count === null,
             limit,
             offset,
-            has_more: (offset + limit) < (count || 0),
+            has_more: count === null ? hasExtraMatch : (offset + limit) < (count || 0),
             search_terms: searchTerms.length > 0 ? searchTerms : undefined,
           },
         }),

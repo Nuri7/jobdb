@@ -108,7 +108,7 @@ export function jobsFromApiBodies(bodies: Array<{ url: string; body: string }>, 
   for (const { body } of bodies) {
     let json: unknown;
     try {
-      json = JSON.parse(body.replace(/^﻿/, ''));
+      json = JSON.parse(body.replace(/^\uFEFF/, ''));
     } catch {
       continue;
     }

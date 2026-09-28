@@ -261,8 +261,8 @@ function findPaginationLinks(links: string[], baseUrl: string, currentUrl: strin
   
   // Sort pagination URLs by page number
   paginationUrls.sort((a, b) => {
-    const pageA = parseInt(a.match(/(?:page|p|offset|start|pageNumber|pg)[=\/](\d+)/i)?.[1] || '0');
-    const pageB = parseInt(b.match(/(?:page|p|offset|start|pageNumber|pg)[=\/](\d+)/i)?.[1] || '0');
+    const pageA = parseInt(a.match(/(?:page|p|offset|start|pageNumber|pg)[=/](\d+)/i)?.[1] || '0');
+    const pageB = parseInt(b.match(/(?:page|p|offset|start|pageNumber|pg)[=/](\d+)/i)?.[1] || '0');
     return pageA - pageB;
   });
   
@@ -403,8 +403,8 @@ function isValidJobContent(content: string, requiredKeywords: string[], url: str
   const hasJobIdInUrl = (
     /\/\d{6,}\//.test(url) || // Numeric job ID like /2600001M/
     /\/[A-Z0-9]{7,}\//.test(url) || // Alphanumeric job ID
-    /job[_-]?id[=\/]\d+/i.test(url) ||
-    /vacature[s]?\/[^\/]+\/[^\/]+/i.test(url) // Pattern like /vacatures/ID/title
+    /job[_-]?id[=/]\d+/i.test(url) ||
+    /vacature[s]?\/[^/]+\/[^/]+/i.test(url) // Pattern like /vacatures/ID/title
   );
   
   // If URL has a strong job ID pattern, be more lenient with content validation
@@ -855,7 +855,7 @@ function extractJobData(url: string, content: string, metadata: any, settings: R
   // Check for explicit experience level labels
   const experiencePatterns = [
     /(?:experience level|seniority|niveau|level)[:\s]+([^\n,|]+)/i,
-    /(?:experience|ervaring)[:\s]+(\d+[\+]?\s*(?:years?|jaar|yrs?))/i,
+    /(?:experience|ervaring)[:\s]+(\d+[+]?\s*(?:years?|jaar|yrs?))/i,
   ];
   
   for (const pattern of experiencePatterns) {
@@ -891,7 +891,7 @@ function extractJobData(url: string, content: string, metadata: any, settings: R
     }
     
     // Also check years of experience mentioned
-    const yearsMatch = content.match(/(\d+)[\+]?\s*(?:years?|jaar|yrs?)\s*(?:of\s+)?(?:experience|ervaring|work)/i);
+    const yearsMatch = content.match(/(\d+)[+]?\s*(?:years?|jaar|yrs?)\s*(?:of\s+)?(?:experience|ervaring|work)/i);
     if (yearsMatch && !experienceLevel) {
       const years = parseInt(yearsMatch[1]);
       if (years <= 1) {

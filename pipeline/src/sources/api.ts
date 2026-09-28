@@ -63,7 +63,7 @@ export const apiSource: JobSource = {
       if (res.status === 404 || res.status === 410) throw new SourceGoneError(`api endpoint gone: ${pageUrl}`);
       if (res.status !== 200) throw new Error(`api HTTP ${res.status}`);
       try {
-        return JSON.parse(res.text.replace(/^﻿/, '')); // tolerate UTF-8 BOM
+        return JSON.parse(res.text.replace(/^\uFEFF/, '')); // tolerate UTF-8 BOM
       } catch {
         throw new Error('api: invalid JSON');
       }
