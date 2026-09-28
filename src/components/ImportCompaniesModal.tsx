@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import * as XLSX from "xlsx";
+import readXlsxFile, { readSheetNames } from "read-excel-file";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -78,19 +78,11 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
   };
 
   const parseExcelFile = useCallback(async (file: File): Promise<ParsedCompany[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
-          
-          // Use the second sheet (index 1) which has the company data
-          const sheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
-
-          const companies: ParsedCompany[] = jsonData.map((row) => ({
+    const sheetNames = await readSheetNames(file);
+    const rows = await readXlsxFile(file, { sheet: sheetNames[1] || sheetNames[0] });
+    const headers = (rows[0] || []).map((value) => String(value || '').trim());
+    const jsonData = rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index]])));
+    return jsonData.map((row) => ({
             company_name: String(row['Company Name'] || '').trim(),
             trade_name: row['Trade Name'] ? String(row['Trade Name']).trim() : undefined,
             email: row['Email'] ? String(row['Email']).replace(/\\/g, '').trim() : undefined,
@@ -110,15 +102,6 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
             business_legal_type: row['Business Legal Type - Description'] ? String(row['Business Legal Type - Description']).trim() : undefined,
             industry: mapBusinessCategoryToIndustry(row['Business Category Code 1'] as string),
           })).filter(c => c.company_name);
-
-          resolve(companies);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsBinaryString(file);
-    });
   }, []);
 
   const mapBusinessCategoryToIndustry = (code: string | undefined): string => {
@@ -269,12 +252,12 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
                   Click to upload or drag and drop
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Excel files (.xlsx, .xls)
+                  Excel files (.xlsx)
                 </p>
                 <input
                   id="file-input"
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx"
                   className="hidden"
                   onChange={handleFileChange}
                 />

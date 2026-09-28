@@ -1,0 +1,26 @@
+name: FairJobs saved-search alerts
+
+on:
+  schedule:
+    - cron: "15 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: fairjobs-job-alerts
+  cancel-in-progress: false
+
+jobs:
+  send-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send new vacancy matches
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --retry 2 \
+            -X POST "$SUPABASE_URL/functions/v1/send-job-alerts" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            --data '{}'

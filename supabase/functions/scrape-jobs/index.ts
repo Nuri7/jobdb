@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { isSafePublicUrl, requireAdminOrService } from '../_shared/adminAuth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -988,7 +989,16 @@ Deno.serve(async (req) => {
   let supabase: any = null;
 
   try {
-    const { companyId, careerUrl: careerUrlParam } = await req.json();
+    const auth = await requireAdminOrService(req, corsHeaders);
+    if (!auth.ok) return auth.response;
+
+    const { companyId } = await req.json();
+    if (typeof companyId !== 'string' || !/^[0-9a-f-]{36}$/i.test(companyId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'A valid companyId is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
 
     const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!apiKey) {
@@ -1009,21 +1019,31 @@ Deno.serve(async (req) => {
     // Load company-specific scrape config
     const { data: companyData, error: companyError } = await supabase
       .from('company_career_sites')
-      .select('scrape_config, career_url')
+      .select('scrape_config, career_url, is_scrape_enabled')
       .eq('id', companyId)
-      .single();
+      .maybeSingle();
 
-    if (companyError) {
+    if (companyError || !companyData) {
       console.error('Error loading company config:', companyError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Company not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
-    // Fall back to the stored career_url when the caller doesn't send one
-    // (e.g. the POST /api/companies fire-and-forget trigger)
-    const careerUrl = careerUrlParam || companyData?.career_url;
-    if (!careerUrl) {
+    if (companyData.is_scrape_enabled !== true) {
       return new Response(
-        JSON.stringify({ success: false, error: 'No careerUrl provided and none stored for company' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Scraping is disabled for this company' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Never trust a caller-supplied URL. The admin-managed stored URL is the sole scrape target.
+    const careerUrl = companyData.career_url;
+    if (!careerUrl || !isSafePublicUrl(careerUrl)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'The stored career URL is invalid or unsafe' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 

@@ -1,53 +1,69 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import Map from "./pages/Map";
-import Api from "./pages/Api";
-import Features from "./pages/Features";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { usePWAAnalytics } from "./hooks/usePWAAnalytics";
+import { AuthProvider } from "./hooks/useAuth";
+import AdminRoute from "./components/AdminRoute";
+
+const Jobs = lazy(() => import("./pages/Jobs"));
+const Map = lazy(() => import("./pages/Map"));
+const Admin = lazy(() => import("./pages/Index"));
+const Api = lazy(() => import("./pages/Api"));
+const Features = lazy(() => import("./pages/Features"));
+const Auth = lazy(() => import("./pages/Auth"));
+const Saved = lazy(() => import("./pages/Saved"));
+const VacancyDetail = lazy(() => import("./pages/VacancyDetail"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Don't refetch the whole app every time the window regains focus —
-      // job data changes at most daily. Focus refetch caused a full spinner on every tab switch.
       refetchOnWindowFocus: false,
-      staleTime: 5 * 60 * 1000, // 5 min: treat data as fresh, serve from cache on remount
+      staleTime: 5 * 60 * 1000,
       gcTime: 30 * 60 * 1000,
       retry: 1,
     },
   },
 });
 
-const PWAAnalyticsWrapper = ({ children }: { children: React.ReactNode }) => {
+function AppShell() {
   usePWAAnalytics();
-  return <>{children}</>;
-};
+  return (
+    <BrowserRouter>
+      <Suspense fallback={<div className="min-h-screen grid place-items-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>}>
+        <Routes>
+          <Route path="/" element={<Jobs />} />
+          <Route path="/vacatures" element={<Jobs />} />
+          <Route path="/jobs" element={<Navigate to="/vacatures" replace />} />
+          <Route path="/vacatures/:slug" element={<VacancyDetail />} />
+          <Route path="/kaart" element={<Map />} />
+          <Route path="/map" element={<Navigate to="/kaart" replace />} />
+          <Route path="/bewaard" element={<Saved />} />
+          <Route path="/inloggen" element={<Auth />} />
+          <Route path="/features" element={<Features />} />
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+          <Route path="/admin/api" element={<AdminRoute><Api /></AdminRoute>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
+  );
+}
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <PWAAnalyticsWrapper>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Map />} />
-            <Route path="/jobs" element={<Index />} />
-            <Route path="/map" element={<Map />} />
-            <Route path="/api" element={<Api />} />
-            <Route path="/features" element={<Features />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </PWAAnalyticsWrapper>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <Toaster />
+          <Sonner />
+          <AppShell />
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}

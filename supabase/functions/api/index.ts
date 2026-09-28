@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key, x-internal',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
   'Content-Type': 'application/json',
 };
 
@@ -182,13 +182,10 @@ Deno.serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     const url = new URL(req.url);
-    
-    // Check if this is an internal call from the frontend
-    const isInternalCall = req.headers.get('x-internal') === 'true';
     
     // Parse path from URL - remove /api prefix and any function name prefix
     const fullPath = url.pathname;
@@ -196,7 +193,7 @@ Deno.serve(async (req) => {
     const path = fullPath.replace(/^\/functions\/v1\/api/, '').replace(/^\/api/, '') || '/';
     const params = url.searchParams;
     
-    console.log('Request path:', path, 'Internal:', isInternalCall);
+    console.log('Request path:', path);
 
     // API documentation is public (no auth required)
     if (path === '' || path === '/') {
@@ -206,7 +203,7 @@ Deno.serve(async (req) => {
           version: '1.0.0',
           authentication: {
             header: 'X-API-Key',
-            description: 'Include your API key in the X-API-Key header',
+            description: 'Public reads need no key. Mutations and higher limits require an API key or admin session.',
           },
           endpoints: {
             'GET /api/jobs': {
@@ -257,26 +254,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Internal READ calls (from the frontend via supabase.functions.invoke) skip the API key. But
-    // writes ALWAYS require a valid key — a client-supplied `x-internal: true` header must never be
-    // enough to mutate data or trigger a scrape.
+    // Public reads deliberately need no credential. A supplied API key must still be valid, and
+    // every mutation requires either a valid key or an authenticated JobDB admin. This replaces
+    // the old client-spoofable `x-internal` header.
     const isWrite = req.method !== 'GET' && req.method !== 'OPTIONS' && req.method !== 'HEAD';
-    if (!isInternalCall || isWrite) {
-      // Validate API key for external API calls
-      const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key');
-      
-      if (!apiKey) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Unauthorized', 
-            message: 'Missing API key. Include your key in the X-API-Key header.',
-            docs: 'GET /api for documentation'
-          }),
-          { status: 401, headers: corsHeaders }
-        );
-      }
-
-      // Hash and validate the API key
+    const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key');
+    let hasApiKey = false;
+    if (apiKey) {
       const keyHash = await hashApiKey(apiKey);
       const { data: keyData, error: keyError } = await supabase
         .from('api_keys')
@@ -284,22 +268,13 @@ Deno.serve(async (req) => {
         .eq('key_hash', keyHash)
         .maybeSingle();
 
-      if (keyError || !keyData) {
-        console.log('API key validation failed:', keyError?.message || 'Key not found');
+      if (keyError || !keyData || !keyData.is_active) {
         return new Response(
-          JSON.stringify({ error: 'Unauthorized', message: 'Invalid API key' }),
+          JSON.stringify({ error: 'Unauthorized', message: 'Invalid or inactive API key' }),
           { status: 401, headers: corsHeaders }
         );
       }
-
-      if (!keyData.is_active) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized', message: 'API key is inactive' }),
-          { status: 401, headers: corsHeaders }
-        );
-      }
-
-      // Update last_used_at (fire and forget)
+      hasApiKey = true;
       supabase
         .from('api_keys')
         .update({ last_used_at: new Date().toISOString() })
@@ -307,12 +282,105 @@ Deno.serve(async (req) => {
         .then(() => {});
     }
 
+    let isAdmin = false;
+    const bearer = (req.headers.get('authorization') || '').match(/^Bearer\s+(.+)$/i)?.[1];
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (bearer && bearer !== anonKey && bearer !== serviceRoleKey) {
+      const { data: userData } = await supabase.auth.getUser(bearer);
+      if (userData.user) {
+        const { data: adminRole } = await supabase.rpc('has_role', {
+          _user_id: userData.user.id,
+          _role: 'admin',
+        });
+        isAdmin = adminRole === true;
+      }
+    }
+
+    if (isWrite && !hasApiKey && !isAdmin) {
+      return new Response(
+        JSON.stringify({
+          error: 'Unauthorized',
+          message: 'This operation requires an API key or an authenticated admin session.',
+        }),
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    // Stable detail endpoint for crawlable vacancy pages and FairApply deep links.
+    const jobDetailMatch = path.match(/^\/jobs\/([0-9a-f-]{36})\/?$/i);
+    if (req.method === 'GET' && jobDetailMatch) {
+      const { data: job, error } = await supabase
+        .from('job_opportunities')
+        .select(`
+          id, job_title, job_url, location, city, province, employment_type, department,
+          salary_range, description, requirements, is_remote, is_internship, experience_level,
+          posted_date, closing_date, first_seen_at, status, scraped_at,
+          company_career_sites!inner(id, company_name, industry, career_url, source_type)
+        `)
+        .eq('id', jobDetailMatch[1])
+        .eq('status', 'open')
+        .eq('verified', true)
+        .eq('is_foreign', false)
+        .maybeSingle();
+
+      if (error) {
+        return new Response(JSON.stringify({ error: 'Failed to fetch job' }), { status: 500, headers: corsHeaders });
+      }
+      if (!job) {
+        return new Response(JSON.stringify({ error: 'Job not found' }), { status: 404, headers: corsHeaders });
+      }
+      const company = job.company_career_sites as unknown as {
+        id: string;
+        company_name: string;
+        industry: string | null;
+        career_url: string;
+        source_type: string | null;
+      };
+      const isAts = company?.source_type?.startsWith('ats:') ?? false;
+      return new Response(JSON.stringify({ data: {
+        id: job.id,
+        title: job.job_title,
+        url: job.job_url,
+        location: job.location,
+        city: job.city,
+        province: job.province,
+        employment_type: job.employment_type,
+        department: job.department,
+        salary_range: job.salary_range,
+        description: job.description,
+        requirements: job.requirements,
+        is_remote: job.is_remote,
+        is_internship: job.is_internship,
+        experience_level: job.experience_level,
+        posted_date: job.posted_date,
+        closing_date: job.closing_date,
+        first_seen_at: job.first_seen_at,
+        scraped_at: job.scraped_at,
+        easy_apply: isAts,
+        ats: isAts ? company.source_type!.slice(4) : null,
+        company: {
+          id: company.id,
+          name: company.company_name,
+          industry: company.industry,
+          career_url: company.career_url,
+        },
+      }}), {
+        headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600' },
+      });
+    }
+
 
     // Route: GET /jobs
     if (path === '/jobs' || path === '/jobs/') {
-      const limit = Math.min(parseInt(params.get('limit') || '50'), 100);
+      const maxLimit = hasApiKey || isAdmin ? 100 : 50;
+      const limit = Math.max(1, Math.min(parseInt(params.get('limit') || '24') || 24, maxLimit));
       // Cap offset so a caller can't force a multi-million-row scan
-      const offset = Math.max(0, Math.min(parseInt(params.get('offset') || '0') || 0, 50_000));
+      const page = Math.max(1, parseInt(params.get('page') || '1') || 1);
+      const offset = Math.max(0, Math.min(
+        parseInt(params.get('offset') || '') || ((page - 1) * limit),
+        50_000,
+      ));
       // Split the raw search on commas into distinct title phrases; EACH phrase is matched as a
       // whole ("ai engineer" stays one unit — commas are the only thing that splits a search into
       // separate titles). Per phrase we strip PostgREST metacharacters and LIKE wildcards so a term
@@ -327,6 +395,7 @@ Deno.serve(async (req) => {
       const search = phrases.length > 0 ? phrases.join(', ') : null; // display/log value
       const location = params.get('location');
       const company = params.get('company');
+      const companyId = params.get('company_id');
       const jobType = params.get('job_type');
       const experienceLevel = params.get('experience_level');
       const remote = params.get('remote');
@@ -339,6 +408,7 @@ Deno.serve(async (req) => {
       const industry = params.get('industry');
       const hasSalary = (params.get('has_salary') || '').toLowerCase() === 'true';
       const easyApply = (params.get('easy_apply') || '').toLowerCase() === 'true';
+      const includeDescription = (params.get('include_description') || '').toLowerCase() === 'true';
 
       // Build search terms per phrase - combine synonyms + AI expansion, then OR everything.
       // The .or() becomes a set of leading-wildcard ILIKEs; too many (or ultra-short ones that
@@ -366,7 +436,7 @@ Deno.serve(async (req) => {
           const syn = getSynonymsFromGroups(phrase, synonymGroups);
           if (syn.length <= 1) {
             // No curated hit → semantic AI expansion of the whole phrase (related job titles)
-            const aiTerms = await getAIExpandedTerms(phrase);
+            const aiTerms = hasApiKey || isAdmin ? await getAIExpandedTerms(phrase) : [];
             aiTerms.forEach(t => secondary.add(t));
             console.log(`AI expanded "${phrase}" to:`, aiTerms);
           } else {
@@ -391,7 +461,8 @@ Deno.serve(async (req) => {
 
       // Job lifecycle filter: default to open jobs; ?status=open|closed|all
       const statusParam = (params.get('status') || 'open').toLowerCase();
-      const statusFilter = ['open', 'closed', 'all'].includes(statusParam) ? statusParam : 'open';
+      const requestedStatus = ['open', 'closed', 'all'].includes(statusParam) ? statusParam : 'open';
+      const statusFilter = hasApiKey || isAdmin ? requestedStatus : 'open';
 
       // Resolve company-side filters first so the large jobs query can use its indexed foreign key
       // rather than joining companies while it also evaluates title/location filters and sorting.
@@ -425,17 +496,19 @@ Deno.serve(async (req) => {
       // combining count with sparse optional filters still scans the whole match set. For filtered
       // requests we fetch one extra ID to provide exact has_more without an unbounded count scan.
       const usesBoundedPagination = Boolean(
-        location || near || company || industry || jobType || experienceLevel ||
+        location || near || company || companyId || industry || jobType || experienceLevel ||
         remote === 'true' || internship === 'true' || easyApply || hasSalary ||
         (Number.isFinite(postedWithin) && postedWithin > 0)
       );
-      let query = supabase
-        .from('job_opportunities')
+      // The selected relation shape is conditional; keep runtime validation while avoiding the
+      // Supabase client's compile-time string parser rejecting one of the two valid variants.
+      // deno-lint-ignore no-explicit-any
+      let query: any = (supabase.from('job_opportunities') as any)
         .select(useCompanyJoin ? 'id, company_career_sites!inner(id)' : 'id',
         // 'estimated': an exact count over this filtered+joined set on a large,
         // growing table blew the statement_timeout. The planner estimate is
         // fast and close enough for a jobs listing's total/has_more.
-        usesBoundedPagination ? undefined : { count: 'estimated' })
+        usesBoundedPagination ? undefined : { count: phrases.length === 0 ? 'exact' : 'estimated' })
         // No is_scrape_enabled gate: verified=true (below) is the single quality gate, matching the
         // browse query (src/lib/api/jobs.ts) and the Map's job_geo_counts RPC. Filtering it here too
         // made search return a different set than browse for the same board.
@@ -450,7 +523,7 @@ Deno.serve(async (req) => {
       // Confidence gate: serve ONLY verified real vacancies (structured data / ATS / real
       // apply button). This is what keeps landing/category/blog/dead pages out of applyforme.
       // ?verified=all bypasses it for debugging only.
-      if ((params.get('verified') || 'true').toLowerCase() !== 'all') {
+      if (!(hasApiKey || isAdmin) || (params.get('verified') || 'true').toLowerCase() !== 'all') {
         query = query.eq('verified', true);
       }
 
@@ -459,7 +532,7 @@ Deno.serve(async (req) => {
       // city_coords, no Dutch province, not remote, and no "Nederland/Netherlands/Landelijk" in the
       // location. Remote and location-unknown jobs are kept. A plain .eq() reliably AND-combines with
       // the search .or() (two separate .or() groups do NOT). ?country=all bypasses it.
-      if ((params.get('country') || 'nl').toLowerCase() !== 'all') {
+      if (!(hasApiKey || isAdmin) || (params.get('country') || 'nl').toLowerCase() !== 'all') {
         query = query.eq('is_foreign', false);
       }
 
@@ -548,6 +621,9 @@ Deno.serve(async (req) => {
         if (industry) query = query.ilike('company_career_sites.industry', `%${industry}%`);
         if (easyApply) query = query.ilike('company_career_sites.source_type', 'ats:%');
       }
+      if (companyId && /^[0-9a-f-]{36}$/i.test(companyId)) {
+        query = query.eq('company_career_site_id', companyId);
+      }
       if (jobType) {
         const pats = JOB_TYPE_PATTERNS[jobType.toLowerCase()] || [sanitizeLike(jobType)];
         query = query.or(pats.filter(Boolean).map(p => `employment_type.ilike.%${p}%`).join(','));
@@ -587,36 +663,37 @@ Deno.serve(async (req) => {
       let data: any[] = [];
 
       if (matchedIds.length > 0) {
-        const { data: hydrated, error: hydrateError } = await supabase
-          .from('job_opportunities')
-          .select(`
+        const hydrationFields = `
+          id,
+          job_title,
+          job_url,
+          location,
+          city,
+          province,
+          employment_type,
+          department,
+          salary_range,
+          ${includeDescription ? 'description,' : ''}
+          is_remote,
+          is_internship,
+          experience_level,
+          posted_date,
+          closing_date,
+          first_seen_at,
+          status,
+          scraped_at,
+          company_career_sites!inner (
             id,
-            job_title,
-            job_url,
-            location,
-            city,
-            province,
-            employment_type,
-            department,
-            salary_range,
-            description,
-            is_remote,
-            is_internship,
-            experience_level,
-            posted_date,
-            closing_date,
-            first_seen_at,
-            status,
-            scraped_at,
-            company_career_sites!inner (
-              id,
-              company_name,
-              industry,
-              career_url,
-              source_type,
-              is_scrape_enabled
-            )
-          `)
+            company_name,
+            industry,
+            career_url,
+            source_type,
+            is_scrape_enabled
+          )
+        `;
+        const { data: hydrated, error: hydrateError } = await (supabase
+          .from('job_opportunities') as any)
+          .select(hydrationFields)
           .in('id', matchedIds);
 
         if (hydrateError) {
@@ -630,20 +707,19 @@ Deno.serve(async (req) => {
         // PostgREST does not preserve the order of an IN-list. Restore the ID query's stable
         // scraped_at/id order before applying the page-local relevance sort below.
         const rowsById = new Map(
-          (hydrated || []).map((row) => [String(row.id), row])
+          (hydrated || []).map((row: any) => [String(row.id), row])
         );
         data = matchedIds
           .map((id: string) => rowsById.get(String(id)))
           .filter(Boolean);
       }
 
-      // Helper to get company logo URL from career URL (using Google Favicons - free and reliable)
+      // Prefer the employer's own favicon; clients fall back to a local generic mark on failure.
       const getCompanyLogoUrl = (careerUrl: string | null | undefined): string | null => {
         if (!careerUrl) return null;
         try {
           const url = new URL(careerUrl);
-          // Google Favicons service - free, no API key required
-          return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
+          return `${url.protocol}//${url.hostname}/favicon.ico`;
         } catch {
           return null;
         }
@@ -673,7 +749,7 @@ Deno.serve(async (req) => {
           employment_type: job.employment_type,
           department: job.department,
           salary_range: job.salary_range,
-          description: job.description,
+          ...(includeDescription ? { description: job.description } : {}),
           is_remote: job.is_remote,
           is_internship: job.is_internship,
           experience_level: job.experience_level,
@@ -709,13 +785,14 @@ Deno.serve(async (req) => {
             // metadata without forcing a full-table count. has_more remains exact for this page.
             total: count ?? (offset + matchedIds.length + (hasExtraMatch ? 1 : 0)),
             total_is_lower_bound: count === null,
+            total_is_estimate: count !== null && phrases.length > 0,
             limit,
             offset,
             has_more: count === null ? hasExtraMatch : (offset + limit) < (count || 0),
             search_terms: searchTerms.length > 0 ? searchTerms : undefined,
           },
         }),
-        { headers: corsHeaders }
+        { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } }
       );
     }
 
@@ -793,7 +870,7 @@ Deno.serve(async (req) => {
           let scrapeTriggered = false;
           try {
             const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-            const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
             
             fetch(`${supabaseUrl}/functions/v1/scrape-jobs`, {
               method: 'POST',
@@ -801,7 +878,7 @@ Deno.serve(async (req) => {
                 'Authorization': `Bearer ${supabaseKey}`,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ companyId: newCompany.id, careerUrl: newCompany.career_url }),
+              body: JSON.stringify({ companyId: newCompany.id }),
             }).catch(err => console.error('Scrape trigger error:', err));
             
             scrapeTriggered = true;
@@ -813,7 +890,7 @@ Deno.serve(async (req) => {
           const getLogoUrl = (careerUrl: string): string | null => {
             try {
               const url = new URL(careerUrl);
-              return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
+              return `${url.protocol}//${url.hostname}/favicon.ico`;
             } catch {
               return null;
             }
@@ -873,13 +950,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Helper to get company logo URL from career URL (using Google Favicons - free and reliable)
+      // Prefer the employer's own favicon.
       const getLogoUrl = (careerUrl: string | null | undefined): string | null => {
         if (!careerUrl) return null;
         try {
           const url = new URL(careerUrl);
-          // Google Favicons service - free, no API key required
-          return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
+          return `${url.protocol}//${url.hostname}/favicon.ico`;
         } catch {
           return null;
         }
