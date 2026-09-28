@@ -497,8 +497,7 @@ Deno.serve(async (req) => {
       // requests we fetch one extra ID to provide exact has_more without an unbounded count scan.
       const usesBoundedPagination = Boolean(
         location || near || company || companyId || industry || jobType || experienceLevel ||
-        remote === 'true' || internship === 'true' || easyApply || hasSalary ||
-        (Number.isFinite(postedWithin) && postedWithin > 0)
+        remote === 'true' || internship === 'true' || easyApply || hasSalary
       );
       // The selected relation shape is conditional; keep runtime validation while avoiding the
       // Supabase client's compile-time string parser rejecting one of the two valid variants.
