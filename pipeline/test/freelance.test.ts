@@ -42,6 +42,8 @@ describe('assignment extraction', () => {
       <div class="flx-job-mce-container">ZZP mogelijk. ${'Werk zelfstandig aan een productroadmap met stakeholders. '.repeat(8)} Maximaal uurtarief € 120.</div>`;
     expect(parseFlextender(html, 'https://www.flextender.nl/opdracht?aanvraagnr=123&resultatenlijst=session')).toMatchObject({ job_url: 'https://www.flextender.nl/opdracht?aanvraagnr=123', freelance_eligible: true, closing_date: '2026-11-20', salary_max: 120, freelance_details: { client_name: 'Gemeente Amsterdam', start_date: '2026-12-01', hours_min: 32, hours_max: 36 } });
     expect(parseFlextender(html, 'https://www.flextender.nl/opdracht?aanvraagnr=123')?.posted_date).toBeUndefined();
+    expect(parseFlextender(html.replace('€ 120.', '€ 120,50.'), 'https://www.flextender.nl/opdracht?aanvraagnr=123')?.salary_max).toBe(120.5);
+    expect(parseFlextender(html.replace('Maximaal uurtarief € 120.', 'Uurtarief maximaal € 90. Uurtarief €75,01 geeft 10 punten.'), 'https://www.flextender.nl/opdracht?aanvraagnr=123')?.salary_max).toBe(90);
   });
   it('fails a repeated pagination page rather than closing unseen jobs or calling an LLM', async () => {
     const ctx = { robotsAllowed: async () => true, fetchText: async () => ({ status: 200, text: JSON.stringify({ total: 50, data: [{ id: 'x', title: 'Product Owner', content: 'ZZP mogelijk' }] }) }), log: () => {}, llm: { json: () => { throw new Error('LLM must not be called'); } } } as unknown as Ctx;

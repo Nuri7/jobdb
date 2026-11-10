@@ -101,12 +101,13 @@ export function parseFlextender(html: string, url: string): CanonicalJob | null 
   const description = htmlToText(content.html() || '');
   const numbers = (summary['uren per week']?.match(/\d+/g) || []).map(Number);
   const canonical = new URL(url); canonical.pathname = '/opdracht'; canonical.searchParams.delete('resultatenlijst');
-  const rateMatch = description.match(/\b(?:maximaal|maximale|maximum)?\s*(?:uurtarief|maximumtarief)\s*(?:van|:)?\s*€?\s*(\d{2,3})(?:[,.]\d{1,2})?/i);
+  // Only publish an explicit ceiling; scoring tiers may mention several other rates.
+  const rateMatch = description.match(/\b(?:(?:maximaal|maximale|maximum)\s+uurtarief|maximumtarief|uurtarief\s+(?:maximaal|maximale|maximum))\s*(?:van|:)?\s*€?\s*(\d{2,3}(?:[,.]\d{1,2})?)/i);
   return build({
     job_url: canonical.toString(), job_title: title, description,
     location: summary['standplaats'] || summary['locatie'] || summary['regio'] || 'Nederland',
     closing_date: assignmentDate(summary['einde inschrijfdatum']),
-    ...(rateMatch ? rate(undefined, rateMatch[1]) : {}),
+    ...(rateMatch ? rate(undefined, rateMatch[1]!.replace(',', '.')) : {}),
   }, {
     source_name: 'Flextender', client_name: $('.css-customer').first().text().trim(),
     reference: summary['aanvraagnummer'] || canonical.searchParams.get('aanvraagnr') || undefined,
