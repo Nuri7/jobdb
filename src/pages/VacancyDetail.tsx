@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { fetchJob } from "@/lib/api/publicJobs";
 import { displaySalary } from "@/lib/jobDisplay";
 import { jobIdFromSlug } from "@/lib/jobSlug";
+import { AssignmentFacts } from '@/components/AssignmentFacts';
 
 function setMeta(name: string, content: string, property = false) {
   const attribute = property ? "property" : "name";
@@ -57,7 +58,8 @@ export default function VacancyDetail() {
               <div className="flex items-start gap-4"><div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-muted"><Building2 className="h-6 w-6 text-muted-foreground" /></div><div><h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{job.title}</h1><p className="mt-2 text-lg text-muted-foreground">{job.company.name}</p></div></div>
               <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground"><span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" />{job.location || "Nederland"}</span>{job.employment_type && <span>{job.employment_type}</span>}{salary && <span className="font-medium text-foreground">{salary}</span>}</div>
               <div className="mt-4 flex flex-wrap gap-2">{job.is_remote && <Badge variant="secondary">Thuiswerken</Badge>}{job.is_internship && <Badge variant="secondary">Stage</Badge>}{job.easy_apply && <Badge><Sparkles className="mr-1 h-3 w-3" />FairApply geschikt</Badge>}{job.experience_level && <Badge variant="outline">{job.experience_level}</Badge>}</div>
-              <div className="mt-7 flex flex-wrap gap-3"><Button size="lg" asChild><a href={`https://fairapply.app/job/${job.id}?source=fairjobs`}>Solliciteer met FairApply<Sparkles className="ml-2 h-4 w-4" /></a></Button><Button size="lg" variant="outline" asChild><a href={job.url} target="_blank" rel="noopener noreferrer">Direct bij werkgever<ExternalLink className="ml-2 h-4 w-4" /></a></Button></div>
+              <AssignmentFacts job={job} />
+              <div className="mt-7 flex flex-wrap gap-3"><Button size="lg" asChild><a href={`https://fairapply.app/job/${job.id}?source=fairjobs`}>Solliciteer met FairApply<Sparkles className="ml-2 h-4 w-4" /></a></Button><Button size="lg" variant="outline" asChild><a href={job.url} target="_blank" rel="noopener noreferrer">{job.freelance_details ? 'Bekijk bij de bron' : 'Direct bij werkgever'}<ExternalLink className="ml-2 h-4 w-4" /></a></Button></div>
             </header>
             <div className="bg-card p-6 sm:p-9">
               <h2 className="text-xl font-semibold">Over deze vacature</h2>

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import readXlsxFile, { readSheetNames } from "read-excel-file";
+import readXlsxFile from "read-excel-file/browser";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -78,8 +78,8 @@ export default function ImportCompaniesModal({ isOpen, onClose, onComplete }: Im
   };
 
   const parseExcelFile = useCallback(async (file: File): Promise<ParsedCompany[]> => {
-    const sheetNames = await readSheetNames(file);
-    const rows = await readXlsxFile(file, { sheet: sheetNames[1] || sheetNames[0] });
+    const sheets = await readXlsxFile(file);
+    const rows = (sheets[1] || sheets[0])?.data || [];
     const headers = (rows[0] || []).map((value) => String(value || '').trim());
     const jsonData = rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index]])));
     return jsonData.map((row) => ({

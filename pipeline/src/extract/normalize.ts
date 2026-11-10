@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { CanonicalJob } from '../types.js';
 import { normalizeCity, provinceOf } from './nl-geo.js';
+import { freelanceEligibility } from './freelance.js';
 
 const TRACKING_PARAMS = new Set([
   'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
@@ -143,6 +144,7 @@ export function contentHash(
   const basis = [
     job.job_title,
     job.location ?? '',
+    ...(job.freelance_eligible != null || job.freelance_details ? [JSON.stringify([job.freelance_eligible, job.freelance_details, job.salary_range, job.salary_min, job.salary_max, job.salary_period])] : []),
     job.employment_type ?? '',
     job.closing_date ?? '',
     (job.description ?? '').slice(0, 2000),
@@ -231,6 +233,8 @@ export function finalizeJob(
     city: city ?? undefined,
     province: provinceOf(locationStr, city) ?? undefined,
     employment_type: asStr(partial.employment_type)?.trim().slice(0, 80) || undefined,
+    freelance_eligible: freelanceEligibility(`${partial.employment_type ?? ''}\n${haystack}`, partial.freelance_eligible),
+    freelance_details: partial.freelance_details,
     department: asStr(partial.department)?.trim().slice(0, 120) || undefined,
     salary_range: salaryRange,
     salary_min: partial.salary_min ?? salary.min,

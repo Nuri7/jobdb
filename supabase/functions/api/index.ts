@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
                 search: 'Intelligent search in job titles (includes synonyms + AI expansion, e.g. "product owner" also finds "product manager")',
                 location: 'Filter by location',
                 company: 'Filter by company name',
-                job_type: 'Filter by employment type (full-time, part-time, contract)',
+                job_type: 'Filter by employment type (fulltime, parttime, contract, freelance)',
                 experience_level: 'Filter by experience level',
                 remote: 'Filter remote jobs (true/false)',
                 internship: 'Filter internships (true/false)',
@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
       const { data: job, error } = await supabase
         .from('job_opportunities')
         .select(`
-          id, job_title, job_url, location, city, province, employment_type, employment_type_normalized, department,
+          id, job_title, job_url, location, city, province, employment_type, employment_type_normalized, department, freelance_eligible, freelance_details,
           salary_range, salary_min, salary_max, salary_currency, salary_period,
           description, requirements, is_remote, workplace_type, is_internship, experience_level, experience_level_normalized,
           posted_date, closing_date, first_seen_at, status, scraped_at,
@@ -372,6 +372,8 @@ Deno.serve(async (req) => {
         province: job.province,
         employment_type: job.employment_type,
         employment_type_normalized: job.employment_type_normalized,
+        freelance_eligible: job.freelance_eligible,
+        freelance_details: job.freelance_details,
         department: job.department,
         salary_range: job.salary_range,
         salary_min: job.salary_min,
@@ -393,7 +395,7 @@ Deno.serve(async (req) => {
         ats: isAts ? company.source_type!.slice(4) : null,
         company: {
           id: company.id,
-          name: company.company_name,
+          name: job.freelance_details ? (job.freelance_details.client_name || 'Opdrachtgever niet vermeld') : company.company_name,
           industry: company.industry,
           career_url: company.career_url,
         },
@@ -563,7 +565,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const employmentTypes = canonicalList(jobType, ['fulltime', 'parttime', 'contract', 'internship', 'other']);
+      const employmentTypes = canonicalList(jobType, ['fulltime', 'parttime', 'contract', 'freelance', 'internship', 'other']);
       const experienceLevels = canonicalList(experienceLevel, ['junior', 'medior', 'senior', 'unknown']);
       const workplace = canonicalList(params.get('workplace_type'), ['remote', 'hybrid', 'onsite', 'unknown'])
         ?? (remote === 'true' ? ['remote', 'hybrid'] : null);
@@ -643,6 +645,8 @@ Deno.serve(async (req) => {
           province,
           employment_type,
           employment_type_normalized,
+          freelance_eligible,
+          freelance_details,
           department,
           salary_range,
           salary_min,
@@ -725,6 +729,8 @@ Deno.serve(async (req) => {
           province: job.province,
           employment_type: job.employment_type,
           employment_type_normalized: job.employment_type_normalized,
+          freelance_eligible: job.freelance_eligible,
+          freelance_details: job.freelance_details,
           department: job.department,
           salary_range: job.salary_range,
           salary_min: job.salary_min,
@@ -745,10 +751,10 @@ Deno.serve(async (req) => {
           easy_apply: isAts,
           ats: isAts ? sourceType!.slice(4) : null,
           scraped_at: job.scraped_at,
-          company_logo: getCompanyLogoUrl(company?.career_url),
+          company_logo: job.freelance_details ? null : getCompanyLogoUrl(company?.career_url),
           company: {
             id: company?.id,
-            name: company?.company_name,
+            name: job.freelance_details ? (job.freelance_details.client_name || 'Opdrachtgever niet vermeld') : company?.company_name,
             industry: company?.industry,
             career_url: company?.career_url,
           },

@@ -1,4 +1,5 @@
 import { apiSource } from './api.js';
+import { striiveSource, flextenderSource, overheidSource } from './freelance.js';
 import { afasSource } from './ats/afas.js';
 import { ashbySource } from './ats/ashby.js';
 import { greenhouseSource } from './ats/greenhouse.js';
@@ -31,6 +32,9 @@ const sources: Record<SourceType, JobSource> = {
   'ats:workday': workdaySource,
   'ats:successfactors': successFactorsSource,
   api: apiSource,
+  'freelance:striive': striiveSource,
+  'freelance:flextender': flextenderSource,
+  'freelance:overheid': overheidSource,
   sitemap: sitemapSource,
   static: staticHtmlSource,
   rendered: renderedSource,

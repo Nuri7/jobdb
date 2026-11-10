@@ -31,7 +31,19 @@ export const ATS_HINTS = [
 
 export type AtsHint = (typeof ATS_HINTS)[number];
 
-export type SourceType = `ats:${AtsName}` | 'api' | 'sitemap' | 'static' | 'rendered';
+export type SourceType = `ats:${AtsName}` | 'api' | 'sitemap' | 'static' | 'rendered' | 'freelance:striive' | 'freelance:flextender' | 'freelance:overheid';
+
+export interface FreelanceDetails {
+  source_name: string;
+  client_name?: string;
+  reference?: string;
+  hours_min?: number;
+  hours_max?: number;
+  start_date?: string;
+  end_date?: string;
+  duration?: string;
+  closing_at?: string;
+}
 
 export type CareerPageStatus = 'unverified' | 'verified' | 'dead' | 'ambiguous';
 
@@ -41,6 +53,8 @@ export interface CanonicalJob {
   job_title: string;
   location?: string;
   employment_type?: string;
+  freelance_eligible?: boolean | null;
+  freelance_details?: FreelanceDetails;
   department?: string;
   salary_range?: string;
   salary_min?: number;
@@ -81,6 +95,8 @@ export interface SourceConfig {
   /** Last time a full (non-short-circuited) scrape ran. Force full every 7 days. */
   last_full_at?: string;
   duplicate_of?: string;
+  detail_cursor?: number;
+  max_details?: number;
 }
 
 export interface CompanyRow {
@@ -141,6 +157,8 @@ export interface Ctx {
 }
 
 export interface FetchTextOpts {
+  /** Opt-in for structured feeds containing large embedded image fields; default stays 3 MB. */
+  maxBodyChars?: number;
   timeoutMs?: number;
   retries?: number;
   headers?: Record<string, string>;

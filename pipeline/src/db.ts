@@ -60,7 +60,7 @@ export async function pickDueCompanies(db: Db, limit: number, shard?: Shard, lan
     .neq('career_page_status', 'ambiguous')
     .lte('next_check_at', new Date().toISOString());
   if (lane === 'fast') {
-    query = query.or('source_type.like.ats:*,source_type.eq.api').neq('source_type', 'ats:successfactors');
+    query = query.or('source_type.like.ats:*,source_type.eq.api,source_type.like.freelance:*').neq('source_type', 'ats:successfactors');
   } else if (lane === 'structured') {
     query = query.in('source_type', ['sitemap', 'static']);
   } else if (lane === 'rendered') {
@@ -330,7 +330,16 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
   // large employers (e.g. Jumbo, 3.6k jobs with long descriptions) otherwise blew the request up into
   // a `TypeError: fetch failed`. Each batch is retried on a transient network error.
   for (const batch of chunk(jobs, 50)) {
-    const rows = batch.map((j) => ({
+    // An aggregator must never take ownership of an employer's existing vacancy.
+    let accepted = batch;
+    if (batch.some(j => j.freelance_details)) {
+      const owners = await db.from('job_opportunities').select('job_url').in('job_url', batch.map(j => j.job_url)).neq('company_career_site_id', companyId);
+      if (owners.error) throw new Error(`upsertJobs.ownership: ${owners.error.message}`);
+      const ownedElsewhere = new Set((owners.data || []).map(j => j.job_url));
+      accepted = batch.filter(j => !ownedElsewhere.has(j.job_url));
+    }
+    if (!accepted.length) continue;
+    const rows = accepted.map((j) => ({
       company_career_site_id: companyId,
       job_title: j.job_title,
       job_url: j.job_url,
@@ -338,6 +347,8 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       city: j.city ?? null,
       province: j.province ?? null,
       employment_type: j.employment_type ?? null,
+      freelance_eligible: j.freelance_eligible ?? null,
+      freelance_details: j.freelance_details ?? null,
       department: j.department ?? null,
       salary_range: j.salary_range ?? null,
       salary_min: j.salary_min ?? null,
@@ -371,7 +382,7 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       }
     }
     if (lastErr) throw new Error(`upsertJobs: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
-    written += batch.length;
+    written += rows.length;
   }
   return written;
 }

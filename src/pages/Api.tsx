@@ -210,7 +210,7 @@ export default function Api() {
         { name: 'search', type: 'string', desc: 'Intelligent search (uses synonyms + AI expansion)' },
         { name: 'location', type: 'string', desc: 'Filter by location' },
         { name: 'company', type: 'string', desc: 'Filter by company name' },
-        { name: 'job_type', type: 'string', desc: 'Filter by type (full-time, part-time, contract)' },
+        { name: 'job_type', type: 'string', desc: 'Filter by type (fulltime, parttime, contract, freelance)' },
         { name: 'experience_level', type: 'string', desc: 'Filter by experience level' },
         { name: 'remote', type: 'boolean', desc: 'Filter remote jobs' },
         { name: 'internship', type: 'boolean', desc: 'Filter internships' },

@@ -48,3 +48,24 @@ The dashboard is a static Vite build hosted on **Vercel** — every push to
 `main` auto-deploys. `vercel.json` rewrites all routes to `index.html` for
 client-side routing. The API and database are on Supabase (deploy functions
 with `supabase functions deploy`, apply schema with `supabase db push`).
+
+## Freelance assignments
+
+Striive, Flextender and Opdracht Overheid use dedicated `freelance:*` source adapters
+in the fast refresh lane. The existing active `refresh-jobs` workflow runs twice daily;
+these sources stay on an eight-hour due interval so each scheduled pass can refresh them.
+The adapters use public search data, respect robots rules, and never call an LLM.
+Freelance.nl is registered with crawling disabled pending an authorised feed.
+
+`job_type=freelance` selects assignments explicitly eligible for ZZP work. Interim and
+temporary employment remain `contract`; unknown eligibility is not promoted to freelance.
+The jobs API includes nullable `freelance_eligible` and `freelance_details` (source, client,
+reference, hours, start/end dates and deadline). Rates use the existing salary fields with
+`salary_period=hour`. Source URLs deduplicate imports; an aggregator cannot take ownership
+of an existing employer vacancy. Truncated or failed fetches never mass-close listings.
+Flextender detail requests rotate if its roster exceeds the per-run cap.
+
+For a targeted manual refresh, run from `pipeline/` with the existing private environment:
+`LLM_API_KEY='' npx tsx src/cli.ts refresh --company Striive --force`.
+Apply only this repository's new migration and explicitly named functions to the shared
+Supabase project; do not reset the project or prune functions belonging to FairApply.

@@ -7,6 +7,18 @@ export type PublicJob = {
   province: string | null;
   employment_type: string | null;
   employment_type_normalized?: string | null;
+  freelance_eligible?: boolean | null;
+  freelance_details?: {
+    source_name: string;
+    client_name?: string;
+    reference?: string;
+    hours_min?: number;
+    hours_max?: number;
+    start_date?: string;
+    end_date?: string;
+    duration?: string;
+    closing_at?: string;
+  } | null;
   department: string | null;
   salary_range: string | null;
   salary_min?: number | null;

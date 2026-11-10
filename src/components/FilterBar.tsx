@@ -81,6 +81,7 @@ const FilterBar = ({
             <SelectItem value="full-time">Full-time</SelectItem>
             <SelectItem value="part-time">Part-time</SelectItem>
             <SelectItem value="contract">Contract</SelectItem>
+            <SelectItem value="freelance">Freelance / ZZP</SelectItem>
             <SelectItem value="internship">Internship</SelectItem>
           </SelectContent>
         </Select>

@@ -83,7 +83,7 @@ export async function fetchJobsWithEscalation(company: CompanyRow, ctx: Ctx): Pr
 function needsResolve(company: CompanyRow): boolean {
   if (!company.source_type || !company.source_config) return true;
   // 'api' is a manual override (bespoke JSON endpoint) — never auto-re-resolve over it.
-  if (company.source_type === 'api') return false;
+  if (company.source_type === 'api' || company.source_type.startsWith('freelance:')) return false;
   if (company.career_page_status !== 'verified') return true;
   // Dashboard edited career_url since we fingerprinted it → re-resolve
   if (company.source_config.resolved_url !== company.career_url) return true;
@@ -315,7 +315,7 @@ async function finalizeSuccess(
   hadChanges: boolean,
 ): Promise<number> {
   const openNow = knownOpenCount ?? (await countOpenJobs(db, company.id));
-  const interval = nextInterval(company.check_interval_hours, hadChanges);
+  const interval = company.source_type?.startsWith('freelance:') ? 8 : nextInterval(company.check_interval_hours, hadChanges);
   await updateCompany(db, company.id, {
     crawl_status: 'completed',
     last_crawled_at: new Date().toISOString(),

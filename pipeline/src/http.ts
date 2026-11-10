@@ -72,9 +72,13 @@ export async function fetchTextRaw(url: string, opts: FetchTextOpts = {}): Promi
   if (opts.method !== 'HEAD') {
     try {
       text = await res.text();
-      if (text.length > MAX_BODY_CHARS) text = text.slice(0, MAX_BODY_CHARS);
     } catch {
       text = '';
+    }
+    const max = Math.min(opts.maxBodyChars ?? MAX_BODY_CHARS, 40_000_000);
+    if (text.length > max) {
+      if (opts.maxBodyChars) throw new Error(`Structured feed exceeds ${max} characters`);
+      text = text.slice(0, max);
     }
   } else {
     await res.body?.cancel();

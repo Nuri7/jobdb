@@ -13,6 +13,7 @@ export interface ResolveOpts {
 }
 
 async function resolveOne(db: Db, ctx: Ctx, company: CompanyRow, force: boolean): Promise<ResolveResult | null> {
+  if (company.source_type?.startsWith('freelance:')) return null;
   if (!force && company.career_page_status === 'verified' && company.source_type) return null;
   const result = await resolveCompany(company, ctx, db);
   if (!ctx.dryRun) {

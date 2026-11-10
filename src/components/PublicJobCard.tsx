@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Building2, ExternalLink, Heart, MapPin, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AssignmentFacts } from '@/components/AssignmentFacts';
 import type { PublicJob } from "@/lib/api/publicJobs";
 import { displaySalary } from "@/lib/jobDisplay";
 import { jobPath } from "@/lib/jobSlug";
@@ -67,6 +68,7 @@ export default function PublicJobCard({ job, saved = false, onSave }: Props) {
             {job.experience_level && <Badge variant="outline">{job.experience_level}</Badge>}
           </div>
 
+          <AssignmentFacts job={job} compact />
           <div className="mt-5 flex flex-wrap gap-2">
             <Button asChild><Link to={jobPath(job)}>Bekijk vacature</Link></Button>
             <Button variant="outline" asChild>
@@ -75,7 +77,7 @@ export default function PublicJobCard({ job, saved = false, onSave }: Props) {
               </a>
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <a href={job.url} target="_blank" rel="noopener noreferrer">Werkgever <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></a>
+              <a href={job.url} target="_blank" rel="noopener noreferrer">{job.freelance_details ? 'Bron' : 'Werkgever'} <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></a>
             </Button>
           </div>
         </div>
