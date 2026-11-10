@@ -155,9 +155,9 @@ export default function Jobs() {
         <section className="border-b bg-card">
           <div className="container max-w-7xl py-8">
             <div className="max-w-3xl">
-              <p className="mb-2 text-sm font-semibold text-primary">Echte vacatures, direct bij werkgevers</p>
+              <p className="mb-2 text-sm font-semibold text-primary">Vacatures en freelance opdrachten in Nederland</p>
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Vind werk dat bij je past</h1>
-              <p className="mt-3 text-muted-foreground">Zoek in geverifieerde, openstaande vacatures in Nederland. Zonder vacatures van aggregators of verlopen pagina’s.</p>
+              <p className="mt-3 text-muted-foreground">Vind openstaande vacatures bij werkgevers en opdrachten via geselecteerde inhuurplatforms. Bij elke opdracht zie je de bron en of ZZP is toegestaan.</p>
             </div>
             <form onSubmit={submitSearch} className="mt-6 grid gap-3 rounded-2xl border bg-background p-3 shadow-sm md:grid-cols-[1fr_0.65fr_0.34fr_auto]">
               <div className="relative">
