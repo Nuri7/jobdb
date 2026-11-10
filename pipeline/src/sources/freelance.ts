@@ -62,7 +62,8 @@ export function parseStriive(row: Row): CanonicalJob | null {
 export function parseOverheid(row: Row): CanonicalJob | null {
   if (!text(row.tender_name) || !text(row.tender_url) || row.tender_status !== 'open') return null;
   const contract = text(row.contract_type).toLowerCase();
-  const structured = /(?:geen|niet)\s+(?:zzp|freelance)/.test(contract) ? false : /zzp|freelance/.test(contract) ? true : /detachering|loondienst/.test(contract) ? false : null;
+  // This provider labels its "Freelance/zzp" facet `temporary`; this is NOT a generic temporary-contract inference.
+  const structured = /(?:geen|niet)\s+(?:zzp|freelance)/.test(contract) ? false : contract === 'temporary' || /zzp|freelance/.test(contract) ? true : /detachering|loondienst/.test(contract) ? false : null;
   const loc = (row.location || row.vacancies_location || {}) as Row;
   const description = htmlToText([row.tender_overview, row.tender_description_html, row.tender_requirements, row.tender_other_information].map(text).join('\n'));
   let url: URL;

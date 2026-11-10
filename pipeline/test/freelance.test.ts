@@ -31,6 +31,8 @@ describe('assignment extraction', () => {
     const job = parseOverheid({ tender_name: 'QA Engineer', tender_status: 'open', tender_url: 'https://www.flextender.nl/opdracht/?aanvraagnr=123&resultatenlijst=tracking', contract_type: 'detachering', tender_description_html: '<p>Werk in een team met freelancers.</p>', tender_buying_organization: 'Gemeente Amsterdam', location: { city: 'Amsterdam' }, tender_maximum_tariff: 100 });
     expect(job).toMatchObject({ freelance_eligible: false, job_url: 'https://www.flextender.nl/opdracht?aanvraagnr=123', location: 'Amsterdam', salary_max: 100 });
     expect(parseOverheid({ tender_status: 'closed', tender_name: 'PO', tender_url: 'https://example.nl/job' })).toBeNull();
+    expect(parseOverheid({ tender_name: 'Product Owner', tender_status: 'open', tender_url: 'https://example.nl/job', contract_type: 'temporary' })?.freelance_eligible).toBe(true);
+    expect(freelanceEligibility('Temporary Product Owner contract')).toBeNull();
   });
   it('parses public Flextender detail fields without treating the site-wide page publication date as the job date', () => {
     const html = `<div class="css-jobtitle">Product Owner</div><div class="css-customer">Gemeente Amsterdam</div>

@@ -181,8 +181,8 @@ export default function Jobs() {
         </section>
 
         <div className="container max-w-7xl py-8">
-          <div className="grid gap-6 lg:grid-cols-[250px_1fr]">
-            <aside className="h-fit rounded-2xl border bg-card p-5 lg:sticky lg:top-5">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+            <aside className="min-w-0 h-fit rounded-2xl border bg-card p-5 lg:sticky lg:top-5">
               <h2 className="flex items-center gap-2 font-semibold"><SlidersHorizontal className="h-4 w-4" />Filters</h2>
               <div className="mt-5 space-y-5">
                 <div><Label>Geplaatst</Label><Select value={searchParams.get("dagen") || "30"} onValueChange={(v) => setFilter("dagen", v)}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="0">Alle datums</SelectItem><SelectItem value="1">Vandaag</SelectItem><SelectItem value="7">Afgelopen week</SelectItem><SelectItem value="30">Afgelopen maand</SelectItem></SelectContent></Select></div>
@@ -194,7 +194,7 @@ export default function Jobs() {
               </div>
             </aside>
 
-            <section>
+            <section className="min-w-0">
               <div className="mb-5 flex items-end justify-between gap-4">
                 <div><h2 className="text-xl font-semibold">{jobsQuery.isLoading ? "Vacatures laden…" : `${totalLabel} vacatures`}</h2><p className="text-sm text-muted-foreground">Alleen geverifieerde vacatures in Nederland</p>{jobsQuery.data?.meta.expanded_recency && <p className="mt-1 text-sm font-medium text-primary">We tonen ook oudere, nog openstaande vacatures omdat er weinig recente matches waren.</p>}</div>
                 {user && <Button variant="ghost" asChild><Link to="/bewaard">Mijn bewaarde vacatures</Link></Button>}
