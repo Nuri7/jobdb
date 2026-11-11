@@ -132,6 +132,13 @@ export function jobPostingsFromHtml(html: string, pageUrl: string): CanonicalJob
           job_title: title,
           description,
           location: locationOf(posting),
+          country_code: (() => {
+            const countries = asArray(posting.jobLocation).map(place => {
+              const value = place?.address?.addressCountry;
+              return typeof value === 'object' ? value?.name : value;
+            }).filter((value): value is string => Boolean(value));
+            return countries.find(value => /^(NL|NLD|Netherlands|The Netherlands|Nederland)$/i.test(value)) || countries[0];
+          })(),
           employment_type: normalizeEmployment(asArray(posting.employmentType)[0]),
           salary_range: salaryOf(posting),
           posted_date: posting.datePosted,

@@ -23,6 +23,7 @@ async function fetchRecentJobs() {
   const jobs = [];
   for (let offset = 0; offset < MAX_JOBS; offset += PAGE_SIZE) {
     const response = await fetch(`${API}?limit=${PAGE_SIZE}&offset=${offset}&include_description=true`, {
+      signal: AbortSignal.timeout(20000),
       headers: { accept: "application/json", "x-internal": "true" },
     });
     if (!response.ok) throw new Error(`FairJobs API returned ${response.status}`);
@@ -49,21 +50,23 @@ for (const job of jobs) {
   const canonical = `${SITE}/vacatures/${slug}`;
   const company = job.company?.name || "werkgever";
   const title = `${job.title} bij ${company} | FairJobs`;
-  const summary = plainText(job.description).slice(0, 155) || `${job.title} bij ${company} in ${job.location || "Nederland"}.`;
-  const structuredData = JSON.stringify({
+  const summary = plainText(job.description).slice(0, 155) || `${job.title} bij ${company} in ${job.location || "Locatie niet vermeld"}.`;
+  const structuredData = job.description && job.posted_date && (job.country_code || job.province) ? JSON.stringify({
     "@context": "https://schema.org", "@type": "JobPosting", title: job.title,
     description: plainText(job.description) || `${job.title} bij ${company}`,
-    datePosted: job.first_seen_at || job.posted_date || job.scraped_at,
+    datePosted: job.posted_date || undefined,
     validThrough: job.closing_date || undefined, employmentType: job.employment_type || undefined,
     hiringOrganization: { "@type": "Organization", name: company, sameAs: job.company?.career_url || undefined },
     jobLocationType: job.is_remote ? "TELECOMMUTE" : undefined,
-    jobLocation: job.location ? { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: job.city || job.location, addressCountry: "NL" } } : undefined,
-    url: canonical, directApply: Boolean(job.easy_apply),
-  });
-  const content = `<main style="max-width:800px;margin:48px auto;padding:0 20px;font-family:system-ui,sans-serif"><p><a href="/vacatures">← Alle vacatures</a></p><h1>${escapeHtml(job.title)}</h1><p><strong>${escapeHtml(company)}</strong> · ${escapeHtml(job.location || "Nederland")}</p><p>${escapeHtml(plainText(job.description).slice(0, 1200))}</p><p><a href="${escapeHtml(job.url)}">Bekijk bij werkgever</a> · <a href="https://fairapply.app/job/${job.id}?source=fairjobs">Solliciteer met FairApply</a></p></main>`;
+    jobLocation: job.location ? { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: job.city || job.location, addressCountry: job.country_code || (job.province ? "NL" : undefined) } } : undefined,
+    url: canonical, directApply: false,
+  }) : null;
+  const schemaScript = structuredData ? `<script type="application/ld+json">${structuredData.replaceAll("<", "\\u003c")}</script>` : "";
+  const content = `<main style="max-width:800px;margin:48px auto;padding:0 20px;font-family:system-ui,sans-serif"><p><a href="/vacatures">← Alle vacatures</a></p><h1>${escapeHtml(job.title)}</h1><p><strong>${escapeHtml(company)}</strong> · ${escapeHtml(job.location || "Locatie niet vermeld")}</p><p>${escapeHtml(plainText(job.description))}</p><p><a href="${escapeHtml(job.url)}">Bekijk bij werkgever</a> · <a href="https://fairapply.app/job/${job.id}?source=fairjobs">Voorbereiden met FairApply</a></p></main>`;
   const html = baseTemplate
+    .replace(/<meta\s+(?:name="description"|property="og:(?:title|description|url)")[^>]*>/g, '')
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`)
-    .replace("</head>", `<meta name="description" content="${escapeHtml(summary)}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(summary)}"><meta property="og:url" content="${canonical}"><script type="application/ld+json">${structuredData.replaceAll("<", "\\u003c")}</script></head>`)
+    .replace("</head>", `<meta name="description" content="${escapeHtml(summary)}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(summary)}"><meta property="og:url" content="${canonical}">${schemaScript}</head>`)
     .replace('<div id="root"></div>', `<div id="root">${content}</div>`);
   const target = join(OUTPUT, "vacatures");
   await mkdir(target, { recursive: true });

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { AUTH_RETURN, safeDestination } from "@/lib/discoveryState";
 import { toast } from "sonner";
 
 export default function Auth() {
@@ -17,7 +18,8 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const state = location.state as { from?: string; adminRequired?: boolean } | null;
-  const destination = state?.from || "/bewaard";
+  const destination = safeDestination(state?.from || sessionStorage.getItem(AUTH_RETURN));
+  if (state?.from) sessionStorage.setItem(AUTH_RETURN, safeDestination(state.from));
 
   if (!loading && user) return <Navigate to={destination} replace />;
 

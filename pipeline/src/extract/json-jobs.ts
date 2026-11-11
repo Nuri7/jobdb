@@ -6,11 +6,12 @@ const FIELD_RE = {
   title: /^(jobtitle|job_title|title|name|vacancytitle|vacancy_title|functietitel|functie|positiontitle|position|rol|role)$/i,
   url: /^(url|joburl|job_url|link|permalink|href|applyurl|apply_url|detailurl|detail_url|vacancyurl|weburl|posturl|jobposturl|canonicalurl|slug)$/i,
   location: /^(location|locations|city|plaats|standplaats|region|regio|place|worklocation|locatie|vestiging|office)$/i,
+  country: /^(country|countrycode|country_code|land)$/i,
   salary: /(salary|salaris|compensation|wage)/i,
   description: /^(description|intro|introduction|jobintroduction|body|content|omschrijving|samenvatting|summary|excerpt|jobdescription)$/i,
   employment: /(employmenttype|employment_type|contracttype|dienstverband|workinghours|working_hours|hours|uren|jobtype|type)$/i,
   department: /^(department|discipline|disciplines|jobdisciplines|vakgebied|category|categorie|team|afdeling|businessline|sector)$/i,
-  date: /(dateposted|date_posted|publisheddate|publicationdate|created|createdat|posteddate|startdate)/i,
+  date: /(dateposted|date_posted|publisheddate|publicationdate|created|createdat|posteddate)/i,
 };
 
 /** Pull a display string out of a scalar, {Label|name|value|title}, or array-of-those. */
@@ -88,6 +89,7 @@ export function mapJsonJobs(arr: Record<string, unknown>[], baseUrl?: string): C
         job_url: url,
         job_title: title,
         location: toStr(pick(o, FIELD_RE.location)),
+        country_code: toStr(pick(o, FIELD_RE.country)),
         salary_range: toStr(pick(o, FIELD_RE.salary)),
         employment_type: toStr(pick(o, FIELD_RE.employment)),
         department: toStr(pick(o, FIELD_RE.department)),

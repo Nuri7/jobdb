@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { AUTH_RETURN, safeDestination } from "@/lib/discoveryState";
 import { supabase } from "@/integrations/supabase/client";
 
 type AuthContextValue = {
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/bewaard` },
+        options: { emailRedirectTo: `${window.location.origin}${safeDestination(sessionStorage.getItem(AUTH_RETURN))}` },
       });
       return { error: error as Error | null };
     },

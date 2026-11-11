@@ -55,3 +55,13 @@ describe('hasJobPostingLd', () => {
     expect(hasJobPostingLd('<html>no ld here</html>')).toBe(false);
   });
 });
+
+it('preserves explicit country evidence even when a remote posting has no city', () => {
+  const html = `<script type="application/ld+json">{"@type":"JobPosting","title":"Remote Data Engineer","description":"A remote engineering role","jobLocationType":"TELECOMMUTE","jobLocation":{"address":{"addressCountry":"IN"}}}</script>`;
+  expect(jobPostingsFromHtml(html, 'https://example.com/job/data')[0]?.country_code).toBe('IN');
+});
+
+it('keeps a posting offered in the Netherlands and another country', () => {
+  const html = `<script type="application/ld+json">{"@type":"JobPosting","title":"Data Engineer","jobLocation":[{"address":{"addressCountry":"DE"}},{"address":{"addressCountry":"NL"}}]}</script>`;
+  expect(jobPostingsFromHtml(html, 'https://example.com/job/data')[0]?.country_code).toBe('NL');
+});

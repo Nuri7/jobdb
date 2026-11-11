@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { CanonicalJob } from '../types.js';
 import { normalizeCity, provinceOf } from './nl-geo.js';
 import { freelanceEligibility } from './freelance.js';
+import { decodeHTML } from 'entities';
 
 const TRACKING_PARAMS = new Set([
   'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
@@ -38,7 +39,7 @@ export function canonicalizeUrl(raw: string, base?: string): string | null {
 
 /** Strip HTML tags to readable text (good enough for descriptions from ATS APIs). */
 export function htmlToText(html: string): string {
-  return html
+  return decodeHTML(html
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|h[1-6]|tr|section|article)>/gi, '\n')
@@ -54,7 +55,7 @@ export function htmlToText(html: string): string {
     .replace(/&eacute;/gi, 'é')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
-    .trim();
+    .trim());
 }
 
 // A landing/info page, not a vacancy. Exact-match set + a few reliable prefixes.
@@ -200,7 +201,7 @@ export function finalizeJob(
   if (!url) return null;
   // Global guard (all tiers): blog/news/press/video URLs are not vacancies.
   if (isJunkUrl(url)) return null;
-  const title = partial.job_title.replace(/\s+/g, ' ').trim().slice(0, 200);
+  const title = decodeHTML(partial.job_title).replace(/\s+/g, ' ').trim().slice(0, 200);
   if (title.length < 2) return null;
   // Global guard (all tiers): landing/info/test/placeholder titles are not vacancies.
   if (isJunkTitle(title)) return null;
@@ -230,6 +231,7 @@ export function finalizeJob(
     job_url: url,
     job_title: title,
     location: locationStr,
+    country_code: partial.country_code?.trim().toUpperCase() || undefined,
     city: city ?? undefined,
     province: provinceOf(locationStr, city) ?? undefined,
     employment_type: asStr(partial.employment_type)?.trim().slice(0, 80) || undefined,

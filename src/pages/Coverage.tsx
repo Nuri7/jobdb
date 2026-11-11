@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertTriangle, Building2, Database, RefreshCw, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import Header from "@/components/Header";
+import { DiscoveryMetrics } from "@/components/DiscoveryMetrics";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ export default function Coverage() {
           </div>
         </div>
 
+        <DiscoveryMetrics />
         {query.isError && (
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />

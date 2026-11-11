@@ -36,6 +36,8 @@ export type PublicJob = {
   closing_date: string | null;
   first_seen_at: string | null;
   scraped_at: string;
+  last_seen_at?: string | null;
+  country_code?: string | null;
   easy_apply: boolean;
   ats: string | null;
   company_logo?: string | null;
@@ -64,6 +66,13 @@ export type JobFilters = {
   limit?: number;
   includeDescription?: boolean;
   includeFacets?: boolean;
+  mode?: "employment" | "freelance";
+  sort?: string;
+  payMin?: number;
+  hoursMin?: number;
+  hoursMax?: number;
+  startBefore?: string;
+  closingWithin?: number;
 };
 
 export type JobFacets = {
@@ -114,6 +123,9 @@ export function jobFiltersToParams(filters: JobFilters) {
   if (filters.companyId) params.set("company_id", filters.companyId);
   if (filters.includeDescription) params.set("include_description", "true");
   if (filters.includeFacets) params.set("include_facets", "true");
+  for (const [key, value] of Object.entries({ mode: filters.mode, sort: filters.sort, pay_min: filters.payMin, hours_min: filters.hoursMin, hours_max: filters.hoursMax, start_before: filters.startBefore, closing_within: filters.closingWithin })) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
   const limit = filters.limit ?? 24;
   const page = Math.max(1, filters.page ?? 1);
   params.set("limit", String(limit));

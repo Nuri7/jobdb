@@ -52,6 +52,7 @@ export interface CanonicalJob {
   job_url: string;
   job_title: string;
   location?: string;
+  country_code?: string;
   employment_type?: string;
   freelance_eligible?: boolean | null;
   freelance_details?: FreelanceDetails;

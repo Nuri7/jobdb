@@ -344,6 +344,7 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
       job_title: j.job_title,
       job_url: j.job_url,
       location: j.location ?? null,
+      country_code: j.country_code ?? null,
       city: j.city ?? null,
       province: j.province ?? null,
       employment_type: j.employment_type ?? null,

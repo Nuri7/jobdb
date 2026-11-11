@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { discoveryOptions } from '../_shared/discovery.ts';
+
+const eventWindows = new Map<string, { count: number; until: number }>();
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -161,6 +164,26 @@ Deno.serve(async (req) => {
     // Handle both /api/jobs and /functions/v1/api/jobs formats
     const path = fullPath.replace(/^\/functions\/v1\/api/, '').replace(/^\/api/, '') || '/';
     const params = url.searchParams;
+
+    if (path === '/events' && req.method === 'POST') {
+      const origin = req.headers.get('origin');
+      if (origin && !['https://fairjobs.app', 'https://www.fairjobs.app'].includes(origin) && !/^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+        return new Response('{}', { status: 403, headers: corsHeaders });
+      }
+      const eventIp = req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown';
+      const now = Date.now();
+      if (eventWindows.size > 5000) for (const [key, value] of eventWindows) if (value.until < now) eventWindows.delete(key);
+      const window = eventWindows.get(eventIp);
+      if (window && window.until > now && window.count >= 60) return new Response('{}', { status: 429, headers: corsHeaders });
+      eventWindows.set(eventIp, window && window.until > now ? { ...window, count: window.count + 1 } : { count: 1, until: now + 60000 });
+      const raw = await req.text();
+      if (raw.length > 256) return new Response('{}', { status: 413, headers: corsHeaders });
+      let body;
+      try { body = JSON.parse(raw); } catch { return new Response('{}', { status: 400, headers: corsHeaders }); }
+      if (!body || !['search', 'job_open', 'job_saved', 'search_saved', 'fairapply_open', 'source_open'].includes(body.event_type) || (body.job_id && !/^[0-9a-f-]{36}$/i.test(body.job_id))) return new Response('{}', { status: 400, headers: corsHeaders });
+      const { error } = await supabase.from('job_product_events').insert({ event_type: body.event_type, job_id: body.job_id || null });
+      return new Response(null, { status: error ? 503 : 204, headers: corsHeaders });
+    }
     
     console.log('Request path:', path);
 
@@ -279,6 +302,12 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (req.method === 'GET' && path === '/funnel') {
+      if (!isAdmin) return new Response(JSON.stringify({ error: 'Admin access required' }), { status: 403, headers: corsHeaders });
+      const { data, error } = await supabase.rpc('fairjobs_funnel_stats');
+      return new Response(JSON.stringify(error ? { error: 'Metrics unavailable' } : { data }), { status: error ? 500 : 200, headers: { ...corsHeaders, 'Cache-Control': 'private, no-store' } });
+    }
+
     // Exact, internal pipeline metrics. This deliberately requires an admin session even though
     // public job reads do not: failure details and discovery state are operational information.
     if (req.method === 'GET' && (path === '/coverage' || path === '/coverage/')) {
@@ -340,7 +369,7 @@ Deno.serve(async (req) => {
           id, job_title, job_url, location, city, province, employment_type, employment_type_normalized, department, freelance_eligible, freelance_details,
           salary_range, salary_min, salary_max, salary_currency, salary_period,
           description, requirements, is_remote, workplace_type, is_internship, experience_level, experience_level_normalized,
-          posted_date, closing_date, first_seen_at, status, scraped_at,
+          posted_date, closing_date, first_seen_at, status, scraped_at, last_seen_at, country_code,
           company_career_sites!inner(id, company_name, industry, career_url, source_type)
         `)
         .eq('id', jobDetailMatch[1])
@@ -391,6 +420,8 @@ Deno.serve(async (req) => {
         closing_date: job.closing_date,
         first_seen_at: job.first_seen_at,
         scraped_at: job.scraped_at,
+        last_seen_at: job.last_seen_at,
+        country_code: job.country_code,
         easy_apply: isAts,
         ats: isAts ? company.source_type!.slice(4) : null,
         company: {
@@ -442,6 +473,7 @@ Deno.serve(async (req) => {
       const hasSalary = (params.get('has_salary') || '').toLowerCase() === 'true';
       const easyApply = (params.get('easy_apply') || '').toLowerCase() === 'true';
       const includeDescription = (params.get('include_description') || '').toLowerCase() === 'true';
+      const discovery = discoveryOptions(params);
 
       // Build search terms per phrase: keep the user's own phrases first, then add a tightly
       // bounded set of curated synonyms / AI terms for the global ranking RPC.
@@ -565,7 +597,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const employmentTypes = canonicalList(jobType, ['fulltime', 'parttime', 'contract', 'freelance', 'internship', 'other']);
+      const employmentTypes = canonicalList(discovery.mode === 'freelance' ? 'freelance' : jobType, ['fulltime', 'parttime', 'contract', 'freelance', 'internship', 'other']);
       const experienceLevels = canonicalList(experienceLevel, ['junior', 'medior', 'senior', 'unknown']);
       const workplace = canonicalList(params.get('workplace_type'), ['remote', 'hybrid', 'onsite', 'unknown'])
         ?? (remote === 'true' ? ['remote', 'hybrid'] : null);
@@ -606,7 +638,10 @@ Deno.serve(async (req) => {
       const isUnfilteredBrowse = isPublicBrowse && !resolvedLocation && !radiusCities && !companySiteIds && !validCompanyId &&
         !employmentTypes && !experienceLevels && !workplace && internship !== 'true' && !hasSalary && !easyApply;
       const jobsRpc = isPublicBrowse ? 'fairjobs_browse_jobs' : 'fairjobs_search_jobs';
-      const runJobsQuery = (since: string | null) => isUnfilteredBrowse
+      const useDiscovery = ['mode', 'sort', 'pay_min', 'hours_min', 'hours_max', 'start_before', 'closing_within', 'new_since'].some(key => key in discovery);
+      const runJobsQuery = (since: string | null) => useDiscovery
+        ? supabase.rpc('fairjobs_discover_jobs', { ...rpcArgs(since, limit, offset), p_discovery: discovery })
+        : isUnfilteredBrowse
         ? supabase.rpc('fairjobs_browse_latest', { p_limit: limit, p_offset: offset, p_posted_since: since })
         : supabase.rpc(jobsRpc, rpcArgs(since, limit, offset));
       let { data: matches, error } = await runJobsQuery(effectiveSince);
@@ -664,6 +699,8 @@ Deno.serve(async (req) => {
           first_seen_at,
           status,
           scraped_at,
+          last_seen_at,
+          country_code,
           company_career_sites!inner (
             id,
             company_name,
@@ -751,6 +788,8 @@ Deno.serve(async (req) => {
           easy_apply: isAts,
           ats: isAts ? sourceType!.slice(4) : null,
           scraped_at: job.scraped_at,
+          last_seen_at: job.last_seen_at,
+          country_code: job.country_code,
           company_logo: job.freelance_details ? null : getCompanyLogoUrl(company?.career_url),
           company: {
             id: company?.id,

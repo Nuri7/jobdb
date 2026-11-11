@@ -1,3 +1,4 @@
+import { enrichCommand } from './enrich.js';
 import { parseArgs } from 'node:util';
 import { harvestableAts, harvestCommand } from './harvest/index.js';
 import { probeCommand } from './probe.js';
@@ -17,6 +18,7 @@ Usage:
   tsx src/cli.ts discover-domains [--limit 500] [--dry-run]
   tsx src/cli.ts snapshot [--dry-run]
   tsx src/cli.ts stats    [--format text|md|json]
+  tsx src/cli.ts enrich [--limit 30] [--dry-run]
   tsx src/cli.ts probe <url> [name]      (DB-less: resolve + fetch one company, write nothing)
 
 resolve  Verify career pages + fingerprint job sources (writes company rows only)
@@ -74,6 +76,9 @@ async function main(): Promise<void> {
   }
 
   switch (command) {
+    case 'enrich':
+      await enrichCommand(limit ?? 30, values['dry-run']);
+      break;
     case 'resolve': {
       const mode = values.all || values.force ? 'all' : values.stale ? 'stale' : values['only-broken'] ? 'broken' : 'unverified';
       await resolveCommand({

@@ -80,6 +80,13 @@ jobs:
           --budget-min "${{ inputs.budget_min || '75' }}"
           ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
 
+      - name: Fill missing vacancy descriptions from source markup
+        if: matrix.lane == 'fast'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx src/cli.ts enrich --limit 30
+
       - name: Stats summary
         if: always()
         env:

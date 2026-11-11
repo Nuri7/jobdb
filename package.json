@@ -9,7 +9,7 @@
     "postbuild": "node scripts/generate-job-pages.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview"

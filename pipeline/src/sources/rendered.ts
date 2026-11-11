@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dedupeJobs, finalizeJob } from '../extract/normalize.js';
+import { canonicalizeUrl, dedupeJobs, finalizeJob } from '../extract/normalize.js';
 import { jobsFromApiBodies } from '../extract/json-jobs.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import { extractJobLinks, jobsViaDetailPages, locationFromDetailHtml } from './shared.js';
@@ -227,7 +227,7 @@ async function llmJobsFromListing(
  * JSON-LD address first, then heuristics. Capped to stay within the per-company budget.
  */
 async function enrichLocations(jobs: CanonicalJob[], ctx: Ctx): Promise<CanonicalJob[]> {
-  const need = jobs.filter((j) => !j.location && /^https?:\/\//.test(j.job_url) && !j.job_url.includes('#'));
+  const need = jobs.filter((j) => (!j.location || !j.description) && /^https?:\/\//.test(j.job_url) && !j.job_url.includes('#'));
   if (need.length === 0) return jobs;
   const byUrl = new Map(jobs.map((j) => [j.job_url, j]));
   let filled = 0;
@@ -235,9 +235,14 @@ async function enrichLocations(jobs: CanonicalJob[], ctx: Ctx): Promise<Canonica
     if (!(await ctx.robotsAllowed(j.job_url))) continue;
     const res = await ctx.fetchText(j.job_url, { kind: 'html', retries: 0, timeoutMs: 10_000 }).catch(() => null);
     if (!res || res.status !== 200) continue;
-    const loc = locationFromDetailHtml(res.text, res.finalUrl);
-    if (!loc) continue;
-    const upgraded = finalizeJob({ ...j, location: loc }, j.job_url);
+    const postings = jobPostingsFromHtml(res.text, res.finalUrl);
+    const detail = postings.find(detail => canonicalizeUrl(detail.job_url) === canonicalizeUrl(j.job_url))
+      || (postings.length === 1 && postings[0]?.job_title === j.job_title ? postings[0] : undefined);
+    const loc = j.location || detail?.location || locationFromDetailHtml(res.text, res.finalUrl);
+    if (!loc && !detail?.description && !detail?.country_code) continue;
+    const upgraded = finalizeJob({ ...j, location: loc, country_code: detail?.country_code || j.country_code,
+      description: j.description || detail?.description, posted_date: j.posted_date || detail?.posted_date,
+      salary_range: j.salary_range || detail?.salary_range }, j.job_url);
     if (upgraded) {
       byUrl.set(j.job_url, upgraded);
       filled++;
