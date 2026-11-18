@@ -77,6 +77,10 @@ describe('discovery cache resilience', () => {
 describe('factual enrichment', () => {
   const row = {id: 'id', job_url: 'https://example.org/jobs/qa', job_title: 'QA Engineer', description: null, location: null, country_code: null};
   const detail = finalizeJob({job_url: row.job_url, job_title: row.job_title, description: 'Real source description. '.repeat(12), location: 'Amsterdam', country_code: 'NL', verified: true})!;
+  it('keeps source placeholder countries unknown', () => {
+    expect(finalizeJob({...detail,country_code:'XX'})?.country_code).toBeUndefined();
+    expect(finalizeJob({...detail,country_code:'US'})?.country_code).toBe('US');
+  });
   it('requires the same vacancy and preserves existing facts', () => {
     expect(enrichmentPatch(row, {...detail, job_url: 'https://example.org/other'})).toEqual({});
     expect(enrichmentPatch(row, {...detail, job_title: 'Marketing Manager'})).toEqual({});

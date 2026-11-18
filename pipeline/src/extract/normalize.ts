@@ -230,11 +230,12 @@ export function finalizeJob(
   const city = normalizeCity(locationStr);
   const salaryRange = asStr(partial.salary_range)?.trim().slice(0, 100) || undefined;
   const salary = parseSalaryRange(salaryRange);
+  const country = asStr(partial.country_code)?.trim().toUpperCase();
   const draft: Omit<CanonicalJob, 'content_hash'> = {
     job_url: url,
     job_title: title,
     location: locationStr,
-    country_code: asStr(partial.country_code)?.trim().toUpperCase() || undefined,
+    country_code: country && !['XX','UNKNOWN','N/A','UNSPECIFIED'].includes(country) ? country : undefined,
     city: city ?? undefined,
     province: provinceOf(locationStr, city) ?? undefined,
     employment_type: asStr(partial.employment_type)?.trim().slice(0, 80) || undefined,
