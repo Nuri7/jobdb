@@ -73,6 +73,13 @@ Supabase project; do not reset the project or prune functions belonging to FairA
 
 ## Candidate discovery and alerts
 
+Public discovery uses a covering index for its lightweight filter/count/ranking fields.
+Location, recency and other selective filters are applied before full-text/company
+candidates are materialized, so local searches do not load matches across the entire
+country first. Exact totals, ranking, deadlines and existing access controls are preserved.
+Create the covering index concurrently in production before applying the function changes
+to keep crawler writes available.
+
 The public search has employment and freelance modes. `mode`, `sort`, `pay_min`, `hours_min`, `hours_max`, `start_before`, and `closing_within` are validated by the Edge API and passed to the service-only `fairjobs_discover_jobs` RPC. Salary comparisons use the requested period (EUR/month for employment, EUR/hour for assignments). An upper budget is not presented as a guaranteed offer. Recency filters refer to discovery; cards distinguish source publication dates from first discovery.
 
 Country evidence comes from structured source fields and known country-bearing employer URLs. Explicit foreign jobs are retained internally and excluded publicly. Missing locations stay unknown. `npx tsx src/cli.ts enrich --limit 30` (from `pipeline/`) progressively repairs missing descriptions from matching employer JSON-LD without model calls; `detail_checked_at` rotates attempts. The existing twice-daily fast refresh runs this repair.
