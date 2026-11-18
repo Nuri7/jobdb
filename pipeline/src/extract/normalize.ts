@@ -39,6 +39,7 @@ export function canonicalizeUrl(raw: string, base?: string): string | null {
 
 /** Strip HTML tags to readable text (good enough for descriptions from ATS APIs). */
 export function htmlToText(html: string): string {
+  if (typeof html !== 'string') return '';
   return decodeHTML(html
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
@@ -132,7 +133,7 @@ export function isCategoryTitle(title: string): boolean {
 export const MAX_DESCRIPTION_CHARS = 8_000;
 
 export function capDescription(text: string | undefined): string | undefined {
-  if (!text) return undefined;
+  if (typeof text !== 'string' || !text) return undefined;
   const t = text.trim();
   if (!t) return undefined;
   return t.length > MAX_DESCRIPTION_CHARS ? `${t.slice(0, MAX_DESCRIPTION_CHARS)}…` : t;
@@ -145,6 +146,7 @@ export function contentHash(
   const basis = [
     job.job_title,
     job.location ?? '',
+    job.country_code ?? '',
     ...(job.freelance_eligible != null || job.freelance_details ? [JSON.stringify([job.freelance_eligible, job.freelance_details, job.salary_range, job.salary_min, job.salary_max, job.salary_period])] : []),
     job.employment_type ?? '',
     job.closing_date ?? '',
@@ -199,6 +201,7 @@ export function finalizeJob(
 ): CanonicalJob | null {
   const url = canonicalizeUrl(partial.job_url, baseUrl);
   if (!url) return null;
+  if (typeof partial.job_title !== 'string') return null;
   // Global guard (all tiers): blog/news/press/video URLs are not vacancies.
   if (isJunkUrl(url)) return null;
   const title = decodeHTML(partial.job_title).replace(/\s+/g, ' ').trim().slice(0, 200);
@@ -231,7 +234,7 @@ export function finalizeJob(
     job_url: url,
     job_title: title,
     location: locationStr,
-    country_code: partial.country_code?.trim().toUpperCase() || undefined,
+    country_code: asStr(partial.country_code)?.trim().toUpperCase() || undefined,
     city: city ?? undefined,
     province: provinceOf(locationStr, city) ?? undefined,
     employment_type: asStr(partial.employment_type)?.trim().slice(0, 80) || undefined,

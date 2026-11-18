@@ -38,15 +38,15 @@ async function withHostSlot<T>(host: string, spacing: number, fn: () => Promise<
 }
 
 /** Polite fetch: per-host serialization + spacing. */
-export async function politeFetchText(url: string, opts: FetchTextOpts = {}): Promise<FetchResult> {
+export async function politeFetchText(url: string, opts: FetchTextOpts = {}, fetcher = fetchTextRaw): Promise<FetchResult> {
   let host: string;
   try {
     host = new URL(url).host;
   } catch {
     throw new Error(`Invalid URL: ${url}`);
   }
-  const spacing = HOST_SPACING[opts.kind ?? 'html'];
-  return withHostSlot(host, spacing, () => fetchTextRaw(url, opts));
+  const spacing = /\.myworkdayjobs\.com$/i.test(host) ? 1200 : HOST_SPACING[opts.kind ?? 'html'];
+  return withHostSlot(host, spacing, () => fetcher(url, opts));
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ function parseRobots(text: string): string[] {
   return disallow;
 }
 
-export function createRobotsChecker(respect: boolean) {
+export function createRobotsChecker(respect: boolean, fetcher = politeFetchText) {
   return async function robotsAllowed(url: string): Promise<boolean> {
     if (!respect) return true;
     let u: URL;
@@ -86,7 +86,7 @@ export function createRobotsChecker(respect: boolean) {
     const origin = u.origin;
     if (!robotsCache.has(origin)) {
       try {
-        const res = await politeFetchText(`${origin}/robots.txt`, { kind: 'api', retries: 0, timeoutMs: 6000 });
+        const res = await fetcher(`${origin}/robots.txt`, { kind: 'api', retries: 0, timeoutMs: 6000 });
         robotsCache.set(origin, res.status === 200 ? parseRobots(res.text) : null);
       } catch {
         robotsCache.set(origin, null);

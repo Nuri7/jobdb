@@ -54,6 +54,7 @@ function CAREER_HOST(hostname: string): boolean {
 }
 
 async function fetchCandidate(url: string, ctx: Ctx, companyDomain: string): Promise<Candidate | null> {
+  if (!(await ctx.robotsAllowed(url))) return null;
   let res;
   try {
     // No retries here: candidates are speculative guesses; a dead host must fail fast
@@ -117,6 +118,7 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
   }
   if (origin) {
     try {
+      if (!(await ctx.robotsAllowed(origin))) throw new Error('robots policy blocks homepage');
       const home = await ctx.fetchText(origin, { kind: 'html', timeoutMs: 12_000, retries: 1 });
       if (home.status === 200) {
         homepageHtml = home.text;
@@ -213,6 +215,7 @@ export async function resolveCompany(company: CompanyRow, ctx: Ctx, db: Db | nul
         if (jobEntries.length >= 3) {
           // Sitemaps go stale (all-404 job URLs happen in the wild) — verify one before trusting it
           const sample = jobEntries[Math.floor(jobEntries.length / 2)]!;
+          if (!(await ctx.robotsAllowed(sample.loc))) continue;
           const probe = await ctx.fetchText(sample.loc, { kind: 'html', retries: 0, timeoutMs: 10_000 }).catch(() => null);
           if (!probe || probe.status !== 200) {
             evidence.push(`sitemap ${sitemapUrl}: ${jobEntries.length} job urls but sample ${probe?.status ?? 'error'} -> distrust`);

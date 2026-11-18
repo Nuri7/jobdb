@@ -14,6 +14,7 @@ type GeoData = {
   provinces: { province: string; count: number }[];
   total: number;
   located: number;
+  generated_at?: string;
 };
 
 const COORDS: Record<string, [number, number]> = {
@@ -42,14 +43,20 @@ const JobsMap = () => {
   const svgRef = useRef<SVGSVGElement>(null);
   const navigate = useNavigate();
   const [geo, setGeo] = useState<GeoData | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [hover, setHover] = useState<{ city: string; count: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
-    // rpc name isn't in the generated Supabase types yet
-    (supabase as any).rpc("job_geo_counts").then(({ data }: { data: unknown }) =>
-      setGeo(data as GeoData)
-    );
-  }, []);
+    let active = true;
+    setFailed(false);
+    // Aggregate RPC returns a timestamped snapshot refreshed every fifteen minutes.
+    (supabase as any).rpc("job_geo_counts").then(({ data, error }: { data: GeoData | null; error: unknown }) => {
+      if (!active) return;
+      if (error || !data) setFailed(true); else setGeo(data);
+    }).catch(() => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, [attempt]);
 
   useEffect(() => {
     if (!geo || !svgRef.current) return;
@@ -125,7 +132,7 @@ const JobsMap = () => {
           </p>
         </div>
 
-        {!geo ? (
+        {failed ? <p role="alert" className="py-16 text-center">De kaart kon niet worden geladen. <button className="text-primary underline" onClick={() => setAttempt(value => value + 1)}>Opnieuw proberen</button></p> : !geo ? (
           <div className="flex items-center gap-2 text-muted-foreground py-20 justify-center">
             <Loader2 className="w-4 h-4 animate-spin" /> Kaart laden…
           </div>
@@ -148,6 +155,7 @@ const JobsMap = () => {
             </div>
 
             <div className="space-y-4">
+              {geo.generated_at && <p className="text-xs text-muted-foreground">Bijgewerkt {new Date(geo.generated_at).toLocaleString('nl-NL', {timeZone: 'Europe/Amsterdam', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})} · elk kwartier vernieuwd</p>}
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg bg-muted/50 p-3">
                   <div className="text-xs text-muted-foreground">Vacatures met locatie</div>

@@ -62,6 +62,7 @@ export const recruiteeSource: JobSource = {
         job_url: url,
         job_title: offer.title,
         location: offer.location || [offer.city, offer.country].filter(Boolean).join(', ') || undefined,
+        country_code: offer.country,
         department: offer.department || undefined,
         employment_type: offer.employment_type_code?.replace(/_/g, '-') || undefined,
         description: htmlToText([offer.description ?? '', offer.requirements ?? ''].join('\n')),

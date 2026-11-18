@@ -49,6 +49,13 @@ jobs:
 
       - run: npm ci
 
+      - name: Restore public discovery candidate caches
+        uses: actions/cache/restore@v4
+        with:
+          path: pipeline/.cache/fairjobs-discovery
+          key: discovery-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: discovery-v1-${{ runner.os }}-
+
       # Discover + validate + insert new NL-hiring boards. Dedup skips boards already stored,
       # so after the initial backfill each weekly run only handles genuinely new companies.
       # No --ats here on purpose: the CLI defaults to every harvestable platform, so adding a
@@ -58,6 +65,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ''
           COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '20' }}
         run: >
           npx tsx src/cli.ts harvest
@@ -67,9 +75,11 @@ jobs:
           ${{ inputs.dry_run == true && '--dry-run' || '' }}
 
       - name: Discover Dutch employer domains
+        if: always()
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ''
           COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
         run: >
           npx tsx src/cli.ts discover-domains
@@ -77,12 +87,13 @@ jobs:
           ${{ inputs.dry_run == true && '--dry-run' || '' }}
 
       - name: Resolve newly discovered domains
-        if: ${{ inputs.dry_run != true }}
+        if: ${{ always() && inputs.dry_run != true }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ''
           COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
-        run: npx tsx src/cli.ts resolve --limit "${{ inputs.limit || '500' }}"
+        run: npx tsx src/cli.ts resolve --due-only --budget-min 20 --limit "${{ inputs.limit || '500' }}"
 
       # Record the weekly metrics row (companies/jobs added + removed) — runs even if harvest fails.
       - name: Snapshot metrics
@@ -91,6 +102,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx src/cli.ts snapshot | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Save candidates even when an upstream discovery service failed
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: pipeline/.cache/fairjobs-discovery
+          key: discovery-v1-${{ runner.os }}-${{ github.run_id }}
 
       - name: Alert on failure
         if: failure()

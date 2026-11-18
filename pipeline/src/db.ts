@@ -79,6 +79,7 @@ export async function pickResolvable(
   db: Db,
   limit: number,
   mode: 'unverified' | 'broken' | 'stale' | 'all',
+  dueOnly = false,
 ): Promise<CompanyRow[]> {
   const out: CompanyRow[] = [];
   const pageSize = Math.min(1000, limit);
@@ -89,10 +90,11 @@ export async function pickResolvable(
       .eq('is_scrape_enabled', true)
       .order('next_check_at', { ascending: true })
       .range(offset, Math.min(offset + pageSize - 1, limit - 1));
+    if (dueOnly) query = query.lte('next_check_at', new Date().toISOString());
     if (mode === 'unverified') {
-      query = query.eq('career_page_status', 'unverified');
+      query = query.or('career_page_status.eq.unverified,source_type.is.null');
     } else if (mode === 'broken') {
-      query = query.or('career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3');
+      query = query.or('career_page_status.in.(dead,unverified),source_type.is.null,consecutive_failures.gte.3');
     } else if (mode === 'stale') {
       query = query.or(
         'career_page_status.in.(dead,unverified,ambiguous),consecutive_failures.gte.3,and(career_page_status.eq.verified,jobs_found_count.eq.0)',
@@ -299,6 +301,7 @@ export interface ExistingJob {
   content_hash: string | null;
   status: string;
   verified: boolean;
+  country_code?: string | null;
 }
 
 export async function listCompanyJobs(db: Db, companyId: string): Promise<ExistingJob[]> {
@@ -307,7 +310,7 @@ export async function listCompanyJobs(db: Db, companyId: string): Promise<Existi
   for (let offset = 0; ; offset += page) {
     const res = await db
       .from('job_opportunities')
-      .select('id, job_url, content_hash, status, verified')
+      .select('id, job_url, content_hash, status, verified, country_code')
       .eq('company_career_site_id', companyId)
       .range(offset, offset + page - 1);
     const rows = unwrap(res, 'listCompanyJobs') as unknown as ExistingJob[];
@@ -321,6 +324,22 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+/** Retry fixed, idempotent patches in smaller transactions after a database timeout. */
+export async function writeBatches<T>(items: T[], write: (batch: T[]) => PromiseLike<{error: {message: string} | null}>, size = 25): Promise<void> {
+  const run = async (batch: T[]): Promise<void> => {
+    const result = await write(batch);
+    if (!result.error) return;
+    if (/statement timeout|57014/i.test(result.error.message) && batch.length > 1) {
+      const middle = Math.ceil(batch.length / 2);
+      await run(batch.slice(0, middle));
+      await run(batch.slice(middle));
+      return;
+    }
+    throw new Error(result.error.message);
+  };
+  for (const batch of chunk(items, size)) await run(batch);
 }
 
 export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]): Promise<number> {
@@ -373,8 +392,7 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
     let lastErr: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await db.from('job_opportunities').upsert(rows, { onConflict: 'job_url' });
-        if (res.error) throw new Error(res.error.message);
+        await writeBatches(rows, batch => db.from('job_opportunities').upsert(batch, { onConflict: 'job_url' }));
         lastErr = undefined;
         break;
       } catch (err) {
@@ -391,13 +409,10 @@ export async function upsertJobs(db: Db, companyId: string, jobs: CanonicalJob[]
 /** Unchanged jobs: just refresh liveness, don't rewrite content fields. */
 export async function touchJobs(db: Db, ids: string[]): Promise<void> {
   const now = new Date().toISOString();
-  for (const batch of chunk(ids, 200)) {
-    const res = await db
+  await writeBatches(ids, batch => db
       .from('job_opportunities')
       .update({ last_seen_at: now, scraped_at: now, miss_count: 0, status: 'open', closed_at: null })
-      .in('id', batch);
-    if (res.error) throw new Error(`touchJobs: ${res.error.message}`);
-  }
+      .in('id', batch));
 }
 
 export async function incrementMisses(db: Db, ids: string[]): Promise<string[]> {
@@ -413,19 +428,23 @@ export async function incrementMisses(db: Db, ids: string[]): Promise<string[]> 
     const toClose = rows.filter((r) => r.miss_count + 1 >= 2).map((r) => r.id);
     const toBump = rows.filter((r) => r.miss_count + 1 < 2);
     if (toClose.length > 0) {
-      const upd = await db
+      await writeBatches(toClose, batch => db
         .from('job_opportunities')
         .update({ status: 'closed', closed_at: now, miss_count: 2 })
-        .in('id', toClose);
-      if (upd.error) throw new Error(`incrementMisses.close: ${upd.error.message}`);
+        .in('id', batch));
       closed.push(...toClose);
     }
+    // Counts were read once. Retry the same target value, never increment twice on retry.
+    const targets = new Map<number, string[]>();
     for (const row of toBump) {
-      const upd = await db
+      const target = (row.miss_count ?? 0) + 1;
+      targets.set(target, [...(targets.get(target) ?? []), row.id]);
+    }
+    for (const [target, targetIds] of targets) {
+      await writeBatches(targetIds, batch => db
         .from('job_opportunities')
-        .update({ miss_count: row.miss_count + 1 })
-        .eq('id', row.id);
-      if (upd.error) throw new Error(`incrementMisses.bump: ${upd.error.message}`);
+        .update({ miss_count: target })
+        .in('id', batch));
     }
   }
   return closed;

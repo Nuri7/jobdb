@@ -29,6 +29,8 @@ export function isNlLocation(location?: string, countryHint?: string): boolean {
   if (countryHint) {
     const c = countryHint.trim().toLowerCase();
     if (c === 'nl' || c === 'nld' || NL_MARKER_RE.test(c)) return true;
+    // Explicit country evidence takes precedence over a homonymous city (Amsterdam, USA).
+    return false;
   }
   if (!location) return false;
   const city = normalizeCity(location);
@@ -293,8 +295,10 @@ export async function validateGreenhouse(token: string, ctx: Ctx): Promise<Harve
 
 interface AshbyJob {
   title?: string;
+  isListed?: boolean;
   location?: string;
-  secondaryLocations?: Array<{ location?: string }>;
+  address?: {postalAddress?: {addressCountry?: string}};
+  secondaryLocations?: Array<{ location?: string; address?: {addressCountry?: string} }>;
 }
 
 export async function validateAshby(token: string, ctx: Ctx): Promise<HarvestCandidate | null> {
@@ -316,13 +320,14 @@ export async function validateAshby(token: string, ctx: Ctx): Promise<HarvestCan
   } catch {
     return null;
   }
-  const jobs = (data.jobs ?? []).filter((j) => j.title);
+  const jobs = (data.jobs ?? []).filter((j) => j.title && j.isListed !== false);
   if (jobs.length === 0) return null;
 
   let nlJobs = 0;
   for (const j of jobs) {
-    const locs = [j.location, ...(j.secondaryLocations?.map((s) => s.location) ?? [])];
-    if (locs.some((l) => isNlLocation(l ?? undefined))) nlJobs++;
+    const locs = [{location: j.location, country: j.address?.postalAddress?.addressCountry},
+      ...(j.secondaryLocations ?? []).map(s => ({location: s.location, country: s.address?.addressCountry}))];
+    if (locs.some(l => isNlLocation(l.location, l.country))) nlJobs++;
   }
 
   return {

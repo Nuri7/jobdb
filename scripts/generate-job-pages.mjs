@@ -22,11 +22,21 @@ function plainText(markdown = "") {
 async function fetchRecentJobs() {
   const jobs = [];
   for (let offset = 0; offset < MAX_JOBS; offset += PAGE_SIZE) {
-    const response = await fetch(`${API}?limit=${PAGE_SIZE}&offset=${offset}&include_description=true`, {
-      signal: AbortSignal.timeout(20000),
-      headers: { accept: "application/json", "x-internal": "true" },
-    });
-    if (!response.ok) throw new Error(`FairJobs API returned ${response.status}`);
+    let response;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await fetch(`${API}?mode=employment&sort=relevance&posted_within=30&limit=${PAGE_SIZE}&offset=${offset}&include_description=true&auto_expand=false`, {
+          signal: AbortSignal.timeout(20000), headers: { accept: "application/json" },
+        });
+        if (response.ok || response.status < 500 && response.status !== 429) break;
+      } catch (error) { if (attempt === 2 && !jobs.length) throw error; }
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
+    if (!response?.ok) {
+      if (!jobs.length) throw new Error(`FairJobs API returned ${response?.status ?? 'no response'}`);
+      console.warn(`Static generation stopped at ${jobs.length} current vacancies after a source error.`);
+      break; // Keep verified earlier pages; one transient error must not discard the whole sitemap.
+    }
     const payload = await response.json();
     jobs.push(...(payload.data || []));
     if (!payload.meta?.has_more || !payload.data?.length) break;

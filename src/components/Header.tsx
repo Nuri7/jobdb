@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Bookmark, BriefcaseBusiness, LogIn, LogOut, MapPin, Settings } from "lucide-react";
+import { Bookmark, BriefcaseBusiness, Building2, LogIn, LogOut, MapPin, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -27,6 +27,7 @@ const Header = () => {
           <Link to="/kaart" aria-label="Kaart" className={navLinkClass(pathname === "/kaart")}>
             <MapPin className="w-4 h-4" /><span className="hidden sm:inline">Kaart</span>
           </Link>
+          <Link to="/werkgever-toevoegen" aria-label="Werkgever toevoegen" className={navLinkClass(pathname === '/werkgever-toevoegen')}><Building2 className="h-4 w-4" /><span className="hidden lg:inline">Werkgever toevoegen</span></Link>
           {user && <Link to="/bewaard" aria-label="Bewaard" className={navLinkClass(pathname === "/bewaard")}><Bookmark className="w-4 h-4" /><span className="hidden sm:inline">Bewaard</span></Link>}
           {isAdmin && <Link to="/admin" aria-label="Beheer" className={navLinkClass(pathname.startsWith("/admin"))}><Settings className="w-4 h-4" /><span className="hidden sm:inline">Beheer</span></Link>}
           {user ? <Button variant="ghost" size="sm" aria-label="Uitloggen" onClick={signOut}><LogOut className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Uitloggen</span></Button> : <Button variant="outline" size="sm" asChild><Link to="/inloggen" aria-label="Inloggen"><LogIn className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Inloggen</span></Link></Button>}

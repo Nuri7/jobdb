@@ -25,7 +25,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 110
+    timeout-minutes: 130
     strategy:
       fail-fast: false
       matrix:
@@ -70,9 +70,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-haiku-4-5-20251001' }}
+          LLM_API_KEY: '' # Deterministic source extraction only; no paid provider calls
           COMPANY_CONCURRENCY: ${{ matrix.company_concurrency }}
         run: >
           npx tsx src/cli.ts refresh
@@ -85,7 +83,31 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npx tsx src/cli.ts enrich --limit 30
+        run: npx tsx src/cli.ts enrich --limit 1000 --budget-min 12
+
+      - name: Fill missing location and country facts from sources
+        if: matrix.lane == 'fast'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ''
+        run: npx tsx src/cli.ts enrich --metadata --limit 300 --budget-min 5
+
+      - name: Process reviewed employer sources
+        if: matrix.lane == 'fast'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ''
+        run: npx tsx src/cli.ts source-requests --limit 20 --budget-min 12
+
+      - name: Recover due broken and unresolved sources
+        if: matrix.lane == 'rendered'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ''
+        run: npx tsx src/cli.ts recover --limit 150 --budget-min 15
 
       - name: Stats summary
         if: always()

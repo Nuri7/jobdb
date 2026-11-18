@@ -1,5 +1,6 @@
 import { CRAWL_INDEX_USER_AGENT } from '../config.js';
 import type { Ctx } from '../types.js';
+import { cachedDiscovery } from './cache.js';
 
 /** Every index.commoncrawl.org call must identify itself — a browser UA gets 403. */
 const CC_HEADERS = { 'User-Agent': CRAWL_INDEX_USER_AGENT, Accept: 'application/json,*/*;q=0.8' };
@@ -59,16 +60,26 @@ export function tokensFromCcLines(lines: string[], baseDomain: string): string[]
 }
 
 /** Newest `n` monthly Common Crawl index ids (e.g. 'CC-MAIN-2026-25'). */
+let indexRequest: { at: number; promise: Promise<string[]> } | undefined;
 export async function ccLatestIndexes(ctx: Ctx, n: number): Promise<string[]> {
+  if (!indexRequest || Date.now() - indexRequest.at > 300000) {
+    indexRequest = { at: Date.now(), promise: cachedDiscovery('cc-indexes', ctx, () => loadIndexes(ctx)) };
+  }
+  return (await indexRequest.promise).slice(0, n);
+}
+
+async function loadIndexes(ctx: Ctx): Promise<string[]> {
   const res = await ctx.fetchText(`${HOST}/collinfo.json`, {
     kind: 'api',
-    retries: 2,
-    timeoutMs: 30_000,
+    retries: 1,
+    timeoutMs: 15_000,
     headers: CC_HEADERS,
   });
   if (res.status !== 200) throw new Error(`Common Crawl collinfo HTTP ${res.status}`);
   const arr = JSON.parse(res.text) as Array<{ id?: string }>;
-  return arr.map((c) => c.id).filter((x): x is string => Boolean(x)).slice(0, n);
+  const ids = arr.map((c) => c.id).filter((x): x is string => typeof x === 'string' && /^CC-MAIN-\d{4}-\d+$/.test(x));
+  if (!ids.length) throw new Error('Common Crawl returned no index identities');
+  return ids;
 }
 
 async function ccNumPages(indexId: string, baseDomain: string, ctx: Ctx): Promise<number> {
@@ -133,8 +144,7 @@ async function ccPage(indexId: string, baseDomain: string, page: number, ctx: Ct
   const res = await ctx.fetchText(url, { kind: 'api', retries: 2, timeoutMs: 60_000, headers: CC_HEADERS });
   if (res.status !== 200) {
     // One bad page shouldn't abort the platform, but it must not pass as an empty page either.
-    ctx.log(`  cc ${indexId} page ${page}: HTTP ${res.status} — skipped`);
-    return [];
+    throw new Error(`Common Crawl ${indexId} page ${page}: HTTP ${res.status}`);
   }
   return res.text.trim().split('\n').filter(Boolean);
 }
@@ -160,17 +170,17 @@ async function ccUnion(
 
 /** Union of subdomain tenant tokens (`<token>.baseDomain`) across the newest monthly crawls. */
 export function ccTokens(baseDomain: string, ctx: Ctx, opts: { indexes?: number; maxPages?: number } = {}): Promise<string[]> {
-  return ccUnion(baseDomain, ctx, (lines) => tokensFromCcLines(lines, baseDomain), opts);
+  return cachedDiscovery(`subdomains:${baseDomain}`, ctx, () => ccUnion(baseDomain, ctx, (lines) => tokensFromCcLines(lines, baseDomain), opts));
 }
 
 /** Union of path tenant tokens (`<host>/<token>`) across the newest monthly crawls. */
 export function ccPathTokens(baseDomain: string, ctx: Ctx, hosts: string[], opts: { indexes?: number; maxPages?: number } = {}): Promise<string[]> {
-  return ccUnion(baseDomain, ctx, (lines) => tokensFromCcPaths(lines, hosts), opts);
+  return cachedDiscovery(`paths:${baseDomain}:${hosts.join(',')}`, ctx, () => ccUnion(baseDomain, ctx, (lines) => tokensFromCcPaths(lines, hosts), opts));
 }
 
 /** Union raw captured URLs for host+path/query tenant discovery. */
 export function ccUrls(baseDomain: string, ctx: Ctx, opts: { indexes?: number; maxPages?: number } = {}): Promise<string[]> {
-  return ccUnion(baseDomain, ctx, urlsFromCcLines, opts);
+  return cachedDiscovery(`urls:${baseDomain}`, ctx, () => ccUnion(baseDomain, ctx, urlsFromCcLines, opts));
 }
 
 /** Targeted wildcard URL discovery (for example `*.nl/vacature/*`). Common Crawl accepts wildcard
@@ -181,18 +191,23 @@ export async function ccPatternUrls(
   ctx: Ctx,
   opts: { indexes?: number; maxPages?: number } = {},
 ): Promise<string[]> {
+  return cachedDiscovery(`pattern:${pattern}`, ctx, () => loadPatternUrls(pattern, ctx, opts));
+}
+
+async function loadPatternUrls(pattern: string, ctx: Ctx, opts: {indexes?: number; maxPages?: number}): Promise<string[]> {
   const indexes = await ccLatestIndexes(ctx, opts.indexes ?? 2);
   const out = new Set<string>();
   for (const indexId of indexes) {
     const base = `${HOST}/${indexId}-index?url=${encodeURIComponent(pattern)}&output=json&fl=url&filter=status:200&filter=mime:text/html&collapse=urlkey`;
     const info = await ctx.fetchText(`${base}&showNumPages=true`, { kind: 'api', retries: 2, timeoutMs: 30_000, headers: CC_HEADERS });
-    if (info.status !== 200) continue;
+    if (info.status === 404) continue;
+    if (info.status !== 200) throw new Error(`Common Crawl pattern metadata HTTP ${info.status}`);
     let pages = 1;
     try { pages = Math.max(1, Number((JSON.parse(info.text) as { pages?: number }).pages) || 1); } catch { /* one page */ }
     pages = Math.min(pages, opts.maxPages ?? 5);
     for (let page = 0; page < pages; page++) {
       const res = await ctx.fetchText(`${base}&page=${page}`, { kind: 'api', retries: 1, timeoutMs: 60_000, headers: CC_HEADERS });
-      if (res.status !== 200) continue;
+      if (res.status !== 200) throw new Error(`Common Crawl pattern page HTTP ${res.status}`);
       for (const url of urlsFromCcLines(res.text.trim().split('\n').filter(Boolean))) out.add(url);
     }
     ctx.log(`  cc pattern ${pattern} / ${indexId}: ${pages} page(s), ${out.size} urls`);

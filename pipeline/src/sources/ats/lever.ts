@@ -50,6 +50,7 @@ export const leverSource: JobSource = {
           [p.categories?.location, p.country].filter(Boolean).join(', ') ||
           undefined,
         department: p.categories?.team || p.categories?.department || undefined,
+        country_code: p.country,
         employment_type: p.categories?.commitment || undefined,
         description: p.descriptionPlain?.trim() || undefined,
         posted_date: p.createdAt ? new Date(p.createdAt).toISOString() : undefined,

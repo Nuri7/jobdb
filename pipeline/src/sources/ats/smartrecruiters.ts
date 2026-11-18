@@ -29,9 +29,10 @@ export const smartrecruitersSource: JobSource = {
     if (!board) throw new SourceGoneError('smartrecruiters: no board_id');
 
     const postings: SrPosting[] = [];
-    for (let offset = 0; offset < 500; offset += 100) {
+    let total = Infinity;
+    for (let offset = 0; offset < total && offset < 5000; offset += 100) {
       const res = await ctx.fetchText(
-        `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(board)}/postings?limit=100&offset=${offset}`,
+        `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(board)}/postings?limit=100&offset=${offset}&country=nl`,
         { kind: 'api', timeoutMs: 20_000 },
       );
       if (res.status === 404) throw new SourceGoneError(`smartrecruiters company gone: ${board}`);
@@ -43,6 +44,7 @@ export const smartrecruitersSource: JobSource = {
         throw new Error('smartrecruiters: invalid JSON');
       }
       postings.push(...(page.content ?? []));
+      total = page.totalFound ?? postings.length;
       if (postings.length >= (page.totalFound ?? 0) || (page.content?.length ?? 0) < 100) break;
     }
 
@@ -69,6 +71,7 @@ export const smartrecruitersSource: JobSource = {
         job_url: `https://jobs.smartrecruiters.com/${encodeURIComponent(board)}/${p.id}`,
         job_title: p.name,
         location: [p.location?.city, p.location?.country?.toUpperCase()].filter(Boolean).join(', ') || undefined,
+        country_code: p.location?.country,
         department: p.department?.label || undefined,
         employment_type: p.typeOfEmployment?.label || undefined,
         experience_level: p.experienceLevel?.label || undefined,
@@ -81,6 +84,10 @@ export const smartrecruitersSource: JobSource = {
     if (postings.length > DETAIL_CAP) {
       ctx.log(`  smartrecruiters: descriptions capped at ${DETAIL_CAP}/${postings.length}`);
     }
-    return dedupeJobs(jobs);
+    const result = dedupeJobs(jobs);
+    ctx.liveUrls = new Set(result.map(job => job.job_url));
+    ctx.liveUrlsComplete = postings.length >= total && result.length === postings.length;
+    ctx.liveCountryCodes = ['NL','NLD','NETHERLANDS','NEDERLAND','THE NETHERLANDS'];
+    return result;
   },
 };

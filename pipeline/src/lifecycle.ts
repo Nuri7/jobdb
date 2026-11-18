@@ -13,7 +13,7 @@ import {
 import { resolveCompany } from './resolver/index.js';
 import { sourceFor } from './sources/registry.js';
 import type { CanonicalJob, CompanyRow, Ctx, SourceType } from './types.js';
-import { SourceGoneError, ZeroExtractionError } from './types.js';
+import { SourceGoneError, SourceRateLimitError, ZeroExtractionError } from './types.js';
 
 export interface CompanyOutcome {
   company: string;
@@ -63,6 +63,7 @@ export async function fetchJobsWithEscalation(company: CompanyRow, ctx: Ctx): Pr
 
   for (const type of chain) {
     try {
+      if (ctx.allowRendered === false && (type === 'rendered' || type === 'ats:successfactors')) throw new Error('Source requires manual rendered-page review');
       const jobs = await sourceFor(type).fetchJobs({ ...company, source_type: type }, ctx);
       // ATS structured adapters yield genuine, applyable vacancies -> always verified.
       if (type.startsWith('ats:')) for (const j of jobs) j.verified = true;
@@ -95,7 +96,10 @@ function needsResolve(company: CompanyRow): boolean {
  * failures never close jobs; a killed run leaves the company due.
  */
 export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Promise<CompanyOutcome> {
+  // A refresh shares its network/LLM clients, never another company's live roster.
+  ctx = { ...ctx, scrapedUrls: undefined, liveUrls: undefined, liveUrlsComplete: undefined, liveCountryCodes: undefined };
   const name = company.company_name;
+  let historyId: string | null = null;
 
   try {
     // ---------- Resolve when needed ----------
@@ -167,7 +171,7 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     ctx.liveUrlsComplete = undefined;
 
     // ---------- Full scrape (with tier escalation) ----------
-    const historyId = ctx.dryRun ? null : await insertHistory(db, company.id, company.career_url ?? '', method);
+    historyId = ctx.dryRun ? null : await insertHistory(db, company.id, company.career_url ?? '', method);
     let jobs: CanonicalJob[];
     try {
       const fetched = await fetchJobsWithEscalation(company, ctx);
@@ -242,7 +246,9 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
       .filter((j) => j.status === 'open' && liveSet.has(j.job_url) && !writeUrls.has(j.job_url))
       .map((j) => j.id);
     // Only genuinely-gone jobs (no longer in the live set) count as missed.
-    const missedIds = existing.filter((j) => j.status === 'open' && !liveSet.has(j.job_url)).map((j) => j.id);
+    const missedIds = existing.filter((j) => j.status === 'open' && !liveSet.has(j.job_url)
+      && (!ctx.liveCountryCodes || ctx.liveCountryCodes.includes((j.country_code ?? '').toUpperCase())))
+      .map((j) => j.id);
 
     // Mass-close circuit breaker. Only close jobs absent from the live set when we trust that set to
     // be COMPLETE. A truncated source fetch (a big sitemap that came back partial this run) yields a
@@ -275,7 +281,7 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
     const hadChanges = toWrite.length > 0 || closedIds.length > 0;
     const openNow = await finalizeSuccess(db, company, null, hadChanges);
     await completeHistory(db, historyId, {
-      status: 'completed',
+      status: ctx.liveUrlsComplete === false ? 'partial' : 'completed',
       jobs_found: jobs.length,
       jobs_inserted: toWrite.length,
       jobs_removed: closedIds.length,
@@ -293,12 +299,13 @@ export async function processCompany(db: Db, ctx: Ctx, company: CompanyRow): Pro
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (!ctx.dryRun) {
+      await completeHistory(db, historyId, { status: 'failed', error_message: message.slice(0, 500) });
       const failures = company.consecutive_failures + 1;
       const backoffH = Math.min(company.check_interval_hours * 2 ** Math.min(failures, 3), MAX_INTERVAL_H);
       const patch: Record<string, unknown> = {
         crawl_status: 'failed',
         consecutive_failures: failures,
-        next_check_at: nextCheckAt(backoffH),
+        next_check_at: nextCheckAt(Math.max(backoffH, err instanceof SourceRateLimitError ? err.retryAfterMs / 3600000 : 0)),
       };
       // A permanently-gone source must be re-resolved next time it's picked up
       if (err instanceof SourceGoneError) patch.career_page_status = 'unverified';

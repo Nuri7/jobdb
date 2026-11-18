@@ -10,12 +10,21 @@ export interface ResolveOpts {
   company?: string;
   mode: 'unverified' | 'broken' | 'stale' | 'all';
   dryRun: boolean;
+  budgetMin?: number;
+  dueOnly?: boolean;
 }
 
 async function resolveOne(db: Db, ctx: Ctx, company: CompanyRow, force: boolean): Promise<ResolveResult | null> {
   if (company.source_type?.startsWith('freelance:')) return null;
   if (!force && company.career_page_status === 'verified' && company.source_type) return null;
   const result = await resolveCompany(company, ctx, db);
+  if (company.source_type && company.career_page_status === 'verified' && !result.source_type) {
+    // A blocked/unreachable HTML page does not prove its configured API has disappeared.
+    // Refresh will verify the adapter itself, and SourceGoneError can then re-resolve it.
+    if (!ctx.dryRun) await updateCompany(db, company.id, {crawl_status: 'failed', next_check_at: new Date(Date.now() + 86400000).toISOString()});
+    ctx.log(`  ${company.company_name}: page unavailable; retained known ${company.source_type} adapter for retry`);
+    return {...result, source_type: company.source_type, source_config: company.source_config};
+  }
   if (!ctx.dryRun) {
     // dead: retry weekly; ambiguous: monthly (duplicate boards rarely un-duplicate);
     // newly (re)verified: make due NOW so the next refresh scrapes the corrected page.
@@ -49,8 +58,8 @@ function safeOrigin(url: string | null): string | null {
 export async function resolveCommand(opts: ResolveOpts): Promise<void> {
   const cfg = config();
   const db = createDb({ readOnly: opts.dryRun });
-  const ctx = buildCtx(opts.dryRun);
   const startedAt = Date.now();
+  const ctx = buildCtx(opts.dryRun, false, startedAt + (opts.budgetMin ?? 50) * 60000);
 
   let companies: CompanyRow[];
   if (opts.company) {
@@ -62,10 +71,9 @@ export async function resolveCommand(opts: ResolveOpts): Promise<void> {
     }
     companies = [one];
   } else {
-    companies = await pickResolvable(db, opts.limit ?? 100_000, opts.mode);
+    companies = await pickResolvable(db, opts.limit ?? 100_000, opts.mode, opts.dueOnly);
   }
-  // 'all'/'stale' re-resolve even already-verified companies; 'broken'/'unverified' skip them.
-  const forceEach = opts.mode === 'all' || opts.mode === 'stale';
+  const forceEach = opts.mode !== 'unverified';
   console.log(`Resolving ${companies.length} companies (concurrency ${cfg.COMPANY_CONCURRENCY})…`);
 
   const pool = pLimit(cfg.COMPANY_CONCURRENCY);
@@ -75,6 +83,7 @@ export async function resolveCommand(opts: ResolveOpts): Promise<void> {
   await Promise.all(
     companies.map((company) =>
       pool(async () => {
+        if (Date.now() - startedAt >= (opts.budgetMin ?? 50) * 60000) return;
         try {
           const result = await resolveOne(db, ctx, company, forceEach || Boolean(opts.company));
           done++;

@@ -31,3 +31,6 @@ migration-data/
 
 deno.lock
 supabase/.temp/
+
+# Public discovery candidates are persisted by CI cache, not source control.
+pipeline/.cache/

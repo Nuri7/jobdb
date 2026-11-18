@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseWorkdayBoardId, workdaySource } from '../src/sources/ats/workday.js';
+import { netherlandsFacet, parseWorkdayBoardId, workdaySource } from '../src/sources/ats/workday.js';
 import type { CompanyRow, Ctx, FetchTextOpts } from '../src/types.js';
 
 const company: CompanyRow = {
@@ -23,6 +23,25 @@ const company: CompanyRow = {
 };
 
 describe('Workday adapter', () => {
+  it('uses only a Netherlands facet actually supplied by the current board', () => {
+    expect(netherlandsFacet({facets: [{facetParameter: 'locationCountry', values: [{id: 'nl-from-source', descriptor: 'Netherlands'}]}]})).toBe('nl-from-source');
+    expect(netherlandsFacet({facets: [{facetParameter: 'locationCity', values: [{id: 'wrong', descriptor: 'Netherlands'}]}]})).toBeUndefined();
+  });
+  it('fetches a country-scoped roster and declares incomplete pagination honestly', async () => {
+    const calls: Record<string, unknown>[] = [];
+    const ctx: Ctx = {dryRun: true, llm: null, log: () => {}, robotsAllowed: async () => true,
+      fetchText: async (url, opts) => {
+        const body = JSON.parse(opts!.body!); calls.push(body);
+        return {status: 200, finalUrl: url, contentType: 'application/json', text: JSON.stringify(calls.length === 1
+          ? {total: 10000, facets: [{facetParameter: 'locationCountry', values: [{id: 'actual-nl', descriptor: 'Netherlands'}]}]}
+          : {total: 100, jobPostings: [{title: 'Product Owner', externalPath: '/job/Amsterdam/PO_R1', locationsText: 'Amsterdam'}]})};
+      }};
+    const jobs = await workdaySource.fetchJobs(structuredClone(company), ctx);
+    expect(calls[1]?.appliedFacets).toEqual({locationCountry: ['actual-nl']});
+    expect(jobs[0]?.country_code).toBe('NL');
+    expect(ctx.liveCountryCodes).toContain('NL');
+    expect(ctx.liveUrlsComplete).toBe(false);
+  });
   it('parses host, tenant and site from the stored board id', () => {
     expect(parseWorkdayBoardId('acme.wd3.myworkdayjobs.com|Careers')).toEqual({
       host: 'acme.wd3.myworkdayjobs.com', tenant: 'acme', site: 'Careers',

@@ -26,7 +26,13 @@ export async function discoverDomainsCommand(opts: { limit?: number; dryRun: boo
   const ctx = buildCtx(opts.dryRun);
   const db = createDb({ readOnly: opts.dryRun });
   const patterns = ['*.nl/vacature/*', '*.nl/vacatures/*', '*.nl/jobs/*', '*.nl/werken-bij/*'];
-  const batches = await Promise.all(patterns.map((pattern) => ccPatternUrls(pattern, ctx, { indexes: 2, maxPages: 4 })));
+  const results = await Promise.allSettled(patterns.map((pattern) => ccPatternUrls(pattern, ctx, { indexes: 2, maxPages: 4 })));
+  const batches: string[][] = [];
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') batches.push(result.value);
+    else console.error(`Discovery ${patterns[i]} failed: ${String(result.reason)}`);
+  });
+  if (!batches.length) throw new Error('All Dutch-domain discovery inputs unavailable; existing sources preserved');
   const byHost = new Map<string, string>();
   for (const raw of batches.flat()) {
     try {
@@ -50,6 +56,7 @@ export async function discoverDomainsCommand(opts: { limit?: number; dryRun: boo
   let accepted = 0;
   let rejected = 0;
   await Promise.all(candidates.map(([host, sampleUrl]) => pool(async () => {
+    if (!(await ctx.robotsAllowed(sampleUrl))) return;
     const res = await ctx.fetchText(sampleUrl, { kind: 'html', retries: 1, timeoutMs: 15_000 }).catch(() => null);
     const postings = res?.status === 200 ? jobPostingsFromHtml(res.text, res.finalUrl) : [];
     const hasApplyablePosting = postings.some((job) => job.verified && job.job_title && job.job_url);

@@ -4,7 +4,7 @@ import { jobsFromApiBodies } from '../extract/json-jobs.js';
 import { jobPostingsFromHtml } from './jsonld.js';
 import { extractJobLinks, jobsViaDetailPages, locationFromDetailHtml } from './shared.js';
 import type { CanonicalJob, CompanyRow, Ctx, JobSource } from '../types.js';
-import { SourceGoneError } from '../types.js';
+import { SourceGoneError, ZeroExtractionError } from '../types.js';
 
 type PlaywrightModule = typeof import('playwright');
 let pw: PlaywrightModule | null = null;
@@ -257,6 +257,7 @@ export const renderedSource: JobSource = {
 
   async fetchJobs(company: CompanyRow, ctx: Ctx): Promise<CanonicalJob[]> {
     if (!company.career_url) throw new SourceGoneError('rendered: no career_url');
+    if (!(await ctx.robotsAllowed(company.career_url))) throw new Error('rendered: robots policy blocks listing');
     const base = new URL(company.career_url).origin;
     const { html, apiBodies } = await renderPage(company.career_url);
 
@@ -292,6 +293,11 @@ export const renderedSource: JobSource = {
     }
 
     // 3) LLM reads the listing
+    if (!ctx.llm) {
+      ctx.log(`  rendered: deterministic extraction found ${inline.length} jobs; model fallback disabled`);
+      if (!inline.length && links.length) throw new ZeroExtractionError('rendered job links need a structured adapter', links.length);
+      return dedupeJobs(inline);
+    }
     const llmJobs = await llmJobsFromListing(html, company.career_url, ctx);
     ctx.log(`  rendered: LLM extracted ${llmJobs.length} jobs`);
     return dedupeJobs([...(await enrichLocations(llmJobs, ctx)), ...inline]);

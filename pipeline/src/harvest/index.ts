@@ -11,6 +11,7 @@ import {
 import { buildCtx } from '../refresh.js';
 import type { AtsName, Ctx } from '../types.js';
 import { ccPathTokens, ccTokens, ccUrls } from './commoncrawl.js';
+import { hiringFeedBoards } from './hiring-feed.js';
 import {
   validateAshby,
   validateAfas,
@@ -68,6 +69,7 @@ export interface HarvestOpts {
   dryRun: boolean;
   /** How many recent monthly Common Crawl indexes to union (wider = more coverage). */
   ccIndexes?: number;
+  independentOnly?: boolean;
 }
 
 interface Discoverer {
@@ -160,15 +162,15 @@ async function harvestOne(ats: AtsName, disc: Discoverer, opts: HarvestOpts, ctx
   const db = createDb({ readOnly: opts.dryRun });
   console.log(`\n=== ${ats} ===`);
 
-  // 1. Discover the full tenant roster from Common Crawl.
-  let tokens: string[];
-  try {
-    tokens = await disc.discover(ctx, opts.ccIndexes);
-  } catch (err) {
-    console.error(`  discovery failed: ${err instanceof Error ? err.message : err}`);
-    return;
-  }
-  console.log(`  discovered ${tokens.length} candidate tokens via Common Crawl`);
+  const inputs = await Promise.allSettled([
+    ...(opts.independentOnly ? [] : [disc.discover(ctx, opts.ccIndexes)]),
+    hiringFeedBoards(ctx).then(boards => boards.filter(fp => fp.ats === ats).map(fp =>
+      ats === 'personio' ? fp.boardId.split('.')[0]! : fp.boardId)),
+  ]);
+  const tokens = [...new Set(inputs.flatMap(result => result.status === 'fulfilled' ? result.value : []))];
+  inputs.forEach(result => { if (result.status === 'rejected') console.warn(`  discovery input unavailable: ${String(result.reason)}`); });
+  if (inputs.every(result => result.status === 'rejected')) throw new Error(`All ${ats} discovery inputs unavailable`);
+  console.log(`  discovered ${tokens.length} candidate tokens from available discovery inputs`);
   if (tokens.length === 0) return;
 
   // 2. Drop the ones we already track (comparing on the bare token, not the raw board_id).
@@ -245,13 +247,16 @@ export async function harvestCommand(opts: HarvestOpts): Promise<void> {
   console.log(
     `Harvesting ${opts.ats.join(', ')} — keep boards with ≥${opts.minNl} NL job(s)${opts.dryRun ? ' [dry-run, no writes]' : ''}`,
   );
+  let failures = 0;
   for (const ats of opts.ats) {
     const disc = DISCOVERERS[ats];
     if (!disc) {
       console.error(`\n=== ${ats} ===\n  no harvester yet (available: ${harvestableAts().join(', ')})`);
       continue;
     }
-    await harvestOne(ats, disc, opts, ctx);
+    try { await harvestOne(ats, disc, opts, ctx); }
+    catch { failures++; }
   }
   console.log(`\nHarvest done in ${Math.round((Date.now() - startedAt) / 1000)}s.`);
+  if (failures) throw new Error(`${failures}/${opts.ats.length} discovery inputs unavailable (existing jobs preserved)`);
 }

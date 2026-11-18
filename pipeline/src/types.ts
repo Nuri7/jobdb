@@ -98,6 +98,8 @@ export interface SourceConfig {
   duplicate_of?: string;
   detail_cursor?: number;
   max_details?: number;
+  /** Country facet identity observed in this board's own Workday response. */
+  workday_nl_facet?: string;
 }
 
 export interface CompanyRow {
@@ -133,6 +135,7 @@ export interface FetchResult {
   contentType: string;
   etag?: string;
   notModified?: boolean;
+  retryAfterMs?: number;
 }
 
 export interface Ctx {
@@ -155,6 +158,10 @@ export interface Ctx {
    *  (a child sitemap failed, fan-out/entry cap hit), so reconcile must not close jobs absent from
    *  it. undefined = the source can't report completeness; reconcile falls back to a fraction guard. */
   liveUrlsComplete?: boolean;
+  /** A country-filtered roster can reconcile only previously known jobs in that scope. */
+  liveCountryCodes?: string[];
+  /** Submitted arbitrary URLs use a DNS-pinned HTTP client and cannot launch Chromium. */
+  allowRendered?: boolean;
 }
 
 export interface FetchTextOpts {
@@ -190,6 +197,10 @@ export class SourceGoneError extends Error {
     super(message);
     this.name = 'SourceGoneError';
   }
+}
+
+export class SourceRateLimitError extends Error {
+  constructor(message: string, public readonly retryAfterMs = 0) {super(message); this.name = 'SourceRateLimitError';}
 }
 
 /**

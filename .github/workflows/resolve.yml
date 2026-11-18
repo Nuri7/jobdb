@@ -44,9 +44,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-haiku-4-5-20251001' }}
+          LLM_API_KEY: '' # Deterministic source extraction only; no paid provider calls
           COMPANY_CONCURRENCY: ${{ vars.COMPANY_CONCURRENCY || '16' }}
         # Weekly health sweep: re-check broken/moved pages AND verified-but-empty ones
         # (0 jobs = likely wrong/moved page). Manual dispatch with all:true re-resolves everything.

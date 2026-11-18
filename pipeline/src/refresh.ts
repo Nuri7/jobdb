@@ -1,6 +1,6 @@
 import pLimit from 'p-limit';
 import { config } from './config.js';
-import { closeExpiredJobs, createDb, findCompany, pickDueCompanies, pruneHistory, staleCompanies, type RefreshLane } from './db.js';
+import { closeExpiredJobs, createDb, findCompany, pickDueCompanies, staleCompanies, type RefreshLane } from './db.js';
 import { createLlmClient } from './extract/llm.js';
 import { processCompany, stalenessSweep, type CompanyOutcome } from './lifecycle.js';
 import { politeFetchText, createRobotsChecker } from './politeness.js';
@@ -17,13 +17,16 @@ export interface RefreshOpts {
   lane?: RefreshLane;
 }
 
-export function buildCtx(dryRun: boolean, force = false): Ctx {
+export function buildCtx(dryRun: boolean, force = false, deadline = Infinity): Ctx {
   const cfg = config();
   return {
     log: (m) => console.log(m),
     dryRun,
     force,
-    fetchText: politeFetchText,
+    fetchText: (url, opts) => {
+      if (Date.now() >= deadline) throw new Error('Crawl time budget reached; remaining source stays due');
+      return politeFetchText(url, opts);
+    },
     llm: createLlmClient((m) => console.log(`[llm] ${m}`)),
     robotsAllowed: createRobotsChecker(cfg.ROBOTS_RESPECT),
   };
@@ -32,9 +35,9 @@ export function buildCtx(dryRun: boolean, force = false): Ctx {
 export async function refreshCommand(opts: RefreshOpts): Promise<void> {
   const cfg = config();
   const db = createDb({ readOnly: opts.dryRun });
-  const ctx = buildCtx(opts.dryRun, opts.force);
   const startedAt = Date.now();
   const deadline = startedAt + opts.budgetMin * 60_000;
+  const ctx = buildCtx(opts.dryRun, opts.force, deadline);
 
   const outcomes: CompanyOutcome[] = [];
   const pool = pLimit(cfg.COMPANY_CONCURRENCY);
@@ -99,8 +102,6 @@ export async function refreshCommand(opts: RefreshOpts): Promise<void> {
         }
         const expired = await closeExpiredJobs(db);
         if (expired > 0) console.log(`Closed ${expired} jobs past their closing_date`);
-        const pruned = await pruneHistory(db, 90);
-        if (pruned > 0) console.log(`Pruned ${pruned} scrape_history rows (>90d)`);
       } catch (err) {
         console.error(`maintenance: ${err instanceof Error ? err.message : err}`);
       }

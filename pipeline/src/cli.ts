@@ -8,6 +8,8 @@ import { snapshotCommand } from './snapshot.js';
 import { statsCommand } from './stats.js';
 import { discoverDomainsCommand } from './discover-domains.js';
 import { ATS_NAMES, type AtsName } from './types.js';
+import { recoverCommand } from './recover.js';
+import { sourceRequestsCommand } from './source-requests.js';
 
 const HELP = `jobdb pipeline
 
@@ -19,6 +21,8 @@ Usage:
   tsx src/cli.ts snapshot [--dry-run]
   tsx src/cli.ts stats    [--format text|md|json]
   tsx src/cli.ts enrich [--limit 30] [--dry-run]
+  tsx src/cli.ts recover [--limit 100] [--budget-min 15] [--dry-run]
+  tsx src/cli.ts source-requests [--limit 20] [--dry-run]
   tsx src/cli.ts probe <url> [name]      (DB-less: resolve + fetch one company, write nothing)
 
 resolve  Verify career pages + fingerprint job sources (writes company rows only)
@@ -39,6 +43,9 @@ async function main(): Promise<void> {
       all: { type: 'boolean', default: false }, // full re-resolve of every company
       force: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
+      metadata: { type: 'boolean', default: false },
+      'due-only': { type: 'boolean', default: false },
+      'independent-only': { type: 'boolean', default: false },
       'budget-min': { type: 'string', default: '50' },
       shard: { type: 'string' }, // "k/n" — process only companies in shard k of n (parallel backfill)
       lane: { type: 'string' }, // refresh lane: fast ATS/API, structured sitemap/static, or rendered
@@ -77,7 +84,13 @@ async function main(): Promise<void> {
 
   switch (command) {
     case 'enrich':
-      await enrichCommand(limit ?? 30, values['dry-run']);
+      await enrichCommand(limit ?? 500, values['dry-run'], Number(values['budget-min']) || 12, values.metadata, values.ats ? `ats:${values.ats}` : undefined);
+      break;
+    case 'recover':
+      await recoverCommand(limit ?? 100, Number(values['budget-min']) || 15, values['dry-run']);
+      break;
+    case 'source-requests':
+      await sourceRequestsCommand(limit ?? 20, values['dry-run'], Number(values['budget-min']) || 12);
       break;
     case 'resolve': {
       const mode = values.all || values.force ? 'all' : values.stale ? 'stale' : values['only-broken'] ? 'broken' : 'unverified';
@@ -86,6 +99,8 @@ async function main(): Promise<void> {
         company: values.company,
         mode,
         dryRun: values['dry-run'] ?? false,
+        budgetMin: Number(values['budget-min']) || 50,
+        dueOnly: values['due-only'],
       });
       break;
     }
@@ -128,6 +143,7 @@ async function main(): Promise<void> {
         limit,
         minNl,
         ccIndexes,
+        independentOnly: values['independent-only'],
         dryRun: values['dry-run'] ?? false,
       });
       break;

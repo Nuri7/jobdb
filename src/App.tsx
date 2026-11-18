@@ -19,6 +19,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const Saved = lazy(() => import("./pages/Saved"));
 const VacancyDetail = lazy(() => import("./pages/VacancyDetail"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const SuggestEmployer = lazy(() => import("./pages/SuggestEmployer"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +46,7 @@ function AppShell() {
           <Route path="/map" element={<Navigate to="/kaart" replace />} />
           <Route path="/bewaard" element={<Saved />} />
           <Route path="/inloggen" element={<Auth />} />
+          <Route path="/werkgever-toevoegen" element={<SuggestEmployer />} />
           <Route path="/features" element={<Features />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/admin/api" element={<AdminRoute><Api /></AdminRoute>} />
